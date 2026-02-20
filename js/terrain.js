@@ -72,7 +72,8 @@ function generateHeightmap(seed, difficulty) {
   var half = MAP_SIZE / 2;
 
   // scale noise coverage based on difficulty (more land at higher difficulty)
-  var landThreshold = 0.48 - difficulty * 0.02;  // lower threshold = more land
+  // ~80% ocean at easy (diff 1), ~70% ocean at hard (diff 6); naval game needs open water
+  var landThreshold = Math.max(0.57, 0.63 - difficulty * 0.01);  // lower = more land
 
   for (var iy = 0; iy < size; iy++) {
     for (var ix = 0; ix < size; ix++) {
