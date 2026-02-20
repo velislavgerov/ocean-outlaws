@@ -21,6 +21,7 @@ var abilityLabel = null;
 var abilityBarBg = null;
 var abilityBar = null;
 var abilityStatus = null;
+var weatherLabel = null;
 
 // overlay elements
 var banner = null;
@@ -249,6 +250,14 @@ export function createHUD() {
 
   container.appendChild(abilityContainer);
 
+  // weather indicator
+  weatherLabel = document.createElement("div");
+  weatherLabel.textContent = "CALM";
+  weatherLabel.style.marginTop = "10px";
+  weatherLabel.style.fontSize = "12px";
+  weatherLabel.style.color = "#667788";
+  container.appendChild(weatherLabel);
+
   document.body.appendChild(container);
 
   // --- wave announcement banner (centered, fades out) ---
@@ -378,7 +387,7 @@ export function hideOverlay() {
   overlay.style.display = "none";
 }
 
-export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo) {
+export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText) {
   if (!container) return;
 
   var pct = Math.min(1, speedRatio) * 100;
@@ -482,6 +491,13 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
       abilityStatus.textContent = "READY";
       abilityStatus.style.color = abilityInfo.color || "#cc66ff";
     }
+  }
+
+  // weather indicator
+  if (weatherText && weatherLabel) {
+    weatherLabel.textContent = "WEATHER: " + weatherText;
+    var wColors = { CALM: "#44aa66", ROUGH: "#ccaa44", STORM: "#cc4444" };
+    weatherLabel.style.color = wColors[weatherText] || "#667788";
   }
 
   // update banner

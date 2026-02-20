@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 var vertexShader = /* glsl */ `
   uniform float uTime;
+  uniform float uWaveAmp;
   varying float vHeight;
   varying vec2 vUv;
 
@@ -9,16 +10,18 @@ var vertexShader = /* glsl */ `
     vUv = uv;
     vec3 pos = position;
 
+    float amp = uWaveAmp;
+
     // layer 1 — broad swells
-    pos.z += sin(pos.x * 0.3 + uTime * 0.8) * 1.2;
-    pos.z += sin(pos.y * 0.2 + uTime * 0.6) * 1.0;
+    pos.z += sin(pos.x * 0.3 + uTime * 0.8) * 1.2 * amp;
+    pos.z += sin(pos.y * 0.2 + uTime * 0.6) * 1.0 * amp;
 
     // layer 2 — medium chop
-    pos.z += sin(pos.x * 0.8 + pos.y * 0.6 + uTime * 1.4) * 0.5;
+    pos.z += sin(pos.x * 0.8 + pos.y * 0.6 + uTime * 1.4) * 0.5 * amp;
 
     // layer 3 — small ripples
-    pos.z += sin(pos.x * 2.0 + uTime * 2.0) * 0.15;
-    pos.z += sin(pos.y * 2.5 + uTime * 1.8) * 0.12;
+    pos.z += sin(pos.x * 2.0 + uTime * 2.0) * 0.15 * amp;
+    pos.z += sin(pos.y * 2.5 + uTime * 1.8) * 0.12 * amp;
 
     vHeight = pos.z;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -27,6 +30,7 @@ var vertexShader = /* glsl */ `
 
 var fragmentShader = /* glsl */ `
   uniform float uTime;
+  uniform vec3 uWaterTint;
   varying float vHeight;
   varying vec2 vUv;
 
@@ -43,6 +47,9 @@ var fragmentShader = /* glsl */ `
     col = mix(col, crest, smoothstep(0.35, 0.7, t));
     col = mix(col, foam, smoothstep(0.8, 1.0, t));
 
+    // weather tint
+    col += uWaterTint;
+
     // subtle shimmer
     float shimmer = sin(vUv.x * 60.0 + uTime * 1.5) * sin(vUv.y * 60.0 + uTime * 1.2);
     col += vec3(0.01) * smoothstep(0.6, 1.0, shimmer) * t;
@@ -55,7 +62,9 @@ export function createOcean() {
   var geometry = new THREE.PlaneGeometry(400, 400, 128, 128);
 
   var uniforms = {
-    uTime: { value: 0 }
+    uTime: { value: 0 },
+    uWaveAmp: { value: 1.0 },
+    uWaterTint: { value: new THREE.Vector3(0, 0, 0) }
   };
 
   var material = new THREE.ShaderMaterial({
@@ -71,27 +80,35 @@ export function createOcean() {
   return { mesh: mesh, uniforms: uniforms };
 }
 
-export function updateOcean(uniforms, elapsed) {
+export function updateOcean(uniforms, elapsed, waveAmplitude, waterTint) {
   uniforms.uTime.value = elapsed;
+  if (waveAmplitude !== undefined) {
+    uniforms.uWaveAmp.value = waveAmplitude;
+  }
+  if (waterTint) {
+    uniforms.uWaterTint.value.set(waterTint[0], waterTint[1], waterTint[2]);
+  }
 }
 
 // mirror the vertex shader wave function on the CPU
 // the plane is rotated -PI/2 around X, so shader pos.x = worldX, shader pos.y = worldZ
-export function getWaveHeight(worldX, worldZ, time) {
+// waveAmp: optional amplitude multiplier (defaults to 1)
+export function getWaveHeight(worldX, worldZ, time, waveAmp) {
   var x = worldX;
   var y = worldZ;
+  var amp = waveAmp !== undefined ? waveAmp : 1;
   var h = 0;
 
   // layer 1 — broad swells
-  h += Math.sin(x * 0.3 + time * 0.8) * 1.2;
-  h += Math.sin(y * 0.2 + time * 0.6) * 1.0;
+  h += Math.sin(x * 0.3 + time * 0.8) * 1.2 * amp;
+  h += Math.sin(y * 0.2 + time * 0.6) * 1.0 * amp;
 
   // layer 2 — medium chop
-  h += Math.sin(x * 0.8 + y * 0.6 + time * 1.4) * 0.5;
+  h += Math.sin(x * 0.8 + y * 0.6 + time * 1.4) * 0.5 * amp;
 
   // layer 3 — small ripples
-  h += Math.sin(x * 2.0 + time * 2.0) * 0.15;
-  h += Math.sin(y * 2.5 + time * 1.8) * 0.12;
+  h += Math.sin(x * 2.0 + time * 2.0) * 0.15 * amp;
+  h += Math.sin(y * 2.5 + time * 1.8) * 0.12 * amp;
 
   return h;
 }

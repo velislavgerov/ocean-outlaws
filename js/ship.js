@@ -220,6 +220,14 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
   ship.posX += Math.sin(ship.heading) * ship.speed * dt;
   ship.posZ += Math.cos(ship.heading) * ship.speed * dt;
 
+  // wind force (from weather system)
+  if (upgradeMults && upgradeMults.windX) {
+    ship.posX += upgradeMults.windX * dt;
+  }
+  if (upgradeMults && upgradeMults.windZ) {
+    ship.posZ += upgradeMults.windZ * dt;
+  }
+
   ship.mesh.position.x = ship.posX;
   ship.mesh.position.z = ship.posZ;
   ship.mesh.rotation.y = ship.heading;

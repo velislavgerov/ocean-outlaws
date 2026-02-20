@@ -19,6 +19,7 @@ import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen } fr
 import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./drone.js";
 import { createMapScreen, showMapScreen, hideMapScreen } from "./mapScreen.js";
 import { loadMapState, getZone, calcStars, completeZone, buildZoneWaveConfigs, saveMapState } from "./mapData.js";
+import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, maybeChangeWeather, createRain, updateWeather } from "./weather.js";
 
 // --- salvage tuning ---
 var SALVAGE_PER_KILL = 10;
@@ -48,6 +49,14 @@ scene.add(hemi);
 // --- ocean ---
 var ocean = createOcean();
 scene.add(ocean.mesh);
+
+// --- weather ---
+var weather = createWeather("calm");
+weather.fogRef = scene.fog;
+weather.ambientRef = ambient;
+weather.sunRef = sun;
+var rain = createRain(scene);
+weather.rain = rain;
 
 // --- game state ---
 var ship = null;
@@ -158,6 +167,10 @@ function startZoneCombat(classKey, zoneId) {
   // reset drones
   resetDrones(droneMgr, scene);
 
+  // set weather based on zone condition
+  var weatherKey = zone.condition === "stormy" ? "storm" : zone.condition || "calm";
+  setWeather(weather, weatherKey);
+
   gameFrozen = false;
   gameStarted = true;
   upgradeScreenOpen = false;
@@ -246,6 +259,7 @@ setRestartCallback(function () {
     weapons.cooldown = 0;
   }
   upgradeScreenOpen = false;
+  setWeather(weather, "calm");
   hideUpgradeScreen();
   hideOverlay();
   openMap();
@@ -310,12 +324,25 @@ function animate() {
       canFire = false;
     }
 
-    updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, mults);
+    // weather: inject wind into mults, build wave height wrapper
+    var wp = getWeatherPreset(weather);
+    mults = Object.assign({}, mults);
+    mults.windX = wp.windX;
+    mults.windZ = wp.windZ;
+
+    var waveAmp = wp.waveAmplitude;
+    var weatherWaveHeight = function (wx, wz, wt) {
+      return getWaveHeight(wx, wz, wt, waveAmp);
+    };
+
+    updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults);
 
     var speedRatio = getSpeedRatio(ship);
     consumeFuel(resources, speedRatio, dt);
 
-    updateOcean(ocean.uniforms, elapsed);
+    updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, wp.waterTint);
+    updateWeather(weather, dt, scene, ship.posX, ship.posZ);
+    maybeChangeWeather(weather);
     updateNav(ship, elapsed);
     updateCamera(cam, dt, ship.posX, ship.posZ);
 
@@ -342,12 +369,12 @@ function animate() {
     updateWeapons(weapons, dt, scene, enemyMgr);
 
     // update drones
-    updateDrones(droneMgr, ship, dt, scene, enemyMgr, getWaveHeight, elapsed);
+    updateDrones(droneMgr, ship, dt, scene, enemyMgr, weatherWaveHeight, elapsed);
 
     var waveConfig = getWaveConfig(waveMgr);
-    updateEnemies(enemyMgr, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig);
+    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, waveConfig);
 
-    updatePickups(pickupMgr, ship, resources, dt, elapsed, getWaveHeight, scene);
+    updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene);
 
     var hpInfo = getPlayerHp(enemyMgr);
     var aliveEnemyCount = 0;
@@ -419,10 +446,13 @@ function animate() {
       resources.fuel, resources.maxFuel,
       resources.parts,
       waveMgr.wave, waveState, dt,
-      upgrades.salvage, weaponInfo, abilityHudInfo
+      upgrades.salvage, weaponInfo, abilityHudInfo,
+      getWeatherLabel(weather)
     );
   } else {
-    updateOcean(ocean.uniforms, elapsed);
+    var wpIdle = getWeatherPreset(weather);
+    updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waterTint);
+    updateWeather(weather, dt, scene, ship ? ship.posX : 0, ship ? ship.posZ : 0);
     if (ship) {
       updateCamera(cam, dt, ship.posX, ship.posZ);
     } else {
