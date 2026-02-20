@@ -127,7 +127,8 @@ export function createEnemyManager() {
     playerHp: PLAYER_HP,
     playerMaxHp: PLAYER_HP,
     playerArmor: 0,           // damage reduction 0-1 from upgrades
-    onDeathCallback: null     // called with (x, y, z) when enemy destroyed
+    onDeathCallback: null,    // called with (x, y, z) when enemy destroyed
+    onHitCallback: null       // called with (x, y, z, dmg) on any enemy hit
   };
 }
 
@@ -156,6 +157,11 @@ export function resetEnemyManager(manager, scene) {
 // --- set callback for enemy death (used for pickup spawning) ---
 export function setOnDeathCallback(manager, callback) {
   manager.onDeathCallback = callback;
+}
+
+// --- set callback for enemy hit (used for floating damage numbers) ---
+export function setOnHitCallback(manager, callback) {
+  manager.onHitCallback = callback;
 }
 
 // --- set player HP (used by repair system) ---
@@ -495,6 +501,9 @@ export function damageEnemy(manager, enemy, scene, damageMult) {
   var dmg = Math.round(1 * (damageMult || 1));
   if (dmg < 1) dmg = 1;
   enemy.hp -= dmg;
+  if (manager.onHitCallback) {
+    manager.onHitCallback(enemy.posX, enemy.mesh.position.y, enemy.posZ, dmg);
+  }
   if (enemy.hp <= 0) {
     enemy.alive = false;
     enemy.sinking = true;

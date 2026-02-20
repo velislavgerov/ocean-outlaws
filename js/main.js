@@ -3,11 +3,12 @@ import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
-import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, updateMuteButton, updateVolumeSlider } from "./hud.js";
+import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, updateMuteButton, updateVolumeSlider } from "./hud.js";
+import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, playWeaponSound, playExplosion, playPlayerHit, updateAmbience, playClick, playUpgrade, playWaveHorn, updateMusic, toggleMute, setMasterVolume, isMuted } from "./sound.js";
 import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
-import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
+import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
 import { createPickupManager, spawnPickup, updatePickups, clearPickups } from "./pickup.js";
@@ -104,8 +105,23 @@ createTechScreen();
 setOnDeathCallback(enemyMgr, function (x, y, z) {
   spawnPickup(pickupMgr, x, y, z, scene);
   var techB = getTechBonuses(techState);
-  addSalvage(upgrades, Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus)));
+  var sal = Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus));
+  addSalvage(upgrades, sal);
   playExplosion();
+  addKillFeedEntry("Enemy destroyed  +" + sal + " salvage", "#ffcc44");
+  triggerScreenShake(0.3);
+});
+
+setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
+  // project 3D position to screen for floating numbers
+  if (!cam || !cam.camera) return;
+  var pos = new THREE.Vector3(x, y + 1.5, z);
+  pos.project(cam.camera);
+  var sx = (pos.x * 0.5 + 0.5) * window.innerWidth;
+  var sy = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+  if (pos.z > 0 && pos.z < 1) {
+    showFloatingNumber(sx, sy, "-" + dmg, "#ffcc44");
+  }
 });
 
 var waveMgr = createWaveManager();
@@ -211,6 +227,7 @@ function startZoneCombat(classKey, zoneId) {
   gameFrozen = false;
   gameStarted = true;
   upgradeScreenOpen = false;
+  fadeIn(0.6);
   showBanner(zone.name + " — Wave 1", 3);
 }
 
@@ -419,6 +436,8 @@ function animate() {
         applyBossLoot(loot, upgrades, enemyMgr);
         showLootBanner(loot.label);
         showBanner("BOSS DEFEATED!", 3);
+        addKillFeedEntry("BOSS DEFEATED! " + loot.label, "#ff6644");
+        triggerScreenShake(1.5);
         hideBossHud();
         var bossOfficer = generateOfficerReward(Math.random() < 0.5 ? 2 : 3);
         addOfficer(crew, bossOfficer);
@@ -445,6 +464,7 @@ function animate() {
     if (event) {
       if (event === "wave_start") {
         showBanner("Wave " + waveMgr.wave + " incoming!", 3);
+        addKillFeedEntry("Wave " + waveMgr.wave + " incoming!", "#44aaff");
         playWaveHorn();
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
@@ -460,6 +480,7 @@ function animate() {
         }
       } else if (event === "wave_complete") {
         showBanner("Wave " + waveMgr.wave + " cleared!", 2.5);
+        addKillFeedEntry("Wave " + waveMgr.wave + " cleared!", "#44dd66");
         clearPickups(pickupMgr, scene);
         clearCrates(crateMgr, scene);
         if (activeBoss) {
@@ -484,14 +505,20 @@ function animate() {
           });
         }
       } else if (event === "game_over") {
-        showGameOver(waveMgr.wave);
         gameFrozen = true;
         hideBossHud();
+        fadeOut(0.4, function () {
+          showGameOver(waveMgr.wave);
+          fadeIn(0.4);
+        });
       } else if (event === "victory") {
         handleZoneVictory();
-        showVictory(waveMgr.wave);
         gameFrozen = true;
         hideBossHud();
+        fadeOut(0.4, function () {
+          showVictory(waveMgr.wave);
+          fadeIn(0.4);
+        });
       } else if (event.indexOf("repair:") === 0) {
         var newHp = parseFloat(event.split(":")[1]);
         setPlayerHp(enemyMgr, newHp);
@@ -517,10 +544,48 @@ function animate() {
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
       waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo);
 
+    // minimap: collect port positions
+    var portPositions = [];
+    if (portMgr.ports) {
+      for (var mpi = 0; mpi < portMgr.ports.length; mpi++) {
+        var mp = portMgr.ports[mpi];
+        portPositions.push({ x: mp.posX, z: mp.posZ });
+      }
+    }
+    var pickupList = pickupMgr.pickups || [];
+    var crateList = crateMgr.crates || [];
+    var allPickups = pickupList.concat(crateList);
+    updateMinimap(ship.posX, ship.posZ, ship.heading, enemyMgr.enemies, allPickups, portPositions);
+
+    updateUIEffects(dt);
+
+    // screen shake — apply camera offset
+    var shake = getShakeOffset();
+    if (shake.intensity > 0.01) {
+      cam.camera.position.x += shake.offsetX;
+      cam.camera.position.z += shake.offsetY;
+    }
+
     updateEngine(speedRatio);
     updateAmbience(weather.current);
     updateMusic(aliveEnemyCount > 0 || bossAlive);
-    if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) playPlayerHit();
+    if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) {
+      playPlayerHit();
+      var dmgAmount = prevPlayerHp - hpInfo.hp;
+      // find nearest enemy projectile direction for indicator
+      var hitAngle = 0;
+      for (var di = 0; di < enemyMgr.enemies.length; di++) {
+        var de = enemyMgr.enemies[di];
+        if (!de.alive) continue;
+        hitAngle = Math.atan2(de.posX - ship.posX, de.posZ - ship.posZ) - ship.heading;
+        break;
+      }
+      showDamageIndicator(hitAngle);
+      if (dmgAmount >= 2) triggerScreenShake(0.6 + dmgAmount * 0.2);
+      else triggerScreenShake(0.2);
+      showFloatingNumber(window.innerWidth / 2, window.innerHeight / 2 - 30,
+        "-" + dmgAmount.toFixed(1), "#ff4444");
+    }
     prevPlayerHp = hpInfo.hp;
   } else {
     var wpIdle = getWeatherPreset(weather);
@@ -535,6 +600,7 @@ function animate() {
     } else {
       updateCamera(cam, dt, 0, 0);
     }
+    updateUIEffects(dt);
   }
 
   renderer.render(scene, cam.camera);
