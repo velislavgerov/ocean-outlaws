@@ -1,5 +1,6 @@
 // enemy.js — enemy patrol boats: spawn, chase AI, firing, health, destruction
 import * as THREE from "three";
+import { isLand, collideWithTerrain, terrainBlocksLine } from "./terrain.js";
 
 // --- tuning ---
 var ENEMY_SPEED = 14;
@@ -163,17 +164,22 @@ export function setPlayerHp(manager, hp) {
 }
 
 // --- spawn a single enemy at map edge with wave multipliers ---
-function spawnEnemy(manager, playerX, playerZ, scene, waveConfig) {
+function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
   if (manager.enemies.length >= MAX_ENEMIES) return;
 
   var hpMult = waveConfig ? waveConfig.hpMult : 1;
   var speedMult = waveConfig ? waveConfig.speedMult : 1;
   var fireRateMult = waveConfig ? waveConfig.fireRateMult : 1;
 
-  var angle = Math.random() * Math.PI * 2;
-  var dist = SPAWN_DIST_MIN + Math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
-  var x = playerX + Math.sin(angle) * dist;
-  var z = playerZ + Math.cos(angle) * dist;
+  var x, z;
+  var attempts = 0;
+  do {
+    var angle = Math.random() * Math.PI * 2;
+    var dist = SPAWN_DIST_MIN + Math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
+    x = playerX + Math.sin(angle) * dist;
+    z = playerZ + Math.cos(angle) * dist;
+    attempts++;
+  } while (terrain && isLand(terrain, x, z) && attempts < 30);
 
   var mesh = buildEnemyMesh();
   mesh.position.set(x, 0.3, z);
@@ -211,7 +217,7 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig) {
 // --- update all enemies ---
 // waveMgr: wave manager from wave.js (optional, for spawn gating)
 // waveConfig: current wave config with multipliers (optional)
-export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig) {
+export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig, terrain) {
   manager.elapsed = elapsed;
 
   // --- spawning gated by wave manager ---
@@ -223,7 +229,7 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
   manager.spawnTimer -= dt;
   if (manager.spawnTimer <= 0 && shouldSpawn) {
-    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig);
+    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig, terrain);
     if (waveMgr) waveMgr.enemiesToSpawn--;
     // transition wave state if all spawned
     if (waveMgr && waveMgr.enemiesToSpawn <= 0) {
@@ -287,9 +293,20 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
     var moveSpeed = e.speed * speedFactor;
     // only move forward when roughly facing target
+    var ePrevX = e.posX;
+    var ePrevZ = e.posZ;
     if (Math.abs(angleDiff) < Math.PI * 0.6) {
       e.posX += Math.sin(e.heading) * moveSpeed * dt;
       e.posZ += Math.cos(e.heading) * moveSpeed * dt;
+    }
+
+    // terrain collision for enemies
+    if (terrain) {
+      var ecol = collideWithTerrain(terrain, e.posX, e.posZ, ePrevX, ePrevZ);
+      if (ecol.collided) {
+        e.posX = ecol.newX;
+        e.posZ = ecol.newZ;
+      }
     }
 
     // apply position to mesh
@@ -328,9 +345,10 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       turret.rotation.y = localAngle;
     }
 
-    // --- firing ---
+    // --- firing (blocked by terrain line-of-sight) ---
     e.fireTimer -= dt;
-    if (e.fireTimer <= 0 && dist < FIRE_RANGE) {
+    var hasLOS = !terrain || !terrainBlocksLine(terrain, e.posX, e.posZ, ship.posX, ship.posZ);
+    if (e.fireTimer <= 0 && dist < FIRE_RANGE && hasLOS) {
       enemyFire(manager, e, ship, scene);
       e.fireTimer = e.fireCooldown;
     }
@@ -340,7 +358,7 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
   manager.enemies = alive;
 
   // --- update enemy projectiles ---
-  updateEnemyProjectiles(manager, ship, dt, scene);
+  updateEnemyProjectiles(manager, ship, dt, scene, terrain);
 
   // --- update explosion particles ---
   updateParticles(manager, dt, scene);
@@ -387,7 +405,7 @@ function enemyFire(manager, enemy, ship, scene) {
 }
 
 // --- update enemy projectiles and check hits on player ---
-function updateEnemyProjectiles(manager, ship, dt, scene) {
+function updateEnemyProjectiles(manager, ship, dt, scene, terrain) {
   var alive = [];
   for (var i = 0; i < manager.projectiles.length; i++) {
     var p = manager.projectiles[i];
@@ -403,8 +421,9 @@ function updateEnemyProjectiles(manager, ship, dt, scene) {
     var dz = p.mesh.position.z - p.origin.z;
     var dist = Math.sqrt(dx * dx + dz * dz);
 
-    // hit water
+    // hit water or terrain
     var hitWater = p.mesh.position.y < 0.2;
+    var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var outOfRange = dist > 50;
 
     // hit player
@@ -418,7 +437,7 @@ function updateEnemyProjectiles(manager, ship, dt, scene) {
       manager.playerHp = Math.max(0, manager.playerHp - incomingDmg);
     }
 
-    if (hitWater || outOfRange || hitPlayer) {
+    if (hitWater || hitTerrain || outOfRange || hitPlayer) {
       scene.remove(p.mesh);
     } else {
       alive.push(p);

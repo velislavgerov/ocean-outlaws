@@ -1,6 +1,7 @@
 // ship.js — procedural ship model, physics state, update loop
 import * as THREE from "three";
 import { buildClassMesh } from "./shipModels.js";
+import { collideWithTerrain } from "./terrain.js";
 
 // --- default physics tuning (used as fallback) ---
 var DEFAULT_MAX_SPEED = 16;
@@ -141,7 +142,7 @@ function normalizeAngle(a) {
 }
 
 // --- update ship physics (click-to-move only, no keyboard controls) ---
-export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, upgradeMults) {
+export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, upgradeMults, terrain) {
   var speedMult = upgradeMults ? upgradeMults.maxSpeed : 1;
   var accelMult = upgradeMults ? upgradeMults.accel : 1;
 
@@ -199,6 +200,8 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
   var maxReverse = effectiveMaxSpeed * 0.3;
   ship.speed = Math.max(-maxReverse, Math.min(effectiveMaxSpeed, ship.speed));
 
+  var prevX = ship.posX;
+  var prevZ = ship.posZ;
   ship.posX += Math.sin(ship.heading) * ship.speed * dt;
   ship.posZ += Math.cos(ship.heading) * ship.speed * dt;
 
@@ -208,6 +211,17 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
   }
   if (upgradeMults && upgradeMults.windZ) {
     ship.posZ += upgradeMults.windZ * dt;
+  }
+
+  // terrain collision — bounce/stop when hitting land
+  if (terrain) {
+    var col = collideWithTerrain(terrain, ship.posX, ship.posZ, prevX, prevZ);
+    if (col.collided) {
+      ship.posX = col.newX;
+      ship.posZ = col.newZ;
+      ship.speed *= -0.3;  // bounce back
+      if (ship.navTarget) ship.navTarget = null;  // cancel nav on collision
+    }
   }
 
   ship.mesh.position.x = ship.posX;

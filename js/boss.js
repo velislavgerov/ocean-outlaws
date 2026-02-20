@@ -1,6 +1,7 @@
 // boss.js — boss definitions, state machine, attacks, telegraphs, loot
 import * as THREE from "three";
 import { buildBossMesh } from "./bossModels.js";
+import { collideWithTerrain, isLand } from "./terrain.js";
 
 // --- boss definitions ---
 var BOSS_DEFS = {
@@ -266,7 +267,7 @@ function executeAttack(boss, ship, scene, phase) {
 }
 
 // --- update boss (called every frame) ---
-export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyMgr) {
+export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyMgr, terrain) {
   if (!boss || boss.defeated) return;
 
   if (boss.sinking) {
@@ -281,7 +282,7 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
       }
     });
     if (boss.sinkTimer >= 5.0) scene.remove(boss.mesh);
-    updateBossProjectiles(boss, ship, dt, scene, enemyMgr);
+    updateBossProjectiles(boss, ship, dt, scene, enemyMgr, terrain);
     updateTelegraphs(boss, dt, scene);
     return;
   }
@@ -306,9 +307,20 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
 
   var engageDist = 25;
   var sf = dist < engageDist ? Math.max(0.1, (dist - 5) / (engageDist - 5)) : 1;
+  var bossPrevX = boss.posX;
+  var bossPrevZ = boss.posZ;
   if (Math.abs(angleDiff) < Math.PI * 0.6) {
     boss.posX += Math.sin(boss.heading) * boss.def.speed * sf * dt;
     boss.posZ += Math.cos(boss.heading) * boss.def.speed * sf * dt;
+  }
+
+  // terrain collision for boss
+  if (terrain) {
+    var bcol = collideWithTerrain(terrain, boss.posX, boss.posZ, bossPrevX, bossPrevZ);
+    if (bcol.collided) {
+      boss.posX = bcol.newX;
+      boss.posZ = bcol.newZ;
+    }
   }
 
   boss.mesh.position.x = boss.posX;
@@ -357,14 +369,14 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
     executeAttack(boss, ship, scene, phase);
   }
 
-  updateBossProjectiles(boss, ship, dt, scene, enemyMgr);
+  updateBossProjectiles(boss, ship, dt, scene, enemyMgr, terrain);
   updateTelegraphs(boss, dt, scene);
   updateDroneSpawns(boss, dt, scene);
   updateTentacleAttacks(boss, ship, dt, scene, enemyMgr);
 }
 
 // --- update boss projectiles ---
-function updateBossProjectiles(boss, ship, dt, scene, enemyMgr) {
+function updateBossProjectiles(boss, ship, dt, scene, enemyMgr, terrain) {
   var alive = [];
   for (var i = 0; i < boss.projectiles.length; i++) {
     var p = boss.projectiles[i];
@@ -375,6 +387,7 @@ function updateBossProjectiles(boss, ship, dt, scene, enemyMgr) {
     p.mesh.position.z += p.vz * dt;
 
     var hitWater = p.mesh.position.y < 0.2;
+    var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var tooOld = p.age > 5;
     var hitPlayer = false;
     var pdx = p.mesh.position.x - ship.posX;
@@ -387,7 +400,7 @@ function updateBossProjectiles(boss, ship, dt, scene, enemyMgr) {
       }
     }
 
-    if (hitWater || tooOld || hitPlayer) {
+    if (hitWater || hitTerrain || tooOld || hitPlayer) {
       scene.remove(p.mesh);
     } else {
       alive.push(p);

@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { setNavTarget } from "./ship.js";
 import { getWaveHeight } from "./ocean.js";
+import { isLand } from "./terrain.js";
 
 var raycaster = new THREE.Raycaster();
 var pointer = new THREE.Vector2();
@@ -15,6 +16,7 @@ var markerTargetZ = 0;
 var navShipRef = null;
 var navCameraRef = null;
 var navEnemyMgrRef = null;
+var navTerrainRef = null;
 var initialized = false;
 
 // combat target reticle (ring around targeted enemy)
@@ -118,10 +120,11 @@ function findClickedEnemy(worldX, worldZ) {
 }
 
 // --- init click/tap handler ---
-export function initNav(camera, ship, scene, enemyMgr) {
+export function initNav(camera, ship, scene, enemyMgr, terrain) {
   navShipRef = ship;
   navCameraRef = camera;
   navEnemyMgrRef = enemyMgr || null;
+  navTerrainRef = terrain || null;
 
   if (initialized) return;
   initialized = true;
@@ -151,6 +154,11 @@ export function handleClick(clientX, clientY) {
   if (enemy) {
     combatTarget = enemy;
     return "enemy";
+  }
+
+  // reject clicks on land — cannot navigate to terrain
+  if (navTerrainRef && isLand(navTerrainRef, worldX, worldZ)) {
+    return null;
   }
 
   // clicked on water — set nav target (does NOT change combat target)

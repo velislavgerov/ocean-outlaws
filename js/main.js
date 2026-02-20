@@ -26,6 +26,7 @@ import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewB
 import { createCrewScreen, showCrewScreen, hideCrewScreen } from "./crewScreen.js";
 import { loadTechState, getTechBonuses } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
+import { createTerrain, removeTerrain, collideWithTerrain, isLand } from "./terrain.js";
 
 var SALVAGE_PER_KILL = 10;
 
@@ -67,6 +68,7 @@ var crewScreenOpen = false;
 var techScreenOpen = false;
 var mapState = loadMapState();
 var activeZoneId = null;
+var activeTerrain = null;
 var resources = createResources();
 var pickupMgr = createPickupManager();
 var enemyMgr = createEnemyManager();
@@ -153,6 +155,13 @@ function startZoneCombat(classKey, zoneId) {
   resetCrew(crew);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+  // generate terrain: seed from zone id hash + random, difficulty scales land coverage
+  var terrainSeed = 0;
+  for (var si = 0; si < zoneId.length; si++) terrainSeed += zoneId.charCodeAt(si) * (si + 1);
+  terrainSeed += Math.floor(Math.random() * 10000);
+  activeTerrain = createTerrain(terrainSeed, zone.difficulty);
+  scene.add(activeTerrain.mesh);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -161,7 +170,7 @@ function startZoneCombat(classKey, zoneId) {
   setPlayerArmor(enemyMgr, classCfg.stats.armor);
   weapons = createWeaponState(ship);
   abilityState = createAbilityState(classKey);
-  initNav(cam.camera, ship, scene, enemyMgr);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
   resetDrones(droneMgr, scene);
   setWeather(weather, zone.condition === "stormy" ? "storm" : zone.condition || "calm");
   gameFrozen = false;
@@ -229,6 +238,7 @@ setRestartCallback(function () {
   resetCrew(crew);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   if (ship) { ship.posX = 0; ship.posZ = 0; ship.speed = 0; ship.heading = 0; ship.navTarget = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
@@ -309,7 +319,7 @@ function animate() {
     updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, wp.waterTint);
     updateWeather(weather, dt, scene, ship.posX, ship.posZ);
     maybeChangeWeather(weather);
-    updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults);
+    updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults, activeTerrain);
     var speedRatio = getSpeedRatio(ship);
     consumeFuel(resources, speedRatio, dt);
     updateNav(ship, elapsed);
@@ -345,10 +355,10 @@ function animate() {
         }
       }
     }
-    updateWeapons(weapons, dt, scene, enemyMgr, activeBoss);
+    updateWeapons(weapons, dt, scene, enemyMgr, activeBoss, activeTerrain);
     updateDrones(droneMgr, ship, dt, scene, enemyMgr, weatherWaveHeight, elapsed);
     if (activeBoss) {
-      updateBoss(activeBoss, ship, dt, scene, weatherWaveHeight, elapsed, enemyMgr);
+      updateBoss(activeBoss, ship, dt, scene, weatherWaveHeight, elapsed, enemyMgr, activeTerrain);
       updateBossHud(activeBoss, dt);
       if (activeBoss.defeated && !activeBoss._lootGiven) {
         activeBoss._lootGiven = true;
@@ -363,7 +373,7 @@ function animate() {
       }
     }
 
-    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr));
+    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain);
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene);
     if (mults.autoRepair) {
       var arHp = getPlayerHp(enemyMgr);

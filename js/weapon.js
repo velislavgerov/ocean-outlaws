@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { damageEnemy } from "./enemy.js";
 import { spendAmmo } from "./resource.js";
 import { damageBoss } from "./boss.js";
+import { isLand } from "./terrain.js";
 
 var WEAPON_TYPES = {
   turret: {
@@ -186,7 +187,8 @@ function spawnWake(state, scene, position) {
 }
 
 // activeBoss: optional boss object for hit detection
-export function updateWeapons(state, dt, scene, enemyManager, activeBoss) {
+// terrain: optional terrain for projectile blocking
+export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrain) {
   var enemies = enemyManager ? enemyManager.enemies : [];
   state.cooldown = Math.max(0, state.cooldown - dt);
 
@@ -242,12 +244,13 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss) {
     var dz = p.mesh.position.z - p.origin.z;
     var dist = Math.sqrt(dx * dx + dz * dz);
     var hitWater = !cfg.waterLevel && p.mesh.position.y < 0.2;
+    var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var outOfRange = dist > cfg.maxRange;
     var hitEnemy = checkEnemyHit(p, enemies, enemyManager, scene);
     var hitBoss = !hitEnemy && checkBossHit(p, activeBoss, scene);
 
-    if (hitWater || outOfRange || hitEnemy || hitBoss) {
-      if (hitWater || hitEnemy || hitBoss) {
+    if (hitWater || hitTerrain || outOfRange || hitEnemy || hitBoss) {
+      if (hitWater || hitTerrain || hitEnemy || hitBoss) {
         spawnSplash(state, scene, p.mesh.position, cfg.splashScale);
       }
       for (var t = 0; t < p.trail.length; t++) {
