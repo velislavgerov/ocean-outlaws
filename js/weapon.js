@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { damageEnemy } from "./enemy.js";
 import { spendAmmo } from "./resource.js";
+import { damageBoss } from "./boss.js";
 
 // --- weapon type definitions ---
 var WEAPON_TYPES = {
@@ -287,7 +288,8 @@ function spawnWake(state, scene, position) {
 }
 
 // --- update all projectiles, effects, cooldown ---
-export function updateWeapons(state, dt, scene, enemyManager) {
+// activeBoss: optional boss object for hit detection
+export function updateWeapons(state, dt, scene, enemyManager, activeBoss) {
   var enemies = enemyManager ? enemyManager.enemies : [];
   state.cooldown = Math.max(0, state.cooldown - dt);
 
@@ -357,9 +359,10 @@ export function updateWeapons(state, dt, scene, enemyManager) {
     var hitWater = !cfg.waterLevel && p.mesh.position.y < 0.2;
     var outOfRange = dist > cfg.maxRange;
     var hitEnemy = checkEnemyHit(p, enemies, enemyManager, scene);
+    var hitBoss = !hitEnemy && checkBossHit(p, activeBoss, scene);
 
-    if (hitWater || outOfRange || hitEnemy) {
-      if (hitWater || hitEnemy) {
+    if (hitWater || outOfRange || hitEnemy || hitBoss) {
+      if (hitWater || hitEnemy || hitBoss) {
         spawnSplash(state, scene, p.mesh.position, cfg.splashScale);
       }
       // clean up trail
@@ -462,6 +465,22 @@ function checkEnemyHit(projectile, enemies, enemyManager, scene) {
       }
       return true;
     }
+  }
+  return false;
+}
+
+// --- boss hit detection ---
+function checkBossHit(projectile, boss, scene) {
+  if (!boss || !boss.alive) return false;
+  var pp = projectile.mesh.position;
+  var dmg = projectile.damageMult || 1;
+  var dx = pp.x - boss.posX;
+  var dz = pp.z - boss.posZ;
+  var distSq = dx * dx + dz * dz;
+  var hitRadius = boss.hitRadius || 5.0;
+  if (distSq < hitRadius * hitRadius) {
+    damageBoss(boss, dmg, scene);
+    return true;
   }
   return false;
 }

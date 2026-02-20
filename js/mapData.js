@@ -30,6 +30,7 @@ var ZONES = [
     enemiesPerWave: 1,
     hpScale: 1.1,
     speedScale: 1.05,
+    boss: "battleship",
     x: 35,
     y: 58,
     connections: ["shallow_cove", "reef_basin"]
@@ -45,6 +46,7 @@ var ZONES = [
     enemiesPerWave: 2,
     hpScale: 1.3,
     speedScale: 1.1,
+    boss: "carrier",
     x: 60,
     y: 42,
     connections: ["iron_strait", "stormwall"]
@@ -60,6 +62,7 @@ var ZONES = [
     enemiesPerWave: 2,
     hpScale: 1.5,
     speedScale: 1.2,
+    boss: "battleship",
     x: 40,
     y: 28,
     connections: ["reef_basin", "black_trench"]
@@ -75,6 +78,7 @@ var ZONES = [
     enemiesPerWave: 3,
     hpScale: 1.8,
     speedScale: 1.3,
+    boss: "kraken",
     x: 55,
     y: 15,
     connections: ["stormwall", "leviathan_maw"]
@@ -90,6 +94,7 @@ var ZONES = [
     enemiesPerWave: 3,
     hpScale: 2.0,
     speedScale: 1.4,
+    boss: "kraken",
     x: 30,
     y: 5,
     connections: ["black_trench"]
@@ -187,16 +192,23 @@ export function getZoneStars(state, zoneId) {
 }
 
 // --- build wave configs for a zone (replaces global wave configs) ---
+// Final wave marked as boss wave if zone has a boss
 export function buildZoneWaveConfigs(zone) {
   var configs = [];
   for (var i = 1; i <= zone.waves; i++) {
-    configs.push({
+    var cfg = {
       wave: i,
       enemies: zone.enemyBase + zone.enemiesPerWave * (i - 1),
       hpMult: zone.hpScale * (1.0 + (i - 1) * 0.15),
       speedMult: zone.speedScale * (1.0 + (i - 1) * 0.08),
       fireRateMult: 1.0 + (i - 1) * 0.1
-    });
+    };
+    // mark final wave as boss wave
+    if (i === zone.waves && zone.boss) {
+      cfg.boss = zone.boss;
+      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2)); // fewer regular enemies during boss
+    }
+    configs.push(cfg);
   }
   return configs;
 }

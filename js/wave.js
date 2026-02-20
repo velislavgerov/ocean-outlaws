@@ -56,7 +56,8 @@ export function getWaveConfig(mgr) {
 
 // --- update wave state machine ---
 // returns an event string when state transitions happen, or null
-export function updateWaveState(mgr, activeEnemyCount, playerHp, playerMaxHp, resources, dt) {
+// bossAlive: optional boolean, true if a boss is still alive this wave
+export function updateWaveState(mgr, activeEnemyCount, playerHp, playerMaxHp, resources, dt, bossAlive) {
   mgr.enemiesAlive = activeEnemyCount;
 
   // game over / victory are terminal
@@ -86,6 +87,10 @@ export function updateWaveState(mgr, activeEnemyCount, playerHp, playerMaxHp, re
       var cfg = mgr.configs[mgr.wave - 1];
       mgr.currentConfig = cfg;
       mgr.enemiesToSpawn = cfg.enemies;
+      // signal boss wave if config has boss
+      if (cfg.boss) {
+        return "wave_start_boss:" + cfg.boss;
+      }
       return "wave_start";
     }
     return null;
@@ -100,14 +105,15 @@ export function updateWaveState(mgr, activeEnemyCount, playerHp, playerMaxHp, re
     return null;
   }
 
-  // --- ACTIVE: waiting for all enemies to die ---
+  // --- ACTIVE: waiting for all enemies (and boss) to die ---
   if (mgr.state === STATE_ACTIVE) {
     // also check if there are still enemies to spawn (late stragglers)
     if (mgr.enemiesToSpawn > 0) {
       mgr.state = STATE_SPAWNING;
       return null;
     }
-    if (activeEnemyCount === 0) {
+    // wave complete only when enemies dead AND boss dead (if any)
+    if (activeEnemyCount === 0 && !bossAlive) {
       mgr.state = STATE_COMPLETE;
       return "wave_complete";
     }

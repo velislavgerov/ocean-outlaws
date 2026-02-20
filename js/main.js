@@ -20,6 +20,8 @@ import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./dro
 import { createMapScreen, showMapScreen, hideMapScreen } from "./mapScreen.js";
 import { loadMapState, getZone, calcStars, completeZone, buildZoneWaveConfigs, saveMapState } from "./mapData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, maybeChangeWeather, createRain, updateWeather } from "./weather.js";
+import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot } from "./boss.js";
+import { createBossHud, showBossHud, hideBossHud, updateBossHud, showLootBanner } from "./bossHud.js";
 
 // --- salvage tuning ---
 var SALVAGE_PER_KILL = 10;
@@ -66,6 +68,7 @@ var selectedClass = null;
 var gameFrozen = true;    // start frozen until class selected
 var upgradeScreenOpen = false;
 var gameStarted = false;
+var activeBoss = null;    // current boss instance (or null)
 
 // --- strategic map state ---
 var mapState = loadMapState();
@@ -105,6 +108,9 @@ createHUD();
 // --- health bars ---
 initHealthBars();
 
+// --- boss HUD ---
+createBossHud();
+
 // --- camera ---
 var cam = createCamera(window.innerWidth / window.innerHeight);
 
@@ -141,6 +147,8 @@ function startZoneCombat(classKey, zoneId) {
   resetEnemyManager(enemyMgr, scene);
   resetUpgrades(upgrades);
   resetDrones(droneMgr, scene);
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+  hideBossHud();
 
   // remove old ship mesh if present
   if (ship && ship.mesh) {
@@ -245,6 +253,8 @@ setRestartCallback(function () {
   resetEnemyManager(enemyMgr, scene);
   resetUpgrades(upgrades);
   resetDrones(droneMgr, scene);
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+  hideBossHud();
   if (ship) {
     ship.posX = 0;
     ship.posZ = 0;
@@ -366,10 +376,26 @@ function animate() {
       consumeFire(); // consume the click even if can't fire
     }
 
-    updateWeapons(weapons, dt, scene, enemyMgr);
+    updateWeapons(weapons, dt, scene, enemyMgr, activeBoss);
 
     // update drones
     updateDrones(droneMgr, ship, dt, scene, enemyMgr, weatherWaveHeight, elapsed);
+
+    // update boss
+    if (activeBoss) {
+      updateBoss(activeBoss, ship, dt, scene, weatherWaveHeight, elapsed, enemyMgr);
+      updateBossHud(activeBoss, dt);
+
+      // detect boss defeat — drop loot
+      if (activeBoss.defeated && !activeBoss._lootGiven) {
+        activeBoss._lootGiven = true;
+        var loot = rollBossLoot();
+        applyBossLoot(loot, upgrades, enemyMgr);
+        showLootBanner(loot.label);
+        showBanner("BOSS DEFEATED!", 3);
+        hideBossHud();
+      }
+    }
 
     var waveConfig = getWaveConfig(waveMgr);
     updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, waveConfig);
@@ -382,13 +408,31 @@ function animate() {
       if (enemyMgr.enemies[i].alive) aliveEnemyCount++;
     }
 
-    var event = updateWaveState(waveMgr, aliveEnemyCount, hpInfo.hp, hpInfo.maxHp, resources, dt);
+    var bossAlive = activeBoss && activeBoss.alive;
+    var event = updateWaveState(waveMgr, aliveEnemyCount, hpInfo.hp, hpInfo.maxHp, resources, dt, bossAlive);
 
     if (event) {
       if (event === "wave_start") {
         showBanner("Wave " + waveMgr.wave + " incoming!", 3);
+      } else if (event.indexOf("wave_start_boss:") === 0) {
+        var bossType = event.split(":")[1];
+        var zone = getZone(activeZoneId);
+        var difficulty = zone ? zone.difficulty : 1;
+        activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
+        if (activeBoss) {
+          showBossHud(activeBoss.def.name);
+          showBanner("BOSS: " + activeBoss.def.name + "!", 4);
+        } else {
+          showBanner("Wave " + waveMgr.wave + " incoming!", 3);
+        }
       } else if (event === "wave_complete") {
         showBanner("Wave " + waveMgr.wave + " cleared!", 2.5);
+        // clean up boss after wave complete
+        if (activeBoss) {
+          removeBoss(activeBoss, scene);
+          activeBoss = null;
+          hideBossHud();
+        }
         if (waveMgr.wave < waveMgr.maxWave) {
           upgradeScreenOpen = true;
           showUpgradeScreen(upgrades, function () {
@@ -399,10 +443,12 @@ function animate() {
       } else if (event === "game_over") {
         showGameOver(waveMgr.wave);
         gameFrozen = true;
+        hideBossHud();
       } else if (event === "victory") {
         handleZoneVictory();
         showVictory(waveMgr.wave);
         gameFrozen = true;
+        hideBossHud();
       } else if (event.indexOf("repair:") === 0) {
         var newHp = parseFloat(event.split(":")[1]);
         setPlayerHp(enemyMgr, newHp);
