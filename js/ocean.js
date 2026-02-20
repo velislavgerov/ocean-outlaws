@@ -144,7 +144,7 @@ export function createOcean() {
     uniforms: uniforms,
     side: THREE.DoubleSide,
     transparent: false,
-    depthWrite: true
+    depthWrite: false
   });
 
   var mesh = new THREE.Mesh(geometry, material);

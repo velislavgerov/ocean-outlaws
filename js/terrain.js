@@ -314,11 +314,12 @@ function buildTerrainMesh(heightmap) {
 
   var material = new THREE.MeshLambertMaterial({
     vertexColors: true,
-    flatShading: true
+    flatShading: true,
+    side: THREE.DoubleSide
   });
 
   var mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = 2;  // raise terrain above max wave height
+  mesh.position.y = 4;  // raise terrain above max wave height
   mesh.renderOrder = 2; // render after ocean
   return mesh;
 }
