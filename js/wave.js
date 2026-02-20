@@ -31,11 +31,13 @@ function buildWaveConfigs() {
 }
 
 // --- create wave manager ---
-export function createWaveManager() {
-  var configs = buildWaveConfigs();
+// optionally accepts external configs (e.g. from zone data)
+export function createWaveManager(externalConfigs) {
+  var configs = externalConfigs || buildWaveConfigs();
+  var maxWave = configs.length;
   return {
     configs: configs,
-    maxWave: MAX_WAVE,
+    maxWave: maxWave,
     wave: 1,
     state: STATE_WAITING,
     pauseTimer: 3,              // initial countdown before wave 1
@@ -158,9 +160,11 @@ export function getWaveState(mgr) {
 }
 
 // --- reset for restart ---
-export function resetWaveManager(mgr) {
-  var configs = buildWaveConfigs();
+// optionally accepts external configs (e.g. from zone data)
+export function resetWaveManager(mgr, externalConfigs) {
+  var configs = externalConfigs || buildWaveConfigs();
   mgr.configs = configs;
+  mgr.maxWave = configs.length;
   mgr.wave = 1;
   mgr.state = STATE_WAITING;
   mgr.pauseTimer = 3;

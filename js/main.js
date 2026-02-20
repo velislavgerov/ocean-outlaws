@@ -17,6 +17,8 @@ import { getShipClass } from "./shipClass.js";
 import { createAbilityState, activateAbility, updateAbility } from "./shipClass.js";
 import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen } from "./shipSelect.js";
 import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./drone.js";
+import { createMapScreen, showMapScreen, hideMapScreen } from "./mapScreen.js";
+import { loadMapState, getZone, calcStars, completeZone, buildZoneWaveConfigs, saveMapState } from "./mapData.js";
 
 // --- salvage tuning ---
 var SALVAGE_PER_KILL = 10;
@@ -56,6 +58,10 @@ var gameFrozen = true;    // start frozen until class selected
 var upgradeScreenOpen = false;
 var gameStarted = false;
 
+// --- strategic map state ---
+var mapState = loadMapState();
+var activeZoneId = null;
+
 // --- resources ---
 var resources = createResources();
 
@@ -93,18 +99,39 @@ initHealthBars();
 // --- camera ---
 var cam = createCamera(window.innerWidth / window.innerHeight);
 
+// --- map screen ---
+createMapScreen();
+
 // --- ship select screen ---
 createShipSelectScreen();
 showShipSelectScreen(function (classKey) {
-  startGame(classKey);
+  selectedClass = classKey;
+  hideShipSelectScreen();
+  openMap();
 });
 
-// --- start game with selected class ---
-function startGame(classKey) {
-  hideShipSelectScreen();
+// --- open the strategic map ---
+function openMap() {
+  mapState = loadMapState();
+  showMapScreen(mapState, function (zoneId) {
+    hideMapScreen();
+    activeZoneId = zoneId;
+    startZoneCombat(selectedClass, zoneId);
+  });
+}
 
-  selectedClass = classKey;
+// --- start combat for a specific zone ---
+function startZoneCombat(classKey, zoneId) {
   var classCfg = getShipClass(classKey);
+  var zone = getZone(zoneId);
+  var zoneConfigs = buildZoneWaveConfigs(zone);
+
+  // reset all combat state
+  resetWaveManager(waveMgr, zoneConfigs);
+  resetResources(resources);
+  resetEnemyManager(enemyMgr, scene);
+  resetUpgrades(upgrades);
+  resetDrones(droneMgr, scene);
 
   // remove old ship mesh if present
   if (ship && ship.mesh) {
@@ -133,7 +160,16 @@ function startGame(classKey) {
 
   gameFrozen = false;
   gameStarted = true;
-  showBanner("Wave 1 incoming!", 3);
+  upgradeScreenOpen = false;
+  showBanner(zone.name + " — Wave 1", 3);
+}
+
+// --- handle zone completion (victory) ---
+function handleZoneVictory() {
+  var hpInfo = getPlayerHp(enemyMgr);
+  var stars = calcStars(hpInfo.hp, hpInfo.maxHp);
+  mapState = completeZone(mapState, activeZoneId, stars);
+  saveMapState(mapState);
 }
 
 // --- apply upgrade multipliers to game systems ---
@@ -187,9 +223,8 @@ function handleAbility(mults) {
   }
 }
 
-// --- restart handler ---
+// --- restart handler: go back to map ---
 setRestartCallback(function () {
-  // go back to ship select
   gameFrozen = true;
   gameStarted = false;
   resetWaveManager(waveMgr);
@@ -213,9 +248,7 @@ setRestartCallback(function () {
   upgradeScreenOpen = false;
   hideUpgradeScreen();
   hideOverlay();
-  showShipSelectScreen(function (classKey) {
-    startGame(classKey);
-  });
+  openMap();
 });
 
 // --- resize ---
@@ -340,6 +373,7 @@ function animate() {
         showGameOver(waveMgr.wave);
         gameFrozen = true;
       } else if (event === "victory") {
+        handleZoneVictory();
         showVictory(waveMgr.wave);
         gameFrozen = true;
       } else if (event.indexOf("repair:") === 0) {
