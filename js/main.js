@@ -3,7 +3,8 @@ import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
-import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback } from "./hud.js";
+import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, updateMuteButton, updateVolumeSlider } from "./hud.js";
+import { unlockAudio, updateEngine, playWeaponSound, playExplosion, playPlayerHit, updateAmbience, playClick, playUpgrade, playWaveHorn, updateMusic, toggleMute, setMasterVolume, isMuted } from "./sound.js";
 import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
@@ -32,6 +33,16 @@ import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } f
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 
 var SALVAGE_PER_KILL = 10;
+var prevPlayerHp = -1;
+
+function fireWithSound(w, s, r, m) {
+  var before = w.projectiles.length;
+  fireWeapon(w, s, r, m);
+  if (w.projectiles.length > before) {
+    var wOrder = getWeaponOrder();
+    playWeaponSound(wOrder[w.activeWeapon]);
+  }
+}
 
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -94,23 +105,33 @@ setOnDeathCallback(enemyMgr, function (x, y, z) {
   spawnPickup(pickupMgr, x, y, z, scene);
   var techB = getTechBonuses(techState);
   addSalvage(upgrades, Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus)));
+  playExplosion();
 });
 
 var waveMgr = createWaveManager();
 initInput();
 createHUD();
 
+var audioUnlockHandler = function () {
+  unlockAudio();
+  ["click", "touchstart", "keydown"].forEach(function (e) { window.removeEventListener(e, audioUnlockHandler); });
+};
+["click", "touchstart", "keydown"].forEach(function (e) { window.addEventListener(e, audioUnlockHandler); });
+setMuteCallback(function () { updateMuteButton(toggleMute()); });
+setVolumeCallback(function (vol) { setMasterVolume(vol); });
+
 setWeaponSwitchCallback(function (index) {
-  if (weapons) switchWeapon(weapons, index);
+  if (weapons) { switchWeapon(weapons, index); playClick(); }
 });
 setAbilityCallback(function () {
   if (!abilityState || !weapons || gameFrozen) return;
+  playClick();
   var activated = activateAbility(abilityState);
   if (activated) {
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
     if (selectedClass === "cruiser") {
       for (var bs = 0; bs < 3; bs++) {
-        fireWeapon(weapons, scene, resources, mults);
+        fireWithSound(weapons, scene, resources, mults);
         weapons.cooldown = 0;
       }
     } else if (selectedClass === "carrier") {
@@ -120,6 +141,7 @@ setAbilityCallback(function () {
 });
 setAutofireToggleCallback(function () {
   toggleAutofire();
+  playClick();
 });
 
 initHealthBars();
@@ -307,7 +329,7 @@ function animate() {
           if (kActivated) {
             if (selectedClass === "cruiser") {
               for (var bs = 0; bs < 3; bs++) {
-                fireWeapon(weapons, scene, resources, mults);
+                fireWithSound(weapons, scene, resources, mults);
                 weapons.cooldown = 0;
               }
             } else if (selectedClass === "carrier") {
@@ -378,10 +400,10 @@ function animate() {
         if (inRange) {
           if (getAutofire()) {
             // autofire ON: fire continuously
-            fireWeapon(weapons, scene, resources, mults);
+            fireWithSound(weapons, scene, resources, mults);
           } else if (clickedEnemy) {
             // autofire OFF: fire on click
-            fireWeapon(weapons, scene, resources, mults);
+            fireWithSound(weapons, scene, resources, mults);
           }
         }
       }
@@ -423,11 +445,13 @@ function animate() {
     if (event) {
       if (event === "wave_start") {
         showBanner("Wave " + waveMgr.wave + " incoming!", 3);
+        playWaveHorn();
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
         var zone = getZone(activeZoneId);
         var difficulty = zone ? zone.difficulty : 1;
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
+        playWaveHorn();
         if (activeBoss) {
           showBossHud(activeBoss.def.name);
           showBanner("BOSS: " + activeBoss.def.name + "!", 4);
@@ -492,6 +516,12 @@ function animate() {
     updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
       waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo);
+
+    updateEngine(speedRatio);
+    updateAmbience(weather.current);
+    updateMusic(aliveEnemyCount > 0 || bossAlive);
+    if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) playPlayerHit();
+    prevPlayerHp = hpInfo.hp;
   } else {
     var wpIdle = getWeatherPreset(weather);
     updateDayNight(dayNight, dt);

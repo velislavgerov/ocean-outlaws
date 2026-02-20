@@ -1,5 +1,6 @@
 // upgradeScreen.js — between-wave upgrade UI overlay with ship diagram
 import { getUpgradeTree, canAfford, buyUpgrade, getNextCost, getMultipliers, getMultiplierForKey, findUpgrade } from "./upgrade.js";
+import { playUpgrade, playClick } from "./sound.js";
 
 var root = null;
 var salvageLabel = null;
@@ -348,6 +349,7 @@ function refreshPreview() {
     applyBtn.addEventListener("click", function () {
       if (!currentState || !selectedKey) return;
       if (buyUpgrade(currentState, selectedKey)) {
+        playUpgrade();
         refreshUI();
         refreshPreview();
       }
@@ -400,6 +402,7 @@ function buildUpgradeRow(up, color) {
 
   // click to select for preview
   el.addEventListener("click", function () {
+    playClick();
     selectUpgrade(up.key);
   });
 

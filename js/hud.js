@@ -32,6 +32,11 @@ var overlayTitle = null;
 var overlaySubtext = null;
 var overlayBtn = null;
 var onRestartCallback = null;
+var onMuteCallback = null;
+var onVolumeCallback = null;
+var muteBtn = null;
+var volumeSlider = null;
+var soundPanel = null;
 
 var BTN_BASE = [
   "font-family:monospace", "font-size:13px", "padding:6px 10px",
@@ -281,12 +286,56 @@ export function createHUD() {
   });
   overlay.appendChild(overlayBtn);
   document.body.appendChild(overlay);
+
+  // sound controls — top-right
+  soundPanel = document.createElement("div");
+  soundPanel.style.cssText = [
+    "position:fixed", "top:16px", "right:16px", "z-index:10",
+    "font-family:monospace", "font-size:12px", "color:#8899aa",
+    "display:flex", "align-items:center", "gap:8px",
+    "user-select:none"
+  ].join(";");
+  muteBtn = document.createElement("div");
+  muteBtn.style.cssText = [
+    BTN_BASE, "font-size:16px", "min-width:36px", "padding:4px 8px",
+    "background:rgba(20,30,50,0.7)", "border:1px solid rgba(80,100,130,0.5)",
+    "color:#8899aa"
+  ].join(";");
+  muteBtn.textContent = "♪";
+  muteBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (onMuteCallback) onMuteCallback();
+  });
+  soundPanel.appendChild(muteBtn);
+  volumeSlider = document.createElement("input");
+  volumeSlider.type = "range";
+  volumeSlider.min = "0";
+  volumeSlider.max = "100";
+  volumeSlider.value = "50";
+  volumeSlider.style.cssText = "width:80px;cursor:pointer;pointer-events:auto;accent-color:#4477aa;";
+  volumeSlider.addEventListener("input", function (e) {
+    e.stopPropagation();
+    if (onVolumeCallback) onVolumeCallback(parseFloat(volumeSlider.value) / 100);
+  });
+  soundPanel.appendChild(volumeSlider);
+  document.body.appendChild(soundPanel);
 }
 
 export function setWeaponSwitchCallback(cb) { onWeaponSwitchCallback = cb; }
 export function setAbilityCallback(cb) { onAbilityCallback = cb; }
 export function setRestartCallback(cb) { onRestartCallback = cb; }
 export function setAutofireToggleCallback(cb) { onAutofireToggleCallback = cb; }
+export function setMuteCallback(cb) { onMuteCallback = cb; }
+export function setVolumeCallback(cb) { onVolumeCallback = cb; }
+
+export function updateMuteButton(m) {
+  if (!muteBtn) return;
+  muteBtn.textContent = m ? "♪✕" : "♪";
+  muteBtn.style.color = m ? "#cc4444" : "#8899aa";
+}
+export function updateVolumeSlider(v) {
+  if (volumeSlider) volumeSlider.value = String(Math.round(v * 100));
+}
 
 export function showBanner(text, duration) {
   if (!banner) return;
