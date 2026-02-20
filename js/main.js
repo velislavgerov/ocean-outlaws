@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
-import { initInput, getInput, getMouse, consumeClick } from "./input.js";
-import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback } from "./hud.js";
+import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
+import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback } from "./hud.js";
 import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
@@ -105,6 +105,9 @@ setAbilityCallback(function () {
       spawnDrone(droneMgr, ship.posX, ship.posZ, scene, 15);
     }
   }
+});
+setAutofireToggleCallback(function () {
+  toggleAutofire();
 });
 
 initHealthBars();
@@ -229,6 +232,7 @@ setRestartCallback(function () {
   if (ship) { ship.posX = 0; ship.posZ = 0; ship.speed = 0; ship.heading = 0; ship.navTarget = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
+  setAutofire(false);
   setWeather(weather, "calm");
   hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
   openTechThenMap();
@@ -249,7 +253,44 @@ function animate() {
 
   if (!gameFrozen && !upgradeScreenOpen && !crewScreenOpen && !techScreenOpen && gameStarted) {
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
-    if (mouse.clicked && !mouse.clickConsumed) { handleClick(mouse.x, mouse.y); consumeClick(); }
+
+    // process keyboard actions
+    var actions = getKeyActions();
+    for (var ki = 0; ki < actions.length; ki++) {
+      var act = actions[ki];
+      if (act === "toggleAutofire") {
+        toggleAutofire();
+      } else if (act === "weapon0") {
+        if (weapons) switchWeapon(weapons, 0);
+      } else if (act === "weapon1") {
+        if (weapons) switchWeapon(weapons, 1);
+      } else if (act === "weapon2") {
+        if (weapons) switchWeapon(weapons, 2);
+      } else if (act === "ability") {
+        if (abilityState && weapons && !gameFrozen) {
+          var kActivated = activateAbility(abilityState);
+          if (kActivated) {
+            if (selectedClass === "cruiser") {
+              for (var bs = 0; bs < 3; bs++) {
+                fireWeapon(weapons, scene, resources, mults);
+                weapons.cooldown = 0;
+              }
+            } else if (selectedClass === "carrier") {
+              spawnDrone(droneMgr, ship.posX, ship.posZ, scene, 15);
+            }
+          }
+        }
+      }
+    }
+
+    // handle click: nav or enemy targeting
+    var clickedEnemy = false;
+    if (mouse.clicked && !mouse.clickConsumed) {
+      var clickResult = handleClick(mouse.x, mouse.y);
+      if (clickResult === "enemy") clickedEnemy = true;
+      consumeClick();
+    }
+
     if (abilityState) {
       updateAbility(abilityState, dt);
       handleAbility(mults);
@@ -286,14 +327,21 @@ function animate() {
         }
       }
     }
-    // auto-aim and auto-fire at combat target
+    // aim at combat target; fire based on autofire state or click
     if (target && target.alive) {
       aimAtEnemy(weapons, target);
       if (canFire) {
         var fdx = target.posX - ship.posX;
         var fdz = target.posZ - ship.posZ;
-        if (Math.sqrt(fdx * fdx + fdz * fdz) <= getActiveWeaponRange(weapons)) {
-          fireWeapon(weapons, scene, resources, mults);
+        var inRange = Math.sqrt(fdx * fdx + fdz * fdz) <= getActiveWeaponRange(weapons);
+        if (inRange) {
+          if (getAutofire()) {
+            // autofire ON: fire continuously
+            fireWeapon(weapons, scene, resources, mults);
+          } else if (clickedEnemy) {
+            // autofire OFF: fire on click
+            fireWeapon(weapons, scene, resources, mults);
+          }
         }
       }
     }
@@ -398,7 +446,7 @@ function animate() {
     }
     updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
-      waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather));
+      waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire());
   } else {
     var wpIdle = getWeatherPreset(weather);
     updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waterTint);

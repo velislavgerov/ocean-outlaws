@@ -4,11 +4,11 @@ import * as THREE from "three";
 // --- tuning ---
 var ENEMY_SPEED = 14;
 var ENEMY_TURN_SPEED = 1.8;
-var ENGAGE_DIST = 35;          // desired engagement distance
+var ENGAGE_DIST = 25;          // desired engagement distance
 var ARRIVE_TOLERANCE = 5;
-var FIRE_RANGE = 40;
-var FIRE_COOLDOWN = 2.0;       // seconds between enemy shots
-var ENEMY_PROJ_SPEED = 40;
+var FIRE_RANGE = 30;
+var FIRE_COOLDOWN = 1.5;       // seconds between enemy shots
+var ENEMY_PROJ_SPEED = 30;
 var ENEMY_PROJ_GRAVITY = 9.8;
 var FLOAT_OFFSET = 1.0;
 var BUOYANCY_LERP = 8;
@@ -405,7 +405,7 @@ function updateEnemyProjectiles(manager, ship, dt, scene) {
 
     // hit water
     var hitWater = p.mesh.position.y < 0.2;
-    var outOfRange = dist > 80;
+    var outOfRange = dist > 50;
 
     // hit player
     var hitPlayer = false;

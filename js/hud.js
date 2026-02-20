@@ -20,8 +20,10 @@ var abilityBarBg = null;
 var abilityBar = null;
 var abilityStatus = null;
 var weatherLabel = null;
+var autofireLabel = null;
 var onWeaponSwitchCallback = null;
 var onAbilityCallback = null;
+var onAutofireToggleCallback = null;
 var banner = null;
 var bannerTimer = 0;
 var overlay = null;
@@ -110,6 +112,19 @@ export function createHUD() {
   ammoLabel.style.fontSize = "13px";
   ammoLabel.style.color = "#8899aa";
   container.appendChild(ammoLabel);
+
+  autofireLabel = document.createElement("div");
+  autofireLabel.style.cssText = [
+    BTN_BASE, "margin-top:6px", "background:rgba(20,30,50,0.7)",
+    "border:1px solid rgba(80,100,130,0.5)", "color:#667788",
+    "font-size:12px"
+  ].join(";");
+  autofireLabel.textContent = "AUTOFIRE: OFF [F]";
+  autofireLabel.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (onAutofireToggleCallback) onAutofireToggleCallback();
+  });
+  container.appendChild(autofireLabel);
 
   fuelLabel = document.createElement("div");
   fuelLabel.textContent = "FUEL";
@@ -263,6 +278,7 @@ export function createHUD() {
 export function setWeaponSwitchCallback(cb) { onWeaponSwitchCallback = cb; }
 export function setAbilityCallback(cb) { onAbilityCallback = cb; }
 export function setRestartCallback(cb) { onRestartCallback = cb; }
+export function setAutofireToggleCallback(cb) { onAutofireToggleCallback = cb; }
 
 export function showBanner(text, duration) {
   if (!banner) return;
@@ -305,7 +321,7 @@ export function hideOverlay() {
   overlay.style.display = "none";
 }
 
-export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText) {
+export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText, autofireOn) {
   if (!container) return;
   var pct = Math.min(1, speedRatio) * 100;
   speedBar.style.width = pct + "%";
@@ -398,6 +414,17 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
     weatherLabel.textContent = "WEATHER: " + weatherText;
     var wColors = { CALM: "#44aa66", ROUGH: "#ccaa44", STORM: "#cc4444" };
     weatherLabel.style.color = wColors[weatherText] || "#667788";
+  }
+  if (autofireLabel) {
+    if (autofireOn) {
+      autofireLabel.textContent = "AUTOFIRE: ON [F]";
+      autofireLabel.style.color = "#44dd66";
+      autofireLabel.style.borderColor = "#44dd66";
+    } else {
+      autofireLabel.textContent = "AUTOFIRE: OFF [F]";
+      autofireLabel.style.color = "#667788";
+      autofireLabel.style.borderColor = "rgba(80,100,130,0.5)";
+    }
   }
   updateBanner(dt || 0.016);
 }

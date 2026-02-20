@@ -6,21 +6,21 @@ import { damageBoss } from "./boss.js";
 
 var WEAPON_TYPES = {
   turret: {
-    name: "Turret", key: 0, fireRate: 0.25, damage: 1, projSpeed: 65,
+    name: "Turret", key: 0, fireRate: 1.0, damage: 1, projSpeed: 35,
     ammoCost: 1, color: 0xffcc44, trailColor: 0xffcc44, projRadius: 0.12,
-    gravity: 9.8, loft: 0.08, maxRange: 120, homing: false,
+    gravity: 9.8, loft: 0.08, maxRange: 40, homing: false,
     waterLevel: false, splashScale: 1.0
   },
   missile: {
-    name: "Missile", key: 1, fireRate: 1.2, damage: 3, projSpeed: 40,
+    name: "Missile", key: 1, fireRate: 2.5, damage: 3, projSpeed: 28,
     ammoCost: 3, color: 0xff6644, trailColor: 0xff8844, projRadius: 0.2,
-    gravity: 2.0, loft: 0.15, maxRange: 150, homing: true,
+    gravity: 2.0, loft: 0.15, maxRange: 50, homing: true,
     homingTurnRate: 1.8, waterLevel: false, splashScale: 2.0
   },
   torpedo: {
-    name: "Torpedo", key: 2, fireRate: 2.0, damage: 6, projSpeed: 25,
+    name: "Torpedo", key: 2, fireRate: 4.0, damage: 6, projSpeed: 18,
     ammoCost: 5, color: 0x44aaff, trailColor: 0x88ccff, projRadius: 0.25,
-    gravity: 0, loft: 0, maxRange: 100, homing: false,
+    gravity: 0, loft: 0, maxRange: 35, homing: false,
     waterLevel: true, splashScale: 3.5, wakeTrail: true
   }
 };
