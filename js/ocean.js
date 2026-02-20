@@ -54,7 +54,7 @@ var fragmentShader = /* glsl */ `
     float shimmer = sin(vUv.x * 60.0 + uTime * 1.5) * sin(vUv.y * 60.0 + uTime * 1.2);
     col += vec3(0.01) * smoothstep(0.6, 1.0, shimmer) * t;
 
-    gl_FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col, 0.85);
   }
 `;
 
@@ -71,11 +71,14 @@ export function createOcean() {
     vertexShader: vertexShader,
     fragmentShader: fragmentShader,
     uniforms: uniforms,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    transparent: true,
+    depthWrite: false
   });
 
   var mesh = new THREE.Mesh(geometry, material);
   mesh.rotation.x = -Math.PI / 2; // lay flat
+  mesh.renderOrder = 1; // render after terrain (renderOrder 0)
 
   return { mesh: mesh, uniforms: uniforms };
 }
