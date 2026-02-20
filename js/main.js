@@ -9,7 +9,7 @@ import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOr
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
-import { createPickupManager, spawnPickup, updatePickups } from "./pickup.js";
+import { createPickupManager, spawnPickup, updatePickups, clearPickups } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
 import { createUpgradeState, resetUpgrades, addSalvage, getMultipliers, buildCombinedMults } from "./upgrade.js";
 import { createUpgradeScreen, showUpgradeScreen, hideUpgradeScreen } from "./upgradeScreen.js";
@@ -344,6 +344,7 @@ function animate() {
         }
       } else if (event === "wave_complete") {
         showBanner("Wave " + waveMgr.wave + " cleared!", 2.5);
+        clearPickups(pickupMgr, scene);
         if (activeBoss) {
           removeBoss(activeBoss, scene);
           activeBoss = null;

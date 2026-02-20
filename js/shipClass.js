@@ -9,9 +9,9 @@ var SHIP_CLASSES = {
     color: "#44aaff",
     stats: {
       hp: 8,
-      maxSpeed: 40,
+      maxSpeed: 22,
       turnRate: 2.8,
-      accel: 16,
+      accel: 9,
       armor: 0
     },
     ability: {
@@ -29,9 +29,9 @@ var SHIP_CLASSES = {
     color: "#ffcc44",
     stats: {
       hp: 10,
-      maxSpeed: 30,
+      maxSpeed: 16,
       turnRate: 2.2,
-      accel: 12,
+      accel: 7,
       armor: 0.1
     },
     ability: {
@@ -49,9 +49,9 @@ var SHIP_CLASSES = {
     color: "#44dd66",
     stats: {
       hp: 14,
-      maxSpeed: 20,
+      maxSpeed: 11,
       turnRate: 1.4,
-      accel: 8,
+      accel: 5,
       armor: 0.15
     },
     ability: {
@@ -69,9 +69,9 @@ var SHIP_CLASSES = {
     color: "#cc66ff",
     stats: {
       hp: 9,
-      maxSpeed: 25,
+      maxSpeed: 14,
       turnRate: 1.8,
-      accel: 10,
+      accel: 6,
       armor: 0.05
     },
     ability: {

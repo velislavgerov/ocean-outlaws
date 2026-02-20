@@ -17,9 +17,9 @@ var UPGRADE_TREE = {
     label: "Propulsion",
     color: "#22aaff",
     upgrades: [
-      { key: "maxSpeed",   label: "+Max Speed",       stat: "maxSpeed",       perTier: [0.10, 0.15, 0.20], costs: [25, 50, 100] },
+      { key: "maxSpeed",   label: "+Max Speed",       stat: "maxSpeed",       perTier: [0.15, 0.20, 0.30], costs: [25, 50, 100] },
       { key: "turnRate",   label: "+Turn Rate",       stat: "turnRate",       perTier: [0.10, 0.15, 0.20], costs: [20, 45, 90]  },
-      { key: "accel",      label: "+Acceleration",    stat: "accel",          perTier: [0.10, 0.15, 0.25], costs: [20, 45, 90]  }
+      { key: "accel",      label: "+Acceleration",    stat: "accel",          perTier: [0.15, 0.20, 0.30], costs: [20, 45, 90]  }
     ]
   },
   defense: {

@@ -104,6 +104,14 @@ export function spawnPickup(manager, x, y, z, scene) {
   });
 }
 
+// --- clear all pickups (called on wave transition) ---
+export function clearPickups(manager, scene) {
+  for (var i = 0; i < manager.pickups.length; i++) {
+    scene.remove(manager.pickups[i].mesh);
+  }
+  manager.pickups = [];
+}
+
 // --- update pickups: bob, glow, check proximity, despawn ---
 export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeight, scene) {
   var alive = [];

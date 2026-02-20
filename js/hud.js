@@ -287,6 +287,7 @@ export function showGameOver(waveReached) {
   overlayTitle.textContent = "GAME OVER";
   overlayTitle.style.color = "#cc4444";
   overlaySubtext.textContent = "You reached Wave " + waveReached;
+  overlayBtn.textContent = "RESTART";
   overlay.style.display = "flex";
 }
 
@@ -295,6 +296,7 @@ export function showVictory(waveReached) {
   overlayTitle.textContent = "VICTORY";
   overlayTitle.style.color = "#44dd66";
   overlaySubtext.textContent = "All " + waveReached + " waves survived!";
+  overlayBtn.textContent = "CONTINUE";
   overlay.style.display = "flex";
 }
 
@@ -349,7 +351,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
     var hpPct = Math.max(0, hp / maxHp) * 100;
     hpBar.style.width = hpPct + "%";
     hpBar.style.background = hpPct > 50 ? "#44aa66" : hpPct > 25 ? "#aaaa44" : "#cc4444";
-    hpLabel.textContent = "HP: " + hp + " / " + maxHp;
+    hpLabel.textContent = "HP: " + Math.round(hp) + " / " + Math.round(maxHp);
     hpLabel.style.color = hpPct > 25 ? "#667788" : "#cc4444";
   }
   if (wave !== undefined && waveLabel) {
