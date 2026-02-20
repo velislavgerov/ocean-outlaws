@@ -146,6 +146,32 @@ export function getMultipliers(state) {
   return mults;
 }
 
+// --- build combined multipliers from upgrades + crew + tech ---
+export function buildCombinedMults(upgradeState, crewBonuses, techBonuses) {
+  var mults = getMultipliers(upgradeState);
+  mults = Object.assign({}, mults);
+  if (crewBonuses) {
+    mults.fireRate = mults.fireRate * crewBonuses.fireRate;
+    mults.maxSpeed = mults.maxSpeed * crewBonuses.maxSpeed;
+    mults.turnRate = mults.turnRate * crewBonuses.turnRate;
+    mults.repair = mults.repair * crewBonuses.repair;
+  }
+  if (techBonuses) {
+    mults.damage += techBonuses.damage;
+    mults.fireRate += techBonuses.fireRate;
+    mults.maxHp += techBonuses.maxHp;
+    mults.armor += techBonuses.armor;
+    mults.enemyRange += techBonuses.enemyRange;
+    mults.pickupRange += techBonuses.pickupRange;
+    mults.maxSpeed += techBonuses.maxSpeed;
+    mults.critChance = techBonuses.critChance;
+    mults.splash = techBonuses.splash;
+    mults.autoRepair = techBonuses.autoRepair;
+    mults.dmgReflect = techBonuses.dmgReflect;
+  }
+  return mults;
+}
+
 // --- helper: find upgrade definition by key ---
 function findUpgrade(key) {
   var cats = Object.keys(UPGRADE_TREE);

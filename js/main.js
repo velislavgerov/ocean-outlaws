@@ -2,16 +2,16 @@ import * as THREE from "three";
 import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
-import { initInput, getInput, getMouse, consumeFire, consumeWeaponSwitch, consumeAbility } from "./input.js";
-import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay } from "./hud.js";
-import { initNav, updateNav } from "./nav.js";
-import { createWeaponState, aimWeapons, fireWeapon, updateWeapons, screenToWorld, switchWeapon, getWeaponOrder, getWeaponConfig } from "./weapon.js";
+import { initInput, getInput, getMouse, consumeClick } from "./input.js";
+import { createHUD, updateHUD, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback } from "./hud.js";
+import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
+import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
 import { createPickupManager, spawnPickup, updatePickups } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
-import { createUpgradeState, resetUpgrades, addSalvage, getMultipliers } from "./upgrade.js";
+import { createUpgradeState, resetUpgrades, addSalvage, getMultipliers, buildCombinedMults } from "./upgrade.js";
 import { createUpgradeScreen, showUpgradeScreen, hideUpgradeScreen } from "./upgradeScreen.js";
 import { getShipClass } from "./shipClass.js";
 import { createAbilityState, activateAbility, updateAbility } from "./shipClass.js";
@@ -27,36 +27,27 @@ import { createCrewScreen, showCrewScreen, hideCrewScreen } from "./crewScreen.j
 import { loadTechState, getTechBonuses } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
 
-// --- salvage tuning ---
 var SALVAGE_PER_KILL = 10;
 
-// --- renderer ---
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x0a0e1a);
 document.body.appendChild(renderer.domElement);
 
-// --- scene ---
 var scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0e1a, 0.006);
-
-// --- lighting ---
 var ambient = new THREE.AmbientLight(0x1a2040, 0.6);
 scene.add(ambient);
-
 var sun = new THREE.DirectionalLight(0x4466aa, 0.8);
 sun.position.set(50, 80, 30);
 scene.add(sun);
-
 var hemi = new THREE.HemisphereLight(0x1a1a3a, 0x050510, 0.3);
 scene.add(hemi);
 
-// --- ocean ---
 var ocean = createOcean();
 scene.add(ocean.mesh);
 
-// --- weather ---
 var weather = createWeather("calm");
 weather.fogRef = scene.fog;
 weather.ambientRef = ambient;
@@ -64,76 +55,62 @@ weather.sunRef = sun;
 var rain = createRain(scene);
 weather.rain = rain;
 
-// --- game state ---
 var ship = null;
 var weapons = null;
 var abilityState = null;
 var selectedClass = null;
-var gameFrozen = true;    // start frozen until class selected
+var gameFrozen = true;
 var upgradeScreenOpen = false;
 var gameStarted = false;
-var activeBoss = null;    // current boss instance (or null)
+var activeBoss = null;
 var crewScreenOpen = false;
 var techScreenOpen = false;
-
-// --- strategic map state ---
 var mapState = loadMapState();
 var activeZoneId = null;
-
-// --- resources ---
 var resources = createResources();
-
-// --- pickup manager ---
 var pickupMgr = createPickupManager();
-
-// --- enemy manager ---
 var enemyMgr = createEnemyManager();
-
-// --- drone manager ---
 var droneMgr = createDroneManager();
-
-// --- upgrade system ---
 var upgrades = createUpgradeState();
 createUpgradeScreen();
-
-// --- crew system ---
 var crew = createCrewState();
 createCrewScreen();
-
-// --- tech tree (persistent across runs) ---
 var techState = loadTechState();
 createTechScreen();
 
-// wire enemy death → pickup spawn + salvage (tech bonus applied)
 setOnDeathCallback(enemyMgr, function (x, y, z) {
   spawnPickup(pickupMgr, x, y, z, scene);
   var techB = getTechBonuses(techState);
-  var salvageAmt = Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus));
-  addSalvage(upgrades, salvageAmt);
+  addSalvage(upgrades, Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus)));
 });
 
-// --- wave manager ---
 var waveMgr = createWaveManager();
-
-// --- input ---
 initInput();
-
-// --- HUD ---
 createHUD();
 
-// --- health bars ---
+setWeaponSwitchCallback(function (index) {
+  if (weapons) switchWeapon(weapons, index);
+});
+setAbilityCallback(function () {
+  if (!abilityState || !weapons || gameFrozen) return;
+  var activated = activateAbility(abilityState);
+  if (activated) {
+    var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
+    if (selectedClass === "cruiser") {
+      for (var bs = 0; bs < 3; bs++) {
+        fireWeapon(weapons, scene, resources, mults);
+        weapons.cooldown = 0;
+      }
+    } else if (selectedClass === "carrier") {
+      spawnDrone(droneMgr, ship.posX, ship.posZ, scene, 15);
+    }
+  }
+});
+
 initHealthBars();
-
-// --- boss HUD ---
 createBossHud();
-
-// --- camera ---
 var cam = createCamera(window.innerWidth / window.innerHeight);
-
-// --- map screen ---
 createMapScreen();
-
-// --- ship select screen ---
 createShipSelectScreen();
 showShipSelectScreen(function (classKey) {
   selectedClass = classKey;
@@ -141,7 +118,6 @@ showShipSelectScreen(function (classKey) {
   openTechThenMap();
 });
 
-// --- open tech screen, then strategic map ---
 function openTechThenMap() {
   techState = loadTechState();
   techScreenOpen = true;
@@ -154,7 +130,6 @@ function openTechThenMap() {
   });
 }
 
-// --- open the strategic map ---
 function openMap() {
   mapState = loadMapState();
   showMapScreen(mapState, function (zoneId) {
@@ -164,14 +139,10 @@ function openMap() {
   });
 }
 
-// --- start combat for a specific zone ---
 function startZoneCombat(classKey, zoneId) {
   var classCfg = getShipClass(classKey);
   var zone = getZone(zoneId);
-  var zoneConfigs = buildZoneWaveConfigs(zone);
-
-  // reset all combat state
-  resetWaveManager(waveMgr, zoneConfigs);
+  resetWaveManager(waveMgr, buildZoneWaveConfigs(zone));
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
   resetUpgrades(upgrades);
@@ -179,43 +150,23 @@ function startZoneCombat(classKey, zoneId) {
   resetCrew(crew);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
-
-  // remove old ship mesh if present
-  if (ship && ship.mesh) {
-    scene.remove(ship.mesh);
-  }
-
+  if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
-
-  // set player HP based on class
   setPlayerMaxHp(enemyMgr, classCfg.stats.hp);
   setPlayerHp(enemyMgr, classCfg.stats.hp);
   setPlayerArmor(enemyMgr, classCfg.stats.armor);
-
-  // weapon system
   weapons = createWeaponState(ship);
-
-  // ability system
   abilityState = createAbilityState(classKey);
-
-  // navigation
-  initNav(cam.camera, ship, scene);
-
-  // reset drones
+  initNav(cam.camera, ship, scene, enemyMgr);
   resetDrones(droneMgr, scene);
-
-  // set weather based on zone condition
-  var weatherKey = zone.condition === "stormy" ? "storm" : zone.condition || "calm";
-  setWeather(weather, weatherKey);
-
+  setWeather(weather, zone.condition === "stormy" ? "storm" : zone.condition || "calm");
   gameFrozen = false;
   gameStarted = true;
   upgradeScreenOpen = false;
   showBanner(zone.name + " — Wave 1", 3);
 }
 
-// --- handle zone completion (victory) ---
 function handleZoneVictory() {
   var hpInfo = getPlayerHp(enemyMgr);
   var stars = calcStars(hpInfo.hp, hpInfo.maxHp);
@@ -223,7 +174,6 @@ function handleZoneVictory() {
   saveMapState(mapState);
 }
 
-// --- apply upgrade multipliers to game systems ---
 function applyUpgrades() {
   var m = getMultipliers(upgrades);
   setPlayerArmor(enemyMgr, m.armor + (getShipClass(selectedClass).stats.armor || 0));
@@ -237,27 +187,19 @@ function applyUpgrades() {
   }
 }
 
-// --- handle ability activation ---
 function handleAbility(mults) {
   if (!abilityState || !selectedClass) return;
-
   if (selectedClass === "destroyer") {
-    // Speed Boost: 2x speed for 3s
     ship.speedBoostActive = abilityState.active;
-  } else if (selectedClass === "cruiser") {
-    // Broadside is instant — handled in consumeAbility block above
   } else if (selectedClass === "submarine") {
-    // Dive: invulnerable for 3s, can't fire
     ship.diveActive = abilityState.active;
     if (abilityState.active) {
-      // make ship semi-transparent
       ship.mesh.traverse(function (child) {
         if (child.isMesh && child.material) {
           child.material.transparent = true;
           child.material.opacity = 0.3;
         }
       });
-      // invulnerable — set very high armor temporarily
       enemyMgr.playerArmor = 1.0;
     } else {
       ship.mesh.traverse(function (child) {
@@ -266,7 +208,6 @@ function handleAbility(mults) {
           child.material.opacity = 1.0;
         }
       });
-      // restore normal armor
       var classArmor = getShipClass(selectedClass).stats.armor || 0;
       var m = getMultipliers(upgrades);
       enemyMgr.playerArmor = m.armor + classArmor;
@@ -274,7 +215,6 @@ function handleAbility(mults) {
   }
 }
 
-// --- restart handler: go back to map ---
 setRestartCallback(function () {
   gameFrozen = true;
   gameStarted = false;
@@ -286,164 +226,81 @@ setRestartCallback(function () {
   resetCrew(crew);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
-  if (ship) {
-    ship.posX = 0;
-    ship.posZ = 0;
-    ship.speed = 0;
-    ship.heading = 0;
-    ship.navTarget = null;
-  }
-  if (weapons) {
-    weapons.activeWeapon = 0;
-    weapons.projectiles = [];
-    weapons.effects = [];
-    weapons.cooldown = 0;
-  }
-  upgradeScreenOpen = false;
-  crewScreenOpen = false;
-  techScreenOpen = false;
+  if (ship) { ship.posX = 0; ship.posZ = 0; ship.speed = 0; ship.heading = 0; ship.navTarget = null; }
+  if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
+  upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
   setWeather(weather, "calm");
-  hideUpgradeScreen();
-  hideCrewScreen();
-  hideTechScreen();
-  hideOverlay();
+  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
   openTechThenMap();
 });
 
-// --- resize ---
 window.addEventListener("resize", function () {
   renderer.setSize(window.innerWidth, window.innerHeight);
   resizeCamera(cam, window.innerWidth / window.innerHeight);
 });
 
-// --- render loop ---
 var clock = new THREE.Clock();
-
 function animate() {
   requestAnimationFrame(animate);
-  var dt = clock.getDelta();
+  var dt = Math.min(clock.getDelta(), 0.1);
   var elapsed = clock.getElapsedTime();
-
-  if (dt > 0.1) dt = 0.1;
-
   var input = getInput();
   var mouse = getMouse();
 
   if (!gameFrozen && !upgradeScreenOpen && !crewScreenOpen && !techScreenOpen && gameStarted) {
-    var mults = getMultipliers(upgrades);
-
-    // apply crew bonuses on top of upgrade multipliers
-    var crewBonus = getCrewBonuses(crew);
-    mults = Object.assign({}, mults);
-    mults.fireRate = mults.fireRate * crewBonus.fireRate;
-    mults.maxSpeed = mults.maxSpeed * crewBonus.maxSpeed;
-    mults.turnRate = mults.turnRate * crewBonus.turnRate;
-    mults.repair = mults.repair * crewBonus.repair;
-
-    // apply tech tree bonuses (persistent)
-    var techBonus = getTechBonuses(techState);
-    mults.damage += techBonus.damage;
-    mults.fireRate += techBonus.fireRate;
-    mults.maxHp += techBonus.maxHp;
-    mults.armor += techBonus.armor;
-    mults.enemyRange += techBonus.enemyRange;
-    mults.pickupRange += techBonus.pickupRange;
-    mults.maxSpeed += techBonus.maxSpeed;
-    mults.critChance = techBonus.critChance;
-    mults.splash = techBonus.splash;
-    mults.autoRepair = techBonus.autoRepair;
-    mults.dmgReflect = techBonus.dmgReflect;
-
-    // ability activation (Q key)
-    if (consumeAbility() && abilityState) {
-      var activated = activateAbility(abilityState);
-      if (activated) {
-        if (selectedClass === "cruiser") {
-          // Broadside: fire all turrets at once (3 rapid shots)
-          for (var bs = 0; bs < 3; bs++) {
-            fireWeapon(weapons, scene, resources, mults);
-            weapons.cooldown = 0; // override cooldown for broadside
-          }
-        } else if (selectedClass === "carrier") {
-          // Launch Drone
-          spawnDrone(droneMgr, ship.posX, ship.posZ, scene, 15);
-        }
-      }
-    }
-
-    // update ability timers
+    var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
+    if (mouse.clicked && !mouse.clickConsumed) { handleClick(mouse.x, mouse.y); consumeClick(); }
     if (abilityState) {
       updateAbility(abilityState, dt);
       handleAbility(mults);
     }
 
-    // speed boost for destroyer
     var fuelMult = getFuelSpeedMult(resources);
-    if (ship.speedBoostActive) {
-      // override: apply 2x speed multiplier
-      mults = Object.assign({}, mults);
-      mults.maxSpeed = mults.maxSpeed * 2;
-    }
-
-    // submarine dive: can't fire
-    var canFire = true;
-    if (ship.diveActive) {
-      canFire = false;
-    }
-
-    // weather: inject wind into mults, build wave height wrapper
+    if (ship.speedBoostActive) { mults = Object.assign({}, mults); mults.maxSpeed = mults.maxSpeed * 2; }
+    var canFire = !ship.diveActive;
     var wp = getWeatherPreset(weather);
     mults = Object.assign({}, mults);
     mults.windX = wp.windX;
     mults.windZ = wp.windZ;
-
     var waveAmp = wp.waveAmplitude;
-    var weatherWaveHeight = function (wx, wz, wt) {
-      return getWaveHeight(wx, wz, wt, waveAmp);
-    };
-
+    var weatherWaveHeight = function (wx, wz, wt) { return getWaveHeight(wx, wz, wt, waveAmp); };
     updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults);
-
     var speedRatio = getSpeedRatio(ship);
     consumeFuel(resources, speedRatio, dt);
-
     updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, wp.waterTint);
     updateWeather(weather, dt, scene, ship.posX, ship.posZ);
     maybeChangeWeather(weather);
     updateNav(ship, elapsed);
     updateCamera(cam, dt, ship.posX, ship.posZ);
-
-    // weapon switching
-    var weaponSwitchIdx = consumeWeaponSwitch();
-    if (weaponSwitchIdx >= 0) {
-      switchWeapon(weapons, weaponSwitchIdx);
+    // auto-targeting: acquire nearest enemy if no combat target
+    var target = getCombatTarget();
+    if (!target) {
+      var nearest = findNearestEnemy(ship, enemyMgr.enemies);
+      if (nearest) {
+        var tdx = nearest.posX - ship.posX;
+        var tdz = nearest.posZ - ship.posZ;
+        if (Math.sqrt(tdx * tdx + tdz * tdz) <= getActiveWeaponRange(weapons)) {
+          setCombatTarget(nearest);
+          target = nearest;
+        }
+      }
     }
-
-    // aim turrets
-    var aimTarget = screenToWorld(mouse.x, mouse.y, cam.camera);
-    if (aimTarget) {
-      aimWeapons(weapons, aimTarget);
+    // auto-aim and auto-fire at combat target
+    if (target && target.alive) {
+      aimAtEnemy(weapons, target);
+      if (canFire) {
+        var fdx = target.posX - ship.posX;
+        var fdz = target.posZ - ship.posZ;
+        if (Math.sqrt(fdx * fdx + fdz * fdz) <= getActiveWeaponRange(weapons)) {
+          fireWeapon(weapons, scene, resources, mults);
+        }
+      }
     }
-
-    // fire on click/tap
-    if (canFire && mouse.firePressed && !mouse.fireConsumed) {
-      fireWeapon(weapons, scene, resources, mults);
-      consumeFire();
-    } else if (!canFire && mouse.firePressed && !mouse.fireConsumed) {
-      consumeFire(); // consume the click even if can't fire
-    }
-
     updateWeapons(weapons, dt, scene, enemyMgr, activeBoss);
-
-    // update drones
     updateDrones(droneMgr, ship, dt, scene, enemyMgr, weatherWaveHeight, elapsed);
-
-    // update boss
     if (activeBoss) {
       updateBoss(activeBoss, ship, dt, scene, weatherWaveHeight, elapsed, enemyMgr);
       updateBossHud(activeBoss, dt);
-
-      // detect boss defeat — drop loot
       if (activeBoss.defeated && !activeBoss._lootGiven) {
         activeBoss._lootGiven = true;
         var loot = rollBossLoot();
@@ -451,32 +308,23 @@ function animate() {
         showLootBanner(loot.label);
         showBanner("BOSS DEFEATED!", 3);
         hideBossHud();
-        // boss defeat: award a rank 2-3 officer
         var bossOfficer = generateOfficerReward(Math.random() < 0.5 ? 2 : 3);
         addOfficer(crew, bossOfficer);
         showBanner("Officer recruited: " + bossOfficer.portrait + " " + bossOfficer.name, 4);
       }
     }
 
-    var waveConfig = getWaveConfig(waveMgr);
-    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, waveConfig);
-
+    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr));
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene);
-
-    // tech: auto-repair — regen 1 HP/sec
     if (mults.autoRepair) {
       var arHp = getPlayerHp(enemyMgr);
-      if (arHp.hp < arHp.maxHp) {
-        setPlayerHp(enemyMgr, Math.min(arHp.maxHp, arHp.hp + dt));
-      }
+      if (arHp.hp < arHp.maxHp) setPlayerHp(enemyMgr, Math.min(arHp.maxHp, arHp.hp + dt));
     }
-
     var hpInfo = getPlayerHp(enemyMgr);
     var aliveEnemyCount = 0;
     for (var i = 0; i < enemyMgr.enemies.length; i++) {
       if (enemyMgr.enemies[i].alive) aliveEnemyCount++;
     }
-
     var bossAlive = activeBoss && activeBoss.alive;
     var event = updateWaveState(waveMgr, aliveEnemyCount, hpInfo.hp, hpInfo.maxHp, resources, dt, bossAlive);
 
@@ -496,13 +344,11 @@ function animate() {
         }
       } else if (event === "wave_complete") {
         showBanner("Wave " + waveMgr.wave + " cleared!", 2.5);
-        // clean up boss after wave complete
         if (activeBoss) {
           removeBoss(activeBoss, scene);
           activeBoss = null;
           hideBossHud();
         }
-        // wave completion: chance to recruit an officer
         if (Math.random() < 0.5) {
           var waveOfficer = generateOfficerReward(1);
           addOfficer(crew, waveOfficer);
@@ -513,7 +359,6 @@ function animate() {
           showUpgradeScreen(upgrades, function () {
             upgradeScreenOpen = false;
             applyUpgrades();
-            // show crew screen after upgrades
             crewScreenOpen = true;
             showCrewScreen(crew, function () {
               crewScreenOpen = false;
@@ -537,44 +382,21 @@ function animate() {
     }
 
     updateHealthBars(cam.camera, enemyMgr.enemies, ship, hpInfo.hp, hpInfo.maxHp);
-
     var waveState = getWaveState(waveMgr);
-
     var weaponOrder = getWeaponOrder();
     var ammoCosts = [];
-    for (var wi = 0; wi < weaponOrder.length; wi++) {
-      ammoCosts.push(getWeaponConfig(weaponOrder[wi]).ammoCost);
-    }
-    var weaponInfo = {
-      activeIndex: weapons.activeWeapon,
-      ammoCosts: ammoCosts
-    };
-
-    // build ability info for HUD
+    for (var wi = 0; wi < weaponOrder.length; wi++) ammoCosts.push(getWeaponConfig(weaponOrder[wi]).ammoCost);
+    var weaponInfo = { activeIndex: weapons.activeWeapon, ammoCosts: ammoCosts };
     var abilityHudInfo = null;
     if (abilityState && selectedClass) {
       var classCfg = getShipClass(selectedClass);
-      abilityHudInfo = {
-        name: classCfg.ability.name,
-        color: classCfg.color,
-        active: abilityState.active,
-        activeTimer: abilityState.activeTimer,
-        duration: abilityState.duration,
-        cooldownTimer: abilityState.cooldownTimer,
-        cooldown: abilityState.cooldown
-      };
+      abilityHudInfo = { name: classCfg.ability.name, color: classCfg.color, active: abilityState.active,
+        activeTimer: abilityState.activeTimer, duration: abilityState.duration,
+        cooldownTimer: abilityState.cooldownTimer, cooldown: abilityState.cooldown };
     }
-
-    updateHUD(
-      speedRatio, getDisplaySpeed(ship), ship.heading,
-      resources.ammo, resources.maxAmmo,
-      hpInfo.hp, hpInfo.maxHp,
-      resources.fuel, resources.maxFuel,
-      resources.parts,
-      waveMgr.wave, waveState, dt,
-      upgrades.salvage, weaponInfo, abilityHudInfo,
-      getWeatherLabel(weather)
-    );
+    updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
+      hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
+      waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather));
   } else {
     var wpIdle = getWeatherPreset(weather);
     updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waterTint);

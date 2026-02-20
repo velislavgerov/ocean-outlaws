@@ -134,26 +134,18 @@ function normalizeAngle(a) {
   return a;
 }
 
-// --- update ship physics ---
+// --- update ship physics (click-to-move only, no keyboard controls) ---
 export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, upgradeMults) {
   var speedMult = upgradeMults ? upgradeMults.maxSpeed : 1;
-  var turnMult2 = upgradeMults ? upgradeMults.turnRate : 1;
   var accelMult = upgradeMults ? upgradeMults.accel : 1;
 
   var baseMax = ship.baseMaxSpeed || DEFAULT_MAX_SPEED;
   var baseAccel = ship.baseAccel || DEFAULT_ACCEL;
-  var baseTurn = ship.baseTurnRate || DEFAULT_TURN_RATE;
 
   var effectiveMaxSpeed = baseMax * speedMult * (fuelMult !== undefined ? fuelMult : 1);
   var effectiveAccel = baseAccel * accelMult;
-  var effectiveReverseAccel = baseAccel * REVERSE_ACCEL_RATIO * accelMult;
-  var wasdActive = input.forward || input.backward || input.left || input.right;
 
-  if (wasdActive) {
-    ship.navTarget = null;
-  }
-
-  if (ship.navTarget && !wasdActive) {
+  if (ship.navTarget) {
     var dx = ship.navTarget.x - ship.posX;
     var dz = ship.navTarget.z - ship.posZ;
     var dist = Math.sqrt(dx * dx + dz * dz);
@@ -188,30 +180,14 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
       }
     }
   } else {
-    if (input.forward) {
-      ship.speed += effectiveAccel * dt;
-    } else if (input.backward) {
-      ship.speed -= effectiveReverseAccel * dt;
+    // no nav target — decelerate to stop
+    if (ship.speed > 0) {
+      ship.speed -= DRAG * dt;
+      if (ship.speed < 0) ship.speed = 0;
+    } else if (ship.speed < 0) {
+      ship.speed += DRAG * dt;
+      if (ship.speed > 0) ship.speed = 0;
     }
-
-    if (!input.forward && !input.backward) {
-      if (ship.speed > 0) {
-        ship.speed -= DRAG * dt;
-        if (ship.speed < 0) ship.speed = 0;
-      } else if (ship.speed < 0) {
-        ship.speed += DRAG * dt;
-        if (ship.speed > 0) ship.speed = 0;
-      }
-    }
-
-    var turnSpeedLow = baseTurn * turnMult2;
-    var turnSpeedHigh = baseTurn * TURN_SPEED_HIGH_RATIO * turnMult2;
-    var speedRatio = Math.abs(ship.speed) / effectiveMaxSpeed;
-    var turnRate = turnSpeedLow + (turnSpeedHigh - turnSpeedLow) * speedRatio;
-    var turnMult = Math.max(0.1, Math.min(1, Math.abs(ship.speed) / 5));
-
-    if (input.left)  ship.heading += turnRate * turnMult * dt;
-    if (input.right) ship.heading -= turnRate * turnMult * dt;
   }
 
   var maxReverse = effectiveMaxSpeed * 0.3;
