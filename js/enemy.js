@@ -126,6 +126,27 @@ export function createEnemyManager() {
   };
 }
 
+// --- reset enemy manager for restart ---
+export function resetEnemyManager(manager, scene) {
+  // remove all enemy meshes, projectiles, particles from scene
+  for (var i = 0; i < manager.enemies.length; i++) {
+    scene.remove(manager.enemies[i].mesh);
+  }
+  for (var i = 0; i < manager.projectiles.length; i++) {
+    scene.remove(manager.projectiles[i].mesh);
+  }
+  for (var i = 0; i < manager.particles.length; i++) {
+    scene.remove(manager.particles[i].mesh);
+  }
+  manager.enemies = [];
+  manager.projectiles = [];
+  manager.particles = [];
+  manager.spawnTimer = 3;
+  manager.spawnInterval = INITIAL_SPAWN_INTERVAL;
+  manager.playerHp = PLAYER_HP;
+  manager.playerMaxHp = PLAYER_HP;
+}
+
 // --- set callback for enemy death (used for pickup spawning) ---
 export function setOnDeathCallback(manager, callback) {
   manager.onDeathCallback = callback;
@@ -136,9 +157,13 @@ export function setPlayerHp(manager, hp) {
   manager.playerHp = Math.min(manager.playerMaxHp, Math.max(0, hp));
 }
 
-// --- spawn a single enemy at map edge ---
-function spawnEnemy(manager, playerX, playerZ, scene) {
+// --- spawn a single enemy at map edge with wave multipliers ---
+function spawnEnemy(manager, playerX, playerZ, scene, waveConfig) {
   if (manager.enemies.length >= MAX_ENEMIES) return;
+
+  var hpMult = waveConfig ? waveConfig.hpMult : 1;
+  var speedMult = waveConfig ? waveConfig.speedMult : 1;
+  var fireRateMult = waveConfig ? waveConfig.fireRateMult : 1;
 
   var angle = Math.random() * Math.PI * 2;
   var dist = SPAWN_DIST_MIN + Math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
@@ -151,17 +176,19 @@ function spawnEnemy(manager, playerX, playerZ, scene) {
   var heading = Math.atan2(playerX - x, playerZ - z);
   mesh.rotation.y = heading;
 
+  var scaledHp = Math.round(ENEMY_HP * hpMult);
+
   var enemy = {
     mesh: mesh,
-    hp: ENEMY_HP,
-    maxHp: ENEMY_HP,
+    hp: scaledHp,
+    maxHp: scaledHp,
     alive: true,
     hitRadius: 2.0,
     posX: x,
     posZ: z,
     heading: heading,
-    speed: ENEMY_SPEED * (0.7 + Math.random() * 0.3),
-    fireCooldown: FIRE_COOLDOWN * (0.8 + Math.random() * 0.4),
+    speed: ENEMY_SPEED * speedMult * (0.7 + Math.random() * 0.3),
+    fireCooldown: FIRE_COOLDOWN / fireRateMult * (0.8 + Math.random() * 0.4),
     fireTimer: 1 + Math.random() * 2,
     // destruction state
     sinking: false,
@@ -173,15 +200,26 @@ function spawnEnemy(manager, playerX, playerZ, scene) {
 }
 
 // --- update all enemies ---
-export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, resources) {
+// waveMgr: wave manager from wave.js (optional, for spawn gating)
+// waveConfig: current wave config with multipliers (optional)
+export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig) {
   manager.elapsed = elapsed;
 
-  // --- spawning (only during active wave, and only while enemies remain in wave) ---
-  var canSpawn = !resources || (resources.waveActive && resources.waveEnemiesRemaining > 0);
+  // --- spawning gated by wave manager ---
+  var shouldSpawn = false;
+  if (waveMgr) {
+    // import-free check: waveMgr has enemiesToSpawn > 0 and state is SPAWNING or ACTIVE
+    shouldSpawn = waveMgr.enemiesToSpawn > 0 && (waveMgr.state === "SPAWNING" || waveMgr.state === "ACTIVE");
+  }
+
   manager.spawnTimer -= dt;
-  if (manager.spawnTimer <= 0 && canSpawn) {
-    spawnEnemy(manager, ship.posX, ship.posZ, scene);
-    if (resources) resources.waveEnemiesRemaining--;
+  if (manager.spawnTimer <= 0 && shouldSpawn) {
+    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig);
+    if (waveMgr) waveMgr.enemiesToSpawn--;
+    // transition wave state if all spawned
+    if (waveMgr && waveMgr.enemiesToSpawn <= 0) {
+      waveMgr.state = "ACTIVE";
+    }
     manager.spawnInterval = Math.max(
       MIN_SPAWN_INTERVAL,
       manager.spawnInterval - SPAWN_ACCEL * manager.spawnInterval

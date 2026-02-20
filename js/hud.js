@@ -1,4 +1,4 @@
-// hud.js — speed indicator, compass, ammo counter, fuel gauge, parts count, wave info
+// hud.js — speed indicator, compass, ammo counter, fuel gauge, parts count, wave info, overlays
 
 var container = null;
 var speedBar = null;
@@ -13,6 +13,15 @@ var hpBarBg = null;
 var hpBar = null;
 var hpLabel = null;
 var waveLabel = null;
+
+// overlay elements
+var banner = null;
+var bannerTimer = 0;
+var overlay = null;
+var overlayTitle = null;
+var overlaySubtext = null;
+var overlayBtn = null;
+var onRestartCallback = null;
 
 export function createHUD() {
   container = document.createElement("div");
@@ -150,9 +159,135 @@ export function createHUD() {
   container.appendChild(waveLabel);
 
   document.body.appendChild(container);
+
+  // --- wave announcement banner (centered, fades out) ---
+  banner = document.createElement("div");
+  banner.style.cssText = [
+    "position: fixed",
+    "top: 25%",
+    "left: 50%",
+    "transform: translate(-50%, -50%)",
+    "font-family: monospace",
+    "font-size: 32px",
+    "font-weight: bold",
+    "color: #ffcc44",
+    "text-shadow: 0 0 20px rgba(255,200,60,0.6)",
+    "pointer-events: none",
+    "user-select: none",
+    "z-index: 20",
+    "opacity: 0",
+    "transition: opacity 0.3s"
+  ].join(";");
+  banner.textContent = "";
+  document.body.appendChild(banner);
+
+  // --- game over / victory overlay ---
+  overlay = document.createElement("div");
+  overlay.style.cssText = [
+    "position: fixed",
+    "top: 0",
+    "left: 0",
+    "width: 100%",
+    "height: 100%",
+    "display: none",
+    "flex-direction: column",
+    "align-items: center",
+    "justify-content: center",
+    "background: rgba(5, 5, 15, 0.85)",
+    "z-index: 100",
+    "font-family: monospace",
+    "user-select: none"
+  ].join(";");
+
+  overlayTitle = document.createElement("div");
+  overlayTitle.style.cssText = [
+    "font-size: 48px",
+    "font-weight: bold",
+    "color: #cc4444",
+    "margin-bottom: 16px"
+  ].join(";");
+  overlay.appendChild(overlayTitle);
+
+  overlaySubtext = document.createElement("div");
+  overlaySubtext.style.cssText = [
+    "font-size: 20px",
+    "color: #8899aa",
+    "margin-bottom: 32px"
+  ].join(";");
+  overlay.appendChild(overlaySubtext);
+
+  overlayBtn = document.createElement("button");
+  overlayBtn.textContent = "RESTART";
+  overlayBtn.style.cssText = [
+    "font-family: monospace",
+    "font-size: 18px",
+    "padding: 12px 36px",
+    "background: rgba(40, 60, 90, 0.8)",
+    "color: #8899aa",
+    "border: 1px solid rgba(80, 100, 130, 0.5)",
+    "border-radius: 6px",
+    "cursor: pointer",
+    "pointer-events: auto"
+  ].join(";");
+  overlayBtn.addEventListener("click", function () {
+    hideOverlay();
+    if (onRestartCallback) onRestartCallback();
+  });
+  overlay.appendChild(overlayBtn);
+
+  document.body.appendChild(overlay);
 }
 
-export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveActive) {
+// --- set restart callback ---
+export function setRestartCallback(cb) {
+  onRestartCallback = cb;
+}
+
+// --- show wave announcement banner ---
+export function showBanner(text, duration) {
+  if (!banner) return;
+  banner.textContent = text;
+  banner.style.opacity = "1";
+  bannerTimer = duration || 3;
+}
+
+// --- update banner fade ---
+function updateBanner(dt) {
+  if (bannerTimer <= 0) return;
+  bannerTimer -= dt;
+  if (bannerTimer <= 0.5) {
+    banner.style.opacity = String(Math.max(0, bannerTimer / 0.5));
+  }
+  if (bannerTimer <= 0) {
+    banner.style.opacity = "0";
+  }
+}
+
+// --- show game over overlay ---
+export function showGameOver(waveReached) {
+  if (!overlay) return;
+  overlayTitle.textContent = "GAME OVER";
+  overlayTitle.style.color = "#cc4444";
+  overlaySubtext.textContent = "You reached Wave " + waveReached;
+  overlay.style.display = "flex";
+}
+
+// --- show victory overlay ---
+export function showVictory(waveReached) {
+  if (!overlay) return;
+  overlayTitle.textContent = "VICTORY";
+  overlayTitle.style.color = "#44dd66";
+  overlaySubtext.textContent = "All " + waveReached + " waves survived!";
+  overlay.style.display = "flex";
+}
+
+// --- hide overlay ---
+export function hideOverlay() {
+  if (!overlay) return;
+  overlay.style.display = "none";
+}
+
+export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt) {
   if (!container) return;
 
   var pct = Math.min(1, speedRatio) * 100;
@@ -197,12 +332,21 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
 
   // wave indicator
   if (wave !== undefined && waveLabel) {
-    if (waveActive) {
+    if (waveState === "SPAWNING" || waveState === "ACTIVE") {
       waveLabel.textContent = "WAVE " + wave;
       waveLabel.style.color = "#8899aa";
-    } else {
+    } else if (waveState === "WAITING") {
       waveLabel.textContent = "REPAIRING...";
       waveLabel.style.color = "#44dd66";
+    } else if (waveState === "WAVE_COMPLETE") {
+      waveLabel.textContent = "WAVE " + wave + " CLEAR";
+      waveLabel.style.color = "#44dd66";
+    } else {
+      waveLabel.textContent = "WAVE " + wave;
+      waveLabel.style.color = "#8899aa";
     }
   }
+
+  // update banner
+  updateBanner(dt || 0.016);
 }
