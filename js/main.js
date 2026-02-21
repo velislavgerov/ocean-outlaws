@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
+import { createOcean, updateOcean, getWaveHeight, setTerrainMap, clearTerrainMap } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
@@ -285,11 +285,12 @@ function startMultiplayerCombat() {
   resetSendState();
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   // Use shared terrain seed for deterministic terrain
   var seed = mpState.terrainSeed || Math.floor(Math.random() * 999999);
   activeTerrain = createTerrain(seed, 2);
   scene.add(activeTerrain.mesh);
+  setTerrainMap(ocean.uniforms, activeTerrain);
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
@@ -353,13 +354,14 @@ function startZoneCombat(classKey, zoneId) {
   resetCrew(crew);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   // generate terrain: seed from zone id hash + random, difficulty scales land coverage
   var terrainSeed = 0;
   for (var si = 0; si < zoneId.length; si++) terrainSeed += zoneId.charCodeAt(si) * (si + 1);
   terrainSeed += Math.floor(Math.random() * 10000);
   activeTerrain = createTerrain(terrainSeed, zone.difficulty);
   scene.add(activeTerrain.mesh);
+  setTerrainMap(ocean.uniforms, activeTerrain);
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
@@ -445,7 +447,7 @@ setRestartCallback(function () {
   hideBossHud();
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   if (ship) {
     // Find safe water spawn — don't place on land
     if (activeTerrain) {
