@@ -33,6 +33,9 @@ import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.j
 import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
+import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
+import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState } from "./netSync.js";
+import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 
 var SALVAGE_PER_KILL = 10;
 var prevPlayerHp = -1;
@@ -168,11 +171,155 @@ createBossHud();
 var cam = createCamera(window.innerWidth / window.innerHeight);
 createMapScreen();
 createShipSelectScreen();
-showShipSelectScreen(function (classKey) {
+
+// --- multiplayer ---
+var mpState = createMultiplayerState();
+var mpReady = false;
+createLobbyScreen();
+
+// inject multiplayer button into ship select screen (find overlay)
+setTimeout(function () {
+  var selectOverlays = document.querySelectorAll("div");
+  for (var oi = 0; oi < selectOverlays.length; oi++) {
+    if (selectOverlays[oi].textContent.indexOf("Click a ship to start") !== -1) {
+      createMultiplayerButton(selectOverlays[oi].parentNode, function () {
+        hideShipSelectScreen();
+        showLobbyChoice();
+      });
+      break;
+    }
+  }
+}, 100);
+
+setLobbyCallbacks({
+  onCreate: function () {
+    createRoom(mpState, selectedClass || "cruiser").then(function (code) {
+      showLobby(code, true);
+      updatePlayerList(mpState.players, mpState.playerId);
+    });
+  },
+  onJoin: function (code) {
+    joinRoom(mpState, code, selectedClass || "cruiser").then(function () {
+      showLobby(mpState.roomCode, false);
+      updatePlayerList(mpState.players, mpState.playerId);
+    });
+  },
+  onReady: function () {
+    mpReady = !mpReady;
+    setReady(mpState, mpReady);
+    updateReadyButton(mpReady);
+  },
+  onStart: function () {
+    if (mpState.isHost) {
+      var started = startGame(mpState);
+      if (started) {
+        hideLobbyScreen();
+        startMultiplayerCombat();
+      }
+    }
+  },
+  onClassChange: function (key) {
+    selectedClass = key;
+    setShipClass(mpState, key);
+  },
+  onBack: function () {
+    leaveRoom(mpState);
+    hideLobbyScreen();
+    showShipSelectScreen(handleShipSelect, upgrades);
+  }
+});
+
+// Update lobby when players change
+mpState.onPlayersChanged = function () {
+  updatePlayerList(mpState.players, mpState.playerId);
+  updateStartButton(mpState.isHost && allPlayersReady(mpState) && getPlayerCount(mpState) > 1);
+};
+
+// Handle broadcast messages
+mpState.onBroadcast = function (msg) {
+  if (msg.type === "game_start") {
+    mpState.gameStarted = true;
+    mpState.terrainSeed = msg.terrainSeed;
+    mpState.hostId = msg.hostId;
+    hideLobbyScreen();
+    startMultiplayerCombat();
+  } else if (msg.type === "ship_state" || msg.type === "fire") {
+    handleBroadcastMessage(msg, scene, mpState);
+  } else if (msg.type === "enemy_state" && !mpState.isHost) {
+    // Non-host clients receive enemy positions from host
+    // (simplified: just update positions of existing enemies)
+  } else if (msg.type === "pickup_claim") {
+    // Another player claimed a pickup — remove it
+    if (pickupMgr.pickups && msg.index < pickupMgr.pickups.length) {
+      var claimed = pickupMgr.pickups[msg.index];
+      if (claimed && !claimed.collected) {
+        claimed.collected = true;
+        scene.remove(claimed.mesh);
+      }
+    }
+  }
+};
+
+mpState.onDisconnect = function (playerId) {
+  addKillFeedEntry("Player disconnected", "#cc6644");
+};
+
+mpState.onHostMigrated = function (newHostId) {
+  if (newHostId === mpState.playerId) {
+    showBanner("You are now the host", 3);
+    addKillFeedEntry("Host migrated to you", "#ffcc44");
+  }
+};
+
+function startMultiplayerCombat() {
+  // Use the first zone for multiplayer, with shared terrain seed
+  selectedClass = mpState.players[mpState.playerId].shipClass || selectedClass || "cruiser";
+  var classCfg = getShipClass(selectedClass);
+  resetWaveManager(waveMgr);
+  resetResources(resources);
+  resetEnemyManager(enemyMgr, scene);
+  resetUpgrades(upgrades);
+  resetDrones(droneMgr, scene);
+  resetCrew(crew);
+  clearRemoteShips(scene);
+  resetSendState();
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+  hideBossHud();
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+  // Use shared terrain seed for deterministic terrain
+  var seed = mpState.terrainSeed || Math.floor(Math.random() * 999999);
+  activeTerrain = createTerrain(seed, 2);
+  scene.add(activeTerrain.mesh);
+  clearPorts(portMgr, scene);
+  initPorts(portMgr, activeTerrain, scene);
+  clearCrates(crateMgr, scene);
+  if (ship && ship.mesh) scene.remove(ship.mesh);
+  ship = createShip(classCfg);
+  scene.add(ship.mesh);
+  setPlayerMaxHp(enemyMgr, classCfg.stats.hp);
+  setPlayerHp(enemyMgr, classCfg.stats.hp);
+  setPlayerArmor(enemyMgr, classCfg.stats.armor);
+  weapons = createWeaponState(ship);
+  abilityState = createAbilityState(selectedClass);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  resetDrones(droneMgr, scene);
+  setWeather(weather, "calm");
+  setEngineClass(selectedClass);
+  gameFrozen = false;
+  gameStarted = true;
+  upgradeScreenOpen = false;
+  activeZoneId = null;
+  fadeIn(0.6);
+  showBanner("Multiplayer — Wave 1", 3);
+}
+
+function handleShipSelect(classKey) {
   selectedClass = classKey;
   hideShipSelectScreen();
   openTechThenMap();
-}, upgrades);
+}
+
+showShipSelectScreen(handleShipSelect, upgrades);
 
 function openTechThenMap() {
   techState = loadTechState();
@@ -292,6 +439,8 @@ setRestartCallback(function () {
   resetUpgrades(upgrades);
   resetDrones(droneMgr, scene);
   resetCrew(crew);
+  clearRemoteShips(scene);
+  resetSendState();
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
   hideBossHud();
   clearPorts(portMgr, scene);
@@ -313,6 +462,10 @@ setRestartCallback(function () {
   setAutofire(false);
   setWeather(weather, "calm");
   hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
+  if (isMultiplayerActive(mpState)) {
+    leaveRoom(mpState);
+    mpReady = false;
+  }
   openTechThenMap();
 });
 
@@ -559,7 +712,19 @@ function animate() {
     var pickupList = pickupMgr.pickups || [];
     var crateList = crateMgr.crates || [];
     var allPickups = pickupList.concat(crateList);
-    updateMinimap(ship.posX, ship.posZ, ship.heading, enemyMgr.enemies, allPickups, portPositions);
+    // multiplayer: pass remote players to minimap
+    var mpRemoteShips = isMultiplayerActive(mpState) ? getRemoteShipsForMinimap() : [];
+    updateMinimap(ship.posX, ship.posZ, ship.heading, enemyMgr.enemies, allPickups, portPositions, mpRemoteShips);
+
+    // multiplayer: send ship state and update remote ships
+    if (isMultiplayerActive(mpState)) {
+      sendShipState(mpState, ship, hpInfo.hp, hpInfo.maxHp, weapons.activeWeapon, getAutofire());
+      updateRemoteShips(dt, weatherWaveHeight, elapsed, scene);
+      // Host sends enemy state to other clients
+      if (mpState.isHost) {
+        sendEnemyState(mpState, enemyMgr.enemies);
+      }
+    }
 
     updateUIEffects(dt);
 

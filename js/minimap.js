@@ -18,7 +18,7 @@ export function createMinimap(parentEl) {
   parentEl.appendChild(minimapCanvas);
 }
 
-export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups, ports) {
+export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups, ports, remotePlayers) {
   if (!minimapCtx) return;
   var ctx = minimapCtx;
   var cx = MINIMAP_SIZE / 2;
@@ -100,6 +100,29 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
         ctx.beginPath();
         ctx.arc(cx + edx, cy + edz, 3, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+  }
+
+  // remote players — cyan triangles
+  if (remotePlayers) {
+    var mpColors = ["#44aaff", "#ff6644", "#44dd66", "#ffcc44"];
+    for (var ri = 0; ri < remotePlayers.length; ri++) {
+      var rp = remotePlayers[ri];
+      var rdx = (rp.posX - playerX) * scale;
+      var rdz = (rp.posZ - playerZ) * scale;
+      if (rdx * rdx + rdz * rdz < radius * radius) {
+        ctx.save();
+        ctx.translate(cx + rdx, cy + rdz);
+        ctx.rotate(-rp.heading);
+        ctx.fillStyle = mpColors[ri % mpColors.length];
+        ctx.beginPath();
+        ctx.moveTo(0, -4);
+        ctx.lineTo(-2.5, 3);
+        ctx.lineTo(2.5, 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
     }
   }
