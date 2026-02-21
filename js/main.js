@@ -5,7 +5,8 @@ import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.j
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, updateMuteButton, updateVolumeSlider } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
-import { unlockAudio, updateEngine, playWeaponSound, playExplosion, playPlayerHit, updateAmbience, playClick, playUpgrade, playWaveHorn, updateMusic, toggleMute, setMasterVolume, isMuted } from "./sound.js";
+import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted } from "./sound.js";
+import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
@@ -108,11 +109,13 @@ setOnDeathCallback(enemyMgr, function (x, y, z) {
   var sal = Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus));
   addSalvage(upgrades, sal);
   playExplosion();
+  playKillConfirm();
   addKillFeedEntry("Enemy destroyed  +" + sal + " salvage", "#ffcc44");
   triggerScreenShake(0.3);
 });
 
 setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
+  playHitConfirm();
   // project 3D position to screen for floating numbers
   if (!cam || !cam.camera) return;
   var pos = new THREE.Vector3(x, y + 1.5, z);
@@ -224,6 +227,7 @@ function startZoneCombat(classKey, zoneId) {
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
   resetDrones(droneMgr, scene);
   setWeather(weather, zone.condition === "stormy" ? "storm" : zone.condition || "calm");
+  setEngineClass(classKey);
   gameFrozen = false;
   gameStarted = true;
   upgradeScreenOpen = false;
@@ -567,8 +571,9 @@ function animate() {
     }
 
     updateEngine(speedRatio);
-    updateAmbience(weather.current);
+    updateAmbience(weather.current, dt);
     updateMusic(aliveEnemyCount > 0 || bossAlive);
+    updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
     if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) {
       playPlayerHit();
       var dmgAmount = prevPlayerHp - hpInfo.hp;

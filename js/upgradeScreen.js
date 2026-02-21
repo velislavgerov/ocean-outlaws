@@ -1,6 +1,6 @@
 // upgradeScreen.js — between-wave upgrade UI overlay with ship diagram
 import { getUpgradeTree, canAfford, buyUpgrade, getNextCost, getMultipliers, getMultiplierForKey, findUpgrade } from "./upgrade.js";
-import { playUpgrade, playClick } from "./sound.js";
+import { playUpgrade, playClick } from "./soundFx.js";
 
 var root = null;
 var salvageLabel = null;

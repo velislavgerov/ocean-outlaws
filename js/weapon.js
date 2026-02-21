@@ -4,6 +4,7 @@ import { damageEnemy } from "./enemy.js";
 import { spendAmmo } from "./resource.js";
 import { damageBoss } from "./boss.js";
 import { isLand } from "./terrain.js";
+import { playImpactSound } from "./soundFx.js";
 
 var WEAPON_TYPES = {
   turret: {
@@ -252,6 +253,10 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     if (hitWater || hitTerrain || outOfRange || hitEnemy || hitBoss) {
       if (hitWater || hitTerrain || hitEnemy || hitBoss) {
         spawnSplash(state, scene, p.mesh.position, cfg.splashScale);
+        // differentiated impact sounds
+        if (hitEnemy || hitBoss) playImpactSound("metal");
+        else if (hitTerrain) playImpactSound("terrain");
+        else if (hitWater) playImpactSound("water");
       }
       for (var t = 0; t < p.trail.length; t++) {
         scene.remove(p.trail[t].mesh);

@@ -1,27 +1,67 @@
-// sound.js — procedural audio via Web Audio API (no audio files)
+// sound.js — procedural audio core, engine, and ambience (no audio files)
 var ctx = null;
 var masterGain = null;
 var musicGain = null;
 var sfxGain = null;
 var ambienceGain = null;
+var compressor = null;
 var muted = false;
 var masterVolume = 0.5;
 var unlocked = false;
-var engineOsc = null;
-var engineGain = null;
+
+// engine layers
+var engineLayers = null;
+var engineClassKey = "cruiser";
+var smoothSpeed = 0;
+
+// wake layer
+var wakeNoise = null;
+var wakeFilter = null;
+var wakeGainNode = null;
+
+// ambience
+var waveNoise = null;
+var waveGainNode = null;
+var waveFilter = null;
 var windNoise = null;
-var windGain = null;
-var waveOsc = null;
-var waveGain = null;
+var windGainNode = null;
+var windFilter = null;
+var swellLfo = null;
+var swellGain = null;
+var gustTimer = 0;
+var gustTarget = 0;
+
+// low HP
+var lowHpOsc = null;
+var lowHpGain = null;
+var lowHpActive = false;
+
+// music
 var musicState = null;
+
+// --- per-class engine tuning ---
+var ENGINE_PROFILES = {
+  destroyer: { baseFreq: 55, whineFreq: 400, whineMax: 1200, rumbleVol: 0.04, chugRate: 8, chugDepth: 0.15, whineVol: 0.06, filterBase: 150 },
+  cruiser:   { baseFreq: 38, whineFreq: 250, whineMax: 800, rumbleVol: 0.06, chugRate: 5, chugDepth: 0.2, whineVol: 0.04, filterBase: 120 },
+  carrier:   { baseFreq: 28, whineFreq: 180, whineMax: 500, rumbleVol: 0.08, chugRate: 3, chugDepth: 0.25, whineVol: 0.03, filterBase: 90 },
+  submarine: { baseFreq: 50, whineFreq: 300, whineMax: 600, rumbleVol: 0.03, chugRate: 6, chugDepth: 0.1, whineVol: 0.02, filterBase: 100 }
+};
 
 function ensureContext() {
   if (ctx) return true;
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // compressor on master output to prevent clipping
+    compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -12;
+    compressor.knee.value = 10;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+    compressor.connect(ctx.destination);
     masterGain = ctx.createGain();
     masterGain.gain.value = masterVolume;
-    masterGain.connect(ctx.destination);
+    masterGain.connect(compressor);
     sfxGain = ctx.createGain();
     sfxGain.gain.value = 0.6;
     sfxGain.connect(masterGain);
@@ -35,6 +75,38 @@ function ensureContext() {
   } catch (e) {
     return false;
   }
+}
+
+export function getCtx() { return ctx; }
+export function getSfxGain() { return sfxGain; }
+export function isReady() { return ctx && unlocked; }
+
+export function makeNoise(audioCtx, seconds) {
+  var size = Math.floor(audioCtx.sampleRate * seconds);
+  var buf = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < size; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+export function playNoiseShot(now, duration, volume, filterFreq) {
+  if (!ctx || !sfxGain) return;
+  var bufferSize = Math.floor(ctx.sampleRate * duration);
+  var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  var src = ctx.createBufferSource();
+  src.buffer = buffer;
+  var filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = filterFreq || 800;
+  var g = ctx.createGain();
+  g.gain.setValueAtTime(volume || 0.2, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  src.connect(filter);
+  filter.connect(g);
+  g.connect(sfxGain);
+  src.start(now);
 }
 
 export function unlockAudio() {
@@ -65,272 +137,242 @@ export function toggleMute() {
   return muted;
 }
 
-// --- engine hum: pitch rises with speed ---
+// --- layered engine: rumble + mechanical chug + whine + wake ---
+export function setEngineClass(classKey) {
+  engineClassKey = classKey || "cruiser";
+  // tear down existing layers so they rebuild with new profile
+  if (engineLayers) {
+    try { engineLayers.rumble.osc.stop(); } catch (e) { /* ok */ }
+    try { engineLayers.whine.osc.stop(); } catch (e) { /* ok */ }
+    try { engineLayers.chug.lfo.stop(); } catch (e) { /* ok */ }
+    engineLayers = null;
+  }
+}
+
+function buildEngine() {
+  var p = ENGINE_PROFILES[engineClassKey] || ENGINE_PROFILES.cruiser;
+
+  // layer 1: bass rumble oscillator
+  var rumbleOsc = ctx.createOscillator();
+  rumbleOsc.type = "sawtooth";
+  rumbleOsc.frequency.value = p.baseFreq;
+  var rumbleFilter = ctx.createBiquadFilter();
+  rumbleFilter.type = "lowpass";
+  rumbleFilter.frequency.value = p.filterBase;
+  rumbleFilter.Q.value = 2;
+  var rumbleGain = ctx.createGain();
+  rumbleGain.gain.value = 0;
+  rumbleOsc.connect(rumbleFilter);
+  rumbleFilter.connect(rumbleGain);
+  rumbleGain.connect(ambienceGain);
+  rumbleOsc.start();
+
+  // layer 2: mechanical chug — LFO amplitude-modulating a sub-oscillator
+  var chugOsc = ctx.createOscillator();
+  chugOsc.type = "triangle";
+  chugOsc.frequency.value = p.baseFreq * 1.5;
+  var chugGain = ctx.createGain();
+  chugGain.gain.value = 0;
+  var chugLfo = ctx.createOscillator();
+  chugLfo.type = "square";
+  chugLfo.frequency.value = p.chugRate;
+  var chugLfoGain = ctx.createGain();
+  chugLfoGain.gain.value = 0;
+  chugLfo.connect(chugLfoGain);
+  chugLfoGain.connect(chugGain.gain);
+  chugOsc.connect(chugGain);
+  chugGain.connect(ambienceGain);
+  chugOsc.start();
+  chugLfo.start();
+
+  // layer 3: high-frequency whine
+  var whineOsc = ctx.createOscillator();
+  whineOsc.type = "sine";
+  whineOsc.frequency.value = p.whineFreq;
+  var whineFilter = ctx.createBiquadFilter();
+  whineFilter.type = "bandpass";
+  whineFilter.frequency.value = p.whineFreq;
+  whineFilter.Q.value = 3;
+  var whineGain = ctx.createGain();
+  whineGain.gain.value = 0;
+  whineOsc.connect(whineFilter);
+  whineFilter.connect(whineGain);
+  whineGain.connect(ambienceGain);
+  whineOsc.start();
+
+  engineLayers = {
+    rumble: { osc: rumbleOsc, filter: rumbleFilter, gain: rumbleGain },
+    chug: { osc: chugOsc, gain: chugGain, lfo: chugLfo, lfoGain: chugLfoGain },
+    whine: { osc: whineOsc, filter: whineFilter, gain: whineGain },
+    profile: p
+  };
+}
+
+function buildWake() {
+  var buf = makeNoise(ctx, 2);
+  wakeNoise = ctx.createBufferSource();
+  wakeNoise.buffer = buf;
+  wakeNoise.loop = true;
+  wakeFilter = ctx.createBiquadFilter();
+  wakeFilter.type = "highpass";
+  wakeFilter.frequency.value = 2000;
+  wakeFilter.Q.value = 0.5;
+  wakeGainNode = ctx.createGain();
+  wakeGainNode.gain.value = 0;
+  wakeNoise.connect(wakeFilter);
+  wakeFilter.connect(wakeGainNode);
+  wakeGainNode.connect(ambienceGain);
+  wakeNoise.start();
+}
+
 export function updateEngine(speedRatio) {
   if (!ctx || !unlocked) return;
-  if (!engineOsc) {
-    engineOsc = ctx.createOscillator();
-    engineOsc.type = "sawtooth";
-    engineOsc.frequency.value = 40;
-    engineGain = ctx.createGain();
-    engineGain.gain.value = 0;
-    var ef = ctx.createBiquadFilter();
-    ef.type = "lowpass";
-    ef.frequency.value = 200;
-    ef.Q.value = 2;
-    engineOsc.connect(ef);
-    ef.connect(engineGain);
-    engineGain.connect(ambienceGain);
-    engineOsc.start();
-    engineOsc._filter = ef;
-  }
+  if (!engineLayers) buildEngine();
+  if (!wakeNoise) buildWake();
+  var p = engineLayers.profile;
   var ratio = Math.max(0, Math.min(1, speedRatio));
-  engineOsc.frequency.value = 40 + ratio * 80;
-  engineGain.gain.value = 0.05 + ratio * 0.2;
-  engineOsc._filter.frequency.value = 120 + ratio * 400;
+
+  // smooth throttle response
+  smoothSpeed += (ratio - smoothSpeed) * 0.04;
+  var s = smoothSpeed;
+
+  // idle throb when stationary
+  var idleVol = (1 - s) * 0.02;
+
+  // rumble layer
+  engineLayers.rumble.osc.frequency.value = p.baseFreq + s * p.baseFreq * 0.8;
+  engineLayers.rumble.gain.gain.value = p.rumbleVol + s * p.rumbleVol * 2 + idleVol;
+  engineLayers.rumble.filter.frequency.value = p.filterBase + s * 400;
+
+  // chug layer — rate increases with speed
+  engineLayers.chug.lfo.frequency.value = p.chugRate + s * p.chugRate;
+  engineLayers.chug.lfoGain.gain.value = p.chugDepth * (0.3 + s * 0.7);
+  engineLayers.chug.osc.frequency.value = p.baseFreq * 1.5 + s * 30;
+  engineLayers.chug.gain.gain.value = 0.03 + s * 0.05;
+
+  // whine layer — only at higher speeds
+  var whineAmount = Math.max(0, s - 0.2) / 0.8;
+  engineLayers.whine.osc.frequency.value = p.whineFreq + whineAmount * (p.whineMax - p.whineFreq);
+  engineLayers.whine.filter.frequency.value = p.whineFreq + whineAmount * (p.whineMax - p.whineFreq);
+  engineLayers.whine.gain.gain.value = p.whineVol * whineAmount;
+
+  // wake/spray layer
+  wakeGainNode.gain.value = s * 0.08;
+  wakeFilter.frequency.value = 1500 + s * 3000;
 }
 
-// --- weapon sounds ---
-export function playWeaponSound(weaponKey) {
-  if (!ctx || !unlocked) return;
-  var now = ctx.currentTime;
-  if (weaponKey === "turret") { playTurretPop(now); }
-  else if (weaponKey === "missile") { playMissileWhoosh(now); }
-  else if (weaponKey === "torpedo") { playTorpedoSplash(now); }
-}
-
-function playTurretPop(now) {
-  var osc = ctx.createOscillator();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(600, now);
-  osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.3, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-  osc.connect(g);
-  g.connect(sfxGain);
-  osc.start(now);
-  osc.stop(now + 0.12);
-  playNoiseShot(now, 0.06, 0.25, 800);
-}
-
-function playMissileWhoosh(now) {
-  var osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(200, now);
-  osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-  osc.frequency.exponentialRampToValueAtTime(400, now + 0.4);
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.15, now);
-  g.gain.linearRampToValueAtTime(0.25, now + 0.1);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-  var filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = 600;
-  filter.Q.value = 1.5;
-  osc.connect(filter);
-  filter.connect(g);
-  g.connect(sfxGain);
-  osc.start(now);
-  osc.stop(now + 0.4);
-  playNoiseShot(now, 0.2, 0.2, 1200);
-}
-
-function playTorpedoSplash(now) {
-  var osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(120, now);
-  osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.3, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-  osc.connect(g);
-  g.connect(sfxGain);
-  osc.start(now);
-  osc.stop(now + 0.3);
-  playNoiseShot(now, 0.25, 0.2, 500);
-}
-
-function playNoiseShot(now, duration, volume, filterFreq) {
-  var bufferSize = Math.floor(ctx.sampleRate * duration);
-  var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  var data = buffer.getChannelData(0);
-  for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-  var src = ctx.createBufferSource();
-  src.buffer = buffer;
-  var filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = filterFreq || 800;
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(volume || 0.2, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + duration);
-  src.connect(filter);
-  filter.connect(g);
-  g.connect(sfxGain);
-  src.start(now);
-}
-
-// --- explosions ---
-export function playExplosion() {
-  if (!ctx || !unlocked) return;
-  var now = ctx.currentTime;
-  var osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(100, now);
-  osc.frequency.exponentialRampToValueAtTime(20, now + 0.5);
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.4, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-  osc.connect(g);
-  g.connect(sfxGain);
-  osc.start(now);
-  osc.stop(now + 0.6);
-  playNoiseShot(now, 0.4, 0.35, 600);
-  var osc2 = ctx.createOscillator();
-  osc2.type = "square";
-  osc2.frequency.setValueAtTime(300, now);
-  osc2.frequency.exponentialRampToValueAtTime(30, now + 0.3);
-  var g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.15, now);
-  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-  osc2.connect(g2);
-  g2.connect(sfxGain);
-  osc2.start(now);
-  osc2.stop(now + 0.35);
-}
-
-export function playPlayerHit() {
-  if (!ctx || !unlocked) return;
-  var now = ctx.currentTime;
-  var osc = ctx.createOscillator();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(800, now);
-  osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.3, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-  osc.connect(g);
-  g.connect(sfxGain);
-  osc.start(now);
-  osc.stop(now + 0.2);
-  playNoiseShot(now, 0.1, 0.25, 1000);
-}
-
-// --- ocean ambience: waves + wind ---
+// --- ocean ambience: rhythmic swells + wind gusts ---
 function startAmbience() {
-  if (waveOsc) return;
-  var bufferSize = ctx.sampleRate * 2;
-  var noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  var nd = noiseBuffer.getChannelData(0);
-  for (var i = 0; i < bufferSize; i++) nd[i] = Math.random() * 2 - 1;
-  waveOsc = ctx.createBufferSource();
-  waveOsc.buffer = noiseBuffer;
-  waveOsc.loop = true;
-  var wf = ctx.createBiquadFilter();
-  wf.type = "lowpass";
-  wf.frequency.value = 300;
-  wf.Q.value = 0.5;
-  waveGain = ctx.createGain();
-  waveGain.gain.value = 0.15;
-  waveOsc.connect(wf);
-  wf.connect(waveGain);
-  waveGain.connect(ambienceGain);
-  waveOsc.start();
-  waveOsc._filter = wf;
+  if (waveNoise) return;
+  var buf = makeNoise(ctx, 2);
+
+  // wave noise with rhythmic swell LFO
+  waveNoise = ctx.createBufferSource();
+  waveNoise.buffer = buf;
+  waveNoise.loop = true;
+  waveFilter = ctx.createBiquadFilter();
+  waveFilter.type = "lowpass";
+  waveFilter.frequency.value = 300;
+  waveFilter.Q.value = 0.5;
+  waveGainNode = ctx.createGain();
+  waveGainNode.gain.value = 0.15;
+
+  // swell LFO — modulates wave volume for periodic rhythm
+  swellLfo = ctx.createOscillator();
+  swellLfo.type = "sine";
+  swellLfo.frequency.value = 0.12; // ~8 second cycle
+  swellGain = ctx.createGain();
+  swellGain.gain.value = 0.06;
+  swellLfo.connect(swellGain);
+  swellGain.connect(waveGainNode.gain);
+  swellLfo.start();
+
+  waveNoise.connect(waveFilter);
+  waveFilter.connect(waveGainNode);
+  waveGainNode.connect(ambienceGain);
+  waveNoise.start();
+
   // wind noise
-  var windBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  var wd = windBuffer.getChannelData(0);
-  for (var i = 0; i < bufferSize; i++) wd[i] = Math.random() * 2 - 1;
+  var windBuf = makeNoise(ctx, 2);
   windNoise = ctx.createBufferSource();
-  windNoise.buffer = windBuffer;
+  windNoise.buffer = windBuf;
   windNoise.loop = true;
-  var wdf = ctx.createBiquadFilter();
-  wdf.type = "bandpass";
-  wdf.frequency.value = 800;
-  wdf.Q.value = 0.8;
-  windGain = ctx.createGain();
-  windGain.gain.value = 0;
-  windNoise.connect(wdf);
-  wdf.connect(windGain);
-  windGain.connect(ambienceGain);
+  windFilter = ctx.createBiquadFilter();
+  windFilter.type = "bandpass";
+  windFilter.frequency.value = 800;
+  windFilter.Q.value = 0.8;
+  windGainNode = ctx.createGain();
+  windGainNode.gain.value = 0;
+  windNoise.connect(windFilter);
+  windFilter.connect(windGainNode);
+  windGainNode.connect(ambienceGain);
   windNoise.start();
-  windNoise._filter = wdf;
 }
 
-export function updateAmbience(weatherKey) {
+export function updateAmbience(weatherKey, dt) {
   if (!ctx || !unlocked) return;
-  var tw = 0.15, twd = 0, twf = 300, twdf = 800;
-  if (weatherKey === "storm") { tw = 0.35; twd = 0.4; twf = 500; twdf = 600; }
-  else if (weatherKey === "rough") { tw = 0.25; twd = 0.2; twf = 400; twdf = 700; }
-  if (waveGain) waveGain.gain.value += (tw - waveGain.gain.value) * 0.02;
-  if (waveOsc && waveOsc._filter) waveOsc._filter.frequency.value += (twf - waveOsc._filter.frequency.value) * 0.02;
-  if (windGain) windGain.gain.value += (twd - windGain.gain.value) * 0.02;
-  if (windNoise && windNoise._filter) windNoise._filter.frequency.value += (twdf - windNoise._filter.frequency.value) * 0.02;
+  var tw = 0.15, twd = 0, twf = 300, twdf = 800, swellAmt = 0.06;
+  if (weatherKey === "storm") { tw = 0.35; twd = 0.25; twf = 500; twdf = 600; swellAmt = 0.12; }
+  else if (weatherKey === "rough") { tw = 0.25; twd = 0.12; twf = 400; twdf = 700; swellAmt = 0.09; }
+  if (waveGainNode) waveGainNode.gain.value += (tw - waveGainNode.gain.value) * 0.02;
+  if (waveFilter) waveFilter.frequency.value += (twf - waveFilter.frequency.value) * 0.02;
+  if (swellGain) swellGain.gain.value += (swellAmt - swellGain.gain.value) * 0.02;
+
+  // intermittent wind gusts in storms
+  if (weatherKey === "storm" || weatherKey === "rough") {
+    gustTimer -= (dt || 0.016);
+    if (gustTimer <= 0) {
+      gustTarget = twd * (0.5 + Math.random() * 1.5);
+      gustTimer = 2 + Math.random() * 5;
+    }
+  } else {
+    gustTarget = twd;
+  }
+  if (windGainNode) windGainNode.gain.value += (gustTarget - windGainNode.gain.value) * 0.03;
+  if (windFilter) windFilter.frequency.value += (twdf - windFilter.frequency.value) * 0.02;
 }
 
-// --- UI sounds ---
-export function playClick() {
+// --- low HP warning: heartbeat pulse ---
+export function updateLowHpWarning(hpRatio) {
   if (!ctx || !unlocked) return;
-  var now = ctx.currentTime;
-  var osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(1000, now);
-  osc.frequency.exponentialRampToValueAtTime(600, now + 0.03);
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.15, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-  osc.connect(g);
-  g.connect(sfxGain);
-  osc.start(now);
-  osc.stop(now + 0.05);
-}
-
-export function playUpgrade() {
-  if (!ctx || !unlocked) return;
-  var now = ctx.currentTime;
-  var notes = [440, 554, 659, 880];
-  for (var i = 0; i < notes.length; i++) {
-    var t = now + i * 0.08;
-    var osc = ctx.createOscillator();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(notes[i], t);
-    var g = ctx.createGain();
-    g.gain.setValueAtTime(0.12, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-    osc.connect(g);
-    g.connect(sfxGain);
-    osc.start(t);
-    osc.stop(t + 0.15);
+  var shouldWarn = hpRatio > 0 && hpRatio < 0.25;
+  if (shouldWarn && !lowHpActive) {
+    lowHpActive = true;
+    lowHpOsc = ctx.createOscillator();
+    lowHpOsc.type = "sine";
+    lowHpOsc.frequency.value = 1.2; // heartbeat rate
+    lowHpGain = ctx.createGain();
+    lowHpGain.gain.value = 0;
+    var pulseOsc = ctx.createOscillator();
+    pulseOsc.type = "sine";
+    pulseOsc.frequency.value = 60;
+    var pulseGain = ctx.createGain();
+    pulseGain.gain.value = 0;
+    lowHpOsc.connect(pulseGain.gain);
+    pulseOsc.connect(pulseGain);
+    pulseGain.connect(sfxGain);
+    pulseOsc.start();
+    lowHpOsc.start();
+    lowHpOsc._pulse = pulseOsc;
+    lowHpOsc._pulseGain = pulseGain;
+    lowHpGain = pulseGain;
+  } else if (!shouldWarn && lowHpActive) {
+    lowHpActive = false;
+    if (lowHpOsc) {
+      try { lowHpOsc.stop(); } catch (e) { /* ok */ }
+      try { lowHpOsc._pulse.stop(); } catch (e) { /* ok */ }
+      lowHpOsc = null;
+    }
+  }
+  // scale intensity with how low HP is
+  if (lowHpActive && lowHpOsc) {
+    var intensity = 1 - (hpRatio / 0.25);
+    lowHpOsc.frequency.value = 1.0 + intensity * 0.8;
+    if (lowHpOsc._pulseGain) lowHpOsc._pulseGain.gain.value = 0.08 + intensity * 0.08;
   }
 }
 
-export function playWaveHorn() {
-  if (!ctx || !unlocked) return;
-  var now = ctx.currentTime;
-  var freqs = [110, 138.6, 165];
-  for (var i = 0; i < freqs.length; i++) {
-    var osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(freqs[i], now);
-    var filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(100, now);
-    filter.frequency.linearRampToValueAtTime(600, now + 0.3);
-    filter.frequency.linearRampToValueAtTime(200, now + 1.2);
-    var g = ctx.createGain();
-    g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.12, now + 0.2);
-    g.gain.setValueAtTime(0.12, now + 0.8);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
-    osc.connect(filter);
-    filter.connect(g);
-    g.connect(sfxGain);
-    osc.start(now);
-    osc.stop(now + 1.4);
-  }
-}
-
-// --- procedural music: calm vs combat ---
+// --- procedural music (unchanged) ---
 var CALM_NOTES = [
   [48, 52, 55], [53, 57, 60], [43, 47, 50],
   [55, 58, 62], [50, 53, 57], [48, 52, 55]
