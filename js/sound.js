@@ -137,6 +137,31 @@ export function toggleMute() {
   return muted;
 }
 
+// --- fade game audio for menu screens ---
+var savedAmbienceVol = 0.3;
+var savedMusicVol = 0.18;
+var gameAudioFaded = false;
+
+export function fadeGameAudio() {
+  if (gameAudioFaded) return;
+  gameAudioFaded = true;
+  if (ambienceGain) {
+    savedAmbienceVol = ambienceGain.gain.value;
+    ambienceGain.gain.value = 0;
+  }
+  if (musicGain) {
+    savedMusicVol = musicGain.gain.value;
+    musicGain.gain.value = 0;
+  }
+}
+
+export function resumeGameAudio() {
+  if (!gameAudioFaded) return;
+  gameAudioFaded = false;
+  if (ambienceGain) ambienceGain.gain.value = savedAmbienceVol;
+  if (musicGain) musicGain.gain.value = savedMusicVol;
+}
+
 // --- layered engine: rumble + mechanical chug + whine + wake ---
 export function setEngineClass(classKey) {
   engineClassKey = classKey || "cruiser";

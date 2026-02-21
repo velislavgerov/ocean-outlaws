@@ -5,7 +5,7 @@ import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.j
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, updateMuteButton, updateVolumeSlider } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
-import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted } from "./sound.js";
+import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
@@ -714,12 +714,14 @@ function animate() {
         performAutoSave();
         if (waveMgr.wave < waveMgr.maxWave) {
           upgradeScreenOpen = true;
+          fadeGameAudio();
           showUpgradeScreen(upgrades, function () {
             upgradeScreenOpen = false;
             applyUpgrades();
             crewScreenOpen = true;
             showCrewScreen(crew, function () {
               crewScreenOpen = false;
+              resumeGameAudio();
             });
           });
         }
