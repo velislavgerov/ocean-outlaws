@@ -1,8 +1,8 @@
 // multiplayer.js — Supabase Realtime multiplayer: room management, presence, broadcast
 // Uses Broadcast for game state sync and Presence for lobby/connection tracking
 
-var SUPABASE_URL = "https://placeholder.supabase.co";
-var SUPABASE_ANON_KEY = "placeholder-anon-key";
+var SUPABASE_URL = "https://groaodzrfhqmzyyjilpj.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_0rYeLFBoFm7IxnPU1IaIAw_JKM70rn3";
 var MAX_PLAYERS = 4;
 var ROOM_CODE_LENGTH = 4;
 var DISCONNECT_TIMEOUT = 5000; // ms before removing disconnected player's ship
