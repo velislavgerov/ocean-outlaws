@@ -1,7 +1,7 @@
 // ship.js — procedural ship model, physics state, update loop
 import * as THREE from "three";
 import { buildClassMesh } from "./shipModels.js";
-import { collideWithTerrain } from "./terrain.js";
+import { collideWithTerrain, applyEdgeBoundary } from "./terrain.js";
 
 // --- default physics tuning (used as fallback) ---
 var DEFAULT_MAX_SPEED = 10;
@@ -231,6 +231,14 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
       ship.speed *= -0.3;  // bounce back
       if (ship.navTarget) ship.navTarget = null;  // cancel nav on collision
     }
+  }
+
+  // map edge boundary — soft push-back toward center
+  var edge = applyEdgeBoundary(ship.posX, ship.posZ);
+  if (edge.pushed) {
+    ship.posX = edge.posX;
+    ship.posZ = edge.posZ;
+    ship.speed *= 0.95;  // gentle slowdown near edge
   }
 
   ship.mesh.position.x = ship.posX;

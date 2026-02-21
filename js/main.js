@@ -30,7 +30,7 @@ import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewB
 import { createCrewScreen, showCrewScreen, hideCrewScreen } from "./crewScreen.js";
 import { loadTechState, getTechBonuses } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
-import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition } from "./terrain.js";
+import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
@@ -543,6 +543,11 @@ function animate() {
     var wDim = getWeatherDim(weather);
     var lightDim = weather.lightningActive ? 3.0 : wDim;
     applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, lightDim);
+    // edge fog: increase fog density as ship approaches map boundary
+    var edgeFog = getEdgeFactor(ship.posX, ship.posZ);
+    if (edgeFog > 0) {
+      scene.fog.density += edgeFog * 0.04;  // layer on top of day/night fog
+    }
     updateStars(stars, dayNight.timeOfDay);
     // ocean must update before ships so wave height is current-frame
     updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, wp.waterTint, dayNight, cam.camera, wDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));

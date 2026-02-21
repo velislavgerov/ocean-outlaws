@@ -6,16 +6,20 @@ var MAP_SIZE = 400;           // world units, matches ocean plane
 var GRID_RES = 128;           // heightmap resolution (NxN)
 var CELL_SIZE = MAP_SIZE / GRID_RES;
 var SEA_LEVEL = 0.0;          // threshold: above = land, below = water
-var TERRAIN_HEIGHT = 6;       // max land elevation
+var TERRAIN_HEIGHT = 4;       // max land elevation (lowered for small islands)
 var BEACH_HEIGHT = 0.8;       // height below which land counts as beach
-var BORDER_WIDTH = 40;        // coastline border width at map edges
-var NOISE_SCALE = 0.012;      // base noise frequency
+var NOISE_SCALE = 0.02;       // noise frequency tuned for island-sized features
 var OCTAVES = 4;
 var PERSISTENCE = 0.5;
 var LACUNARITY = 2.0;
-var SPAWN_CLEAR_RADIUS = 30;  // keep center clear for player spawn
+var SPAWN_CLEAR_RADIUS = 40;  // keep center clear for player spawn
 var COLLISION_RADIUS = 1.5;   // ship collision sampling radius
 var BOUNCE_STRENGTH = 8;      // push-back force on collision
+
+// --- map boundary ---
+var EDGE_FOG_START = 160;     // distance from center where fog begins
+var EDGE_PUSH_START = 180;    // distance from center where push-back begins
+var EDGE_HARD_LIMIT = 200;    // absolute boundary (MAP_SIZE / 2)
 
 // --- simplex-style 2D noise (value noise with smooth interpolation) ---
 // Seeded pseudo-random hash
@@ -94,8 +98,8 @@ function generateHeightmap(seed, difficulty) {
   var half = MAP_SIZE / 2;
 
   // scale noise coverage based on difficulty (more land at higher difficulty)
-  // ~80% ocean at easy (diff 1), ~70% ocean at hard (diff 6); naval game needs open water
-  var landThreshold = Math.max(0.57, 0.63 - difficulty * 0.01);  // lower = more land
+  // ~95% ocean at easy (diff 1), ~90% ocean at hard (diff 6); archipelago feel
+  var landThreshold = Math.max(0.70, 0.76 - difficulty * 0.01);  // higher = less land
 
   for (var iy = 0; iy < size; iy++) {
     for (var ix = 0; ix < size; ix++) {
@@ -108,16 +112,7 @@ function generateHeightmap(seed, difficulty) {
       // remap: shift so threshold is at sea level
       var h = (n - landThreshold) * 2;  // -1..1 range roughly
 
-      // border: force land at map edges (coastline boundary)
-      var distFromEdge = Math.min(
-        half - Math.abs(worldX),
-        half - Math.abs(worldZ)
-      );
-      if (distFromEdge < BORDER_WIDTH) {
-        var borderFactor = 1 - distFromEdge / BORDER_WIDTH;
-        borderFactor = borderFactor * borderFactor;  // ease-in
-        h = h + borderFactor * 1.5;  // raise terrain at edges
-      }
+      // no border — open ocean fading to horizon
 
       // clear center area for player spawn
       var distFromCenter = Math.sqrt(worldX * worldX + worldZ * worldZ);
@@ -494,4 +489,37 @@ export function findWaterPosition(terrain, nearX, nearZ, minDist, maxDist) {
   }
   // fallback: return center (always water)
   return { x: 0, z: 0 };
+}
+
+// --- public: get edge proximity factor (0 = safe, 1 = at hard limit) ---
+export function getEdgeFactor(worldX, worldZ) {
+  var dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
+  if (dist <= EDGE_FOG_START) return 0;
+  return Math.min(1, (dist - EDGE_FOG_START) / (EDGE_HARD_LIMIT - EDGE_FOG_START));
+}
+
+// --- public: apply map edge push-back to a position ---
+// Returns { posX, posZ, pushed } — nudges entity toward center when near edge
+export function applyEdgeBoundary(posX, posZ) {
+  var dist = Math.sqrt(posX * posX + posZ * posZ);
+  if (dist <= EDGE_PUSH_START) return { posX: posX, posZ: posZ, pushed: false };
+
+  var factor = Math.min(1, (dist - EDGE_PUSH_START) / (EDGE_HARD_LIMIT - EDGE_PUSH_START));
+  factor = factor * factor;  // ease-in: gentle at first, strong near limit
+
+  // push toward center
+  var pushStrength = factor * 15;  // max push force
+  var nx = posX / dist;
+  var nz = posZ / dist;
+  var newX = posX - nx * pushStrength * 0.016;  // ~1 frame at 60fps
+  var newZ = posZ - nz * pushStrength * 0.016;
+
+  // hard clamp at absolute limit
+  var newDist = Math.sqrt(newX * newX + newZ * newZ);
+  if (newDist > EDGE_HARD_LIMIT) {
+    newX = newX / newDist * EDGE_HARD_LIMIT;
+    newZ = newZ / newDist * EDGE_HARD_LIMIT;
+  }
+
+  return { posX: newX, posZ: newZ, pushed: true };
 }
