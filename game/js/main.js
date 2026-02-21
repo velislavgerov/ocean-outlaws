@@ -33,7 +33,7 @@ import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.j
 import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
-import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
+import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
 import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState } from "./netSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
@@ -230,7 +230,7 @@ createLobbyScreen();
 // inject multiplayer button into ship select overlay directly
 createMultiplayerButton(getShipSelectOverlay(), function () {
   hideShipSelectScreen();
-  showLobbyChoice();
+  showLobbyChoice(mpState.username);
 });
 
 setLobbyCallbacks({
@@ -263,6 +263,9 @@ setLobbyCallbacks({
   onClassChange: function (key) {
     selectedClass = key;
     setShipClass(mpState, key);
+  },
+  onUsernameChange: function (name) {
+    setUsername(mpState, name);
   },
   onBack: function () {
     leaveRoom(mpState);

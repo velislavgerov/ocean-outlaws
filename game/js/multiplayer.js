@@ -36,6 +36,35 @@ function generateUsername() {
     Math.floor(Math.random() * 100);
 }
 
+// --- load/save username from localStorage ---
+var USERNAME_KEY = "ocean_outlaws_username";
+
+function loadUsername() {
+  try {
+    var saved = localStorage.getItem(USERNAME_KEY);
+    if (saved && saved.trim().length > 0) return saved.trim();
+  } catch (e) { /* ignore */ }
+  var name = generateUsername();
+  saveUsername(name);
+  return name;
+}
+
+function saveUsername(name) {
+  try { localStorage.setItem(USERNAME_KEY, name); } catch (e) { /* ignore */ }
+}
+
+// --- set username ---
+export function setUsername(state, name) {
+  var trimmed = (name || "").trim();
+  if (trimmed.length === 0) return;
+  state.username = trimmed;
+  saveUsername(trimmed);
+  if (state.players[state.playerId]) {
+    state.players[state.playerId].username = trimmed;
+  }
+  if (state.onPlayersChanged) state.onPlayersChanged(state.players);
+}
+
 // --- create multiplayer state ---
 export function createMultiplayerState() {
   mpState = {
@@ -43,7 +72,7 @@ export function createMultiplayerState() {
     isHost: false,
     roomCode: null,
     playerId: generatePlayerId(),
-    username: generateUsername(),
+    username: loadUsername(),
     players: {},        // { playerId: { username, shipClass, ready, joinOrder, lastSeen } }
     joinOrder: [],      // ordered player ids by join time
     hostId: null,

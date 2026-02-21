@@ -17,11 +17,14 @@ var joinBackBtn = null;
 var statusLabel = null;
 var classSelector = null;
 
+var usernameInput = null;
+
 var onCreateRoom = null;
 var onJoinRoom = null;
 var onReady = null;
 var onStartGame = null;
 var onClassChange = null;
+var onUsernameChange = null;
 var onBack = null;
 
 var C = {
@@ -92,6 +95,34 @@ export function createLobbyScreen() {
   title.style.cssText = "font-size:28px;font-weight:bold;color:" + C.text + ";margin-bottom:16px;";
   joinPanel.appendChild(title);
 
+  // Username input
+  var nameLabel = document.createElement("div");
+  nameLabel.textContent = "YOUR NAME";
+  nameLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";";
+  joinPanel.appendChild(nameLabel);
+
+  usernameInput = document.createElement("input");
+  usernameInput.type = "text";
+  usernameInput.placeholder = "Enter name...";
+  usernameInput.maxLength = 20;
+  usernameInput.style.cssText = [
+    "font-family:monospace", "font-size:16px", "padding:8px 12px",
+    "background:rgba(20,30,50,0.9)", "color:" + C.blue,
+    "border:1px solid " + C.border, "border-radius:4px",
+    "width:200px", "text-align:center",
+    "pointer-events:auto", "outline:none", "margin-bottom:8px"
+  ].join(";");
+  usernameInput.addEventListener("focus", function () {
+    usernameInput.style.borderColor = C.blue;
+  });
+  usernameInput.addEventListener("blur", function () {
+    usernameInput.style.borderColor = C.border;
+    if (onUsernameChange && usernameInput.value.trim()) {
+      onUsernameChange(usernameInput.value.trim());
+    }
+  });
+  joinPanel.appendChild(usernameInput);
+
   var createBtn = document.createElement("button");
   createBtn.textContent = "CREATE ROOM";
   createBtn.style.cssText = [
@@ -100,6 +131,7 @@ export function createLobbyScreen() {
   ].join(";");
   createBtn.addEventListener("click", function (e) {
     e.stopPropagation();
+    commitUsername();
     if (onCreateRoom) onCreateRoom();
   });
   joinPanel.appendChild(createBtn);
@@ -134,6 +166,7 @@ export function createLobbyScreen() {
   ].join(";");
   joinBtn.addEventListener("click", function (e) {
     e.stopPropagation();
+    commitUsername();
     var code = joinInput.value.trim();
     if (code && onJoinRoom) onJoinRoom(code);
   });
@@ -298,13 +331,21 @@ function selectClassButton(key) {
   }
 }
 
+// --- commit username from input ---
+function commitUsername() {
+  if (usernameInput && usernameInput.value.trim() && onUsernameChange) {
+    onUsernameChange(usernameInput.value.trim());
+  }
+}
+
 // --- show initial create/join choice ---
-export function showLobbyChoice() {
+export function showLobbyChoice(currentUsername) {
   if (!overlay) return;
   overlay.style.display = "flex";
   joinPanel.style.display = "flex";
   lobbyPanel.style.display = "none";
   if (joinInput) joinInput.value = "";
+  if (usernameInput && currentUsername) usernameInput.value = currentUsername;
 }
 
 // --- show lobby with room code ---
@@ -395,5 +436,6 @@ export function setLobbyCallbacks(callbacks) {
   if (callbacks.onReady) onReady = callbacks.onReady;
   if (callbacks.onStart) onStartGame = callbacks.onStart;
   if (callbacks.onClassChange) onClassChange = callbacks.onClassChange;
+  if (callbacks.onUsernameChange) onUsernameChange = callbacks.onUsernameChange;
   if (callbacks.onBack) onBack = callbacks.onBack;
 }
