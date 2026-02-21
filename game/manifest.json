@@ -2,7 +2,7 @@
   "name": "Ocean Outlaws",
   "short_name": "OceanOutlaws",
   "description": "Browser-based naval combat game",
-  "start_url": "/ocean-outlaws/",
+  "start_url": "/ocean-outlaws/game/",
   "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#0a0e1a",

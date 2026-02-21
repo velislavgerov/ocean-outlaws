@@ -2,31 +2,252 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0e1a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Browser-based naval combat game">
+  <meta name="description" content="Ocean Outlaws — browser-based naval combat. Build your fleet, upgrade your ship, survive the waves.">
   <title>Ocean Outlaws</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png" type="image/png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="game/icons/icon-192.png" type="image/png">
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e1a; }
-    canvas { display: block; }
-  </style>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+
+    body {
+      min-height: 100vh;
+      background: #0a0e1a;
+      color: #c8d0e0;
+      font-family: 'Space Mono', monospace;
+      overflow-x: hidden;
     }
-  }
-  </script>
+
+    /* Animated ocean background */
+    .ocean-bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      background: linear-gradient(180deg, #0a0e1a 0%, #0c1628 40%, #0f1f3a 70%, #112244 100%);
+    }
+
+    .wave {
+      position: absolute;
+      bottom: 0;
+      width: 200%;
+      height: 120px;
+      opacity: 0.15;
+      animation: drift 8s ease-in-out infinite alternate;
+    }
+
+    .wave svg { width: 100%; height: 100%; }
+    .wave path { fill: #1a4a7a; }
+
+    .wave:nth-child(2) {
+      bottom: 10px;
+      opacity: 0.1;
+      animation-duration: 12s;
+      animation-direction: alternate-reverse;
+    }
+
+    .wave:nth-child(3) {
+      bottom: 20px;
+      opacity: 0.06;
+      animation-duration: 16s;
+    }
+
+    @keyframes drift {
+      from { transform: translateX(0); }
+      to { transform: translateX(-25%); }
+    }
+
+    /* Content */
+    .content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .logo {
+      width: 160px;
+      height: 160px;
+      border-radius: 24px;
+      margin-bottom: 32px;
+      box-shadow: 0 0 60px rgba(26, 74, 122, 0.4), 0 0 120px rgba(26, 74, 122, 0.15);
+      animation: glow 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { box-shadow: 0 0 60px rgba(26, 74, 122, 0.4), 0 0 120px rgba(26, 74, 122, 0.15); }
+      to { box-shadow: 0 0 80px rgba(45, 100, 160, 0.5), 0 0 160px rgba(45, 100, 160, 0.2); }
+    }
+
+    h1 {
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #6899cc, #d4a44a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: clamp(0.85rem, 2vw, 1.1rem);
+      color: #5a6a80;
+      margin-bottom: 48px;
+      letter-spacing: 0.08em;
+    }
+
+    .play-btn {
+      display: inline-block;
+      padding: 18px 64px;
+      font-family: 'Space Mono', monospace;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #0a0e1a;
+      background: linear-gradient(135deg, #d4a44a, #c8923a);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 24px rgba(212, 164, 74, 0.3);
+    }
+
+    .play-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 40px rgba(212, 164, 74, 0.5);
+      background: linear-gradient(135deg, #e0b45a, #d4a44a);
+    }
+
+    .play-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Features */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      max-width: 800px;
+      margin-top: 64px;
+      padding: 0 20px;
+    }
+
+    .feature {
+      text-align: center;
+      padding: 24px 16px;
+      border: 1px solid rgba(104, 153, 204, 0.1);
+      border-radius: 8px;
+      background: rgba(15, 20, 35, 0.5);
+    }
+
+    .feature-icon {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+
+    .feature h3 {
+      font-size: 0.85rem;
+      color: #8899aa;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .feature p {
+      font-size: 0.75rem;
+      color: #4a5a6a;
+      line-height: 1.5;
+    }
+
+    /* Install hint */
+    .install-hint {
+      margin-top: 48px;
+      font-size: 0.75rem;
+      color: #3a4a5a;
+      letter-spacing: 0.05em;
+    }
+
+    .install-hint a {
+      color: #5577aa;
+      text-decoration: none;
+    }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 24px;
+      font-size: 0.7rem;
+      color: #2a3a4a;
+      letter-spacing: 0.05em;
+    }
+
+    footer a { color: #4a6a8a; text-decoration: none; }
+  </style>
 </head>
 <body>
-  <script type="module" src="js/main.js"></script>
+  <div class="ocean-bg">
+    <div class="wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+        <path d="M0,60 C360,120 720,0 1080,60 C1260,90 1380,40 1440,60 L1440,120 L0,120 Z"/>
+      </svg>
+    </div>
+    <div class="wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+        <path d="M0,80 C240,20 480,100 720,60 C960,20 1200,100 1440,80 L1440,120 L0,120 Z"/>
+      </svg>
+    </div>
+    <div class="wave">
+      <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+        <path d="M0,40 C480,100 960,20 1440,70 L1440,120 L0,120 Z"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="content">
+    <img src="game/icons/icon-512.png" alt="Ocean Outlaws" class="logo">
+    <h1>Ocean Outlaws</h1>
+    <p class="tagline">Naval combat. Rogue waves. No mercy.</p>
+    <a href="game/" class="play-btn">Play Now</a>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">⚓</div>
+        <h3>4 Ship Classes</h3>
+        <p>Destroyer, Cruiser, Carrier, Submarine — each with unique abilities</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🌊</div>
+        <h3>Dynamic Ocean</h3>
+        <p>Real-time waves, weather systems, day-night cycles</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚔️</div>
+        <h3>Wave Survival</h3>
+        <p>Fight through enemy waves, hunt bosses, collect salvage</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔧</div>
+        <h3>Upgrade & Progress</h3>
+        <p>Tech tree, ship upgrades, persistent progression</p>
+      </div>
+    </div>
+
+    <p class="install-hint">Works offline · Installable as app · <a href="game/">Desktop & mobile</a></p>
+  </div>
+
+  <footer>
+    Built with Three.js · <a href="https://github.com/thunderclawai/ocean-outlaws">Source</a>
+  </footer>
 </body>
 </html>
