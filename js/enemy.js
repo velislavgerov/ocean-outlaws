@@ -49,60 +49,109 @@ function ensureGeo() {
   enemyProjMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
 }
 
-// --- build enemy mesh (visually distinct from player) ---
+// --- shared PBR materials for enemy meshes ---
+var enemyHullMat = null;
+var enemyDeckMat = null;
+var enemyBridgeMat = null;
+var enemyTurretMat = null;
+var enemyBarrelMat = null;
+var enemyGlassMat = null;
+
+function ensureEnemyMats() {
+  if (enemyHullMat) return;
+  enemyHullMat = new THREE.MeshStandardMaterial({ color: 0x6a3030, roughness: 0.65, metalness: 0.15 });
+  enemyDeckMat = new THREE.MeshStandardMaterial({ color: 0x7a4040, roughness: 0.5, metalness: 0.05 });
+  enemyBridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a5050, roughness: 0.45, metalness: 0.2 });
+  enemyTurretMat = new THREE.MeshStandardMaterial({ color: 0x5a2828, roughness: 0.35, metalness: 0.7 });
+  enemyBarrelMat = new THREE.MeshStandardMaterial({ color: 0x4a1e1e, roughness: 0.3, metalness: 0.8 });
+  enemyGlassMat = new THREE.MeshStandardMaterial({
+    color: 0x2a1a1a, roughness: 0.1, metalness: 0.5,
+    emissive: 0x2a1a1a, emissiveIntensity: 0
+  });
+}
+
+// --- build enemy patrol boat mesh (unique design, not a player recolor) ---
+// angular, aggressive hull shape with ram bow and low-slung profile
 function buildEnemyMesh() {
+  ensureEnemyMats();
   var group = new THREE.Group();
 
-  // hull — simpler red-tinted ship
+  // hull — angular patrol boat with ram bow (distinct from player curves)
   var hullShape = new THREE.Shape();
-  hullShape.moveTo(0, 1.8);
-  hullShape.lineTo(0.5, 0.6);
-  hullShape.lineTo(0.6, -0.5);
-  hullShape.lineTo(0.5, -1.4);
-  hullShape.lineTo(-0.5, -1.4);
-  hullShape.lineTo(-0.6, -0.5);
-  hullShape.lineTo(-0.5, 0.6);
-  hullShape.lineTo(0, 1.8);
+  hullShape.moveTo(0, 2.0);
+  hullShape.lineTo(0.35, 1.5);
+  hullShape.lineTo(0.55, 0.8);
+  hullShape.lineTo(0.6, 0);
+  hullShape.lineTo(0.55, -0.8);
+  hullShape.lineTo(0.45, -1.3);
+  hullShape.lineTo(0.3, -1.5);
+  hullShape.lineTo(-0.3, -1.5);
+  hullShape.lineTo(-0.45, -1.3);
+  hullShape.lineTo(-0.55, -0.8);
+  hullShape.lineTo(-0.6, 0);
+  hullShape.lineTo(-0.55, 0.8);
+  hullShape.lineTo(-0.35, 1.5);
+  hullShape.lineTo(0, 2.0);
 
-  var hullGeo = new THREE.ExtrudeGeometry(hullShape, { depth: 0.4, bevelEnabled: false });
-  var hullMat = new THREE.MeshLambertMaterial({ color: 0x774444 });
-  var hull = new THREE.Mesh(hullGeo, hullMat);
+  var hullGeo = new THREE.ExtrudeGeometry(hullShape, {
+    depth: 0.38, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 1
+  });
+  var hull = new THREE.Mesh(hullGeo, enemyHullMat);
   hull.rotation.x = -Math.PI / 2;
   hull.position.y = -0.1;
   group.add(hull);
 
+  // waterline
+  var wlGeo = new THREE.PlaneGeometry(1.1, 3.2);
+  var wlMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, roughness: 0.9, metalness: 0 });
+  var wl = new THREE.Mesh(wlGeo, wlMat);
+  wl.rotation.x = -Math.PI / 2;
+  wl.position.set(0, 0.01, 0.1);
+  group.add(wl);
+
   // deck
-  var deckGeo = new THREE.PlaneGeometry(0.9, 2.6);
-  var deckMat = new THREE.MeshLambertMaterial({ color: 0x885555 });
-  var deck = new THREE.Mesh(deckGeo, deckMat);
+  var deckGeo = new THREE.PlaneGeometry(0.85, 2.8);
+  var deck = new THREE.Mesh(deckGeo, enemyDeckMat);
   deck.rotation.x = -Math.PI / 2;
-  deck.position.y = 0.3;
+  deck.position.set(0, 0.28, 0.1);
   group.add(deck);
 
-  // bridge
-  var bridgeGeo = new THREE.BoxGeometry(0.5, 0.5, 0.6);
-  var bridgeMat = new THREE.MeshLambertMaterial({ color: 0x996666 });
-  var bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
-  bridge.position.set(0, 0.55, -0.4);
+  // pilothouse — squat, angular (different from player bridge style)
+  var bridgeGeo = new THREE.BoxGeometry(0.45, 0.38, 0.5);
+  var bridge = new THREE.Mesh(bridgeGeo, enemyBridgeMat);
+  bridge.position.set(0, 0.47, -0.35);
   group.add(bridge);
+  // window strip
+  var winGeo = new THREE.PlaneGeometry(0.36, 0.14);
+  var win = new THREE.Mesh(winGeo, enemyGlassMat);
+  win.position.set(0, 0.52, -0.09);
+  group.add(win);
 
-  // turret on enemy
-  var turretGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.25, 6);
-  var turretMat = new THREE.MeshLambertMaterial({ color: 0x664444 });
-  var barrelGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 4);
-  var barrelMat = new THREE.MeshLambertMaterial({ color: 0x553333 });
+  // turret — single fore-mounted
+  var turretGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.2, 8);
+  var barrelGeo = new THREE.CylinderGeometry(0.025, 0.03, 0.5, 6);
 
   var turret = new THREE.Group();
-  turret.position.set(0, 0.45, 0.5);
-  var base = new THREE.Mesh(turretGeo, turretMat);
-  turret.add(base);
-  var barrel = new THREE.Mesh(barrelGeo, barrelMat);
+  turret.position.set(0, 0.4, 0.6);
+  turret.add(new THREE.Mesh(turretGeo, enemyTurretMat));
+  var barrel = new THREE.Mesh(barrelGeo, enemyBarrelMat);
   barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0, 0.08, 0.25);
+  barrel.position.set(0, 0.06, 0.25);
   turret.add(barrel);
   group.add(turret);
 
   group.userData.turret = turret;
+
+  // nav lights (red port, green starboard)
+  var portMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  var stbdMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+  var lightGeo = new THREE.SphereGeometry(0.035, 4, 3);
+  var port = new THREE.Mesh(lightGeo, portMat);
+  port.position.set(-0.5, 0.28, 0.6);
+  group.add(port);
+  var stbd = new THREE.Mesh(lightGeo, stbdMat);
+  stbd.position.set(0.5, 0.28, 0.6);
+  group.add(stbd);
 
   return group;
 }
