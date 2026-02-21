@@ -3,6 +3,7 @@ import { getClassOrder, getAllClasses } from "./shipClass.js";
 import { getTotalSpent, respecUpgrades } from "./upgrade.js";
 
 var overlay = null;
+export function getShipSelectOverlay() { return overlay; }
 var onSelectCallback = null;
 var resetBtn = null;
 var confirmDialog = null;

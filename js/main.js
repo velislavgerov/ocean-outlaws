@@ -18,7 +18,7 @@ import { createUpgradeState, resetUpgrades, addSalvage, getMultipliers, buildCom
 import { createUpgradeScreen, showUpgradeScreen, hideUpgradeScreen } from "./upgradeScreen.js";
 import { getShipClass } from "./shipClass.js";
 import { createAbilityState, activateAbility, updateAbility } from "./shipClass.js";
-import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen } from "./shipSelect.js";
+import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen, getShipSelectOverlay } from "./shipSelect.js";
 import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./drone.js";
 import { createMapScreen, showMapScreen, hideMapScreen } from "./mapScreen.js";
 import { loadMapState, resetMapState, getZone, calcStars, completeZone, buildZoneWaveConfigs, saveMapState } from "./mapData.js";
@@ -216,20 +216,11 @@ var mpState = createMultiplayerState();
 var mpReady = false;
 createLobbyScreen();
 
-// inject multiplayer button into ship select screen (find the hint element directly)
-setTimeout(function () {
-  var allDivs = document.querySelectorAll("div");
-  for (var oi = 0; oi < allDivs.length; oi++) {
-    // match the hint element itself (not a parent that contains it)
-    if (allDivs[oi].childNodes.length === 1 && allDivs[oi].textContent === "Click a ship to start") {
-      createMultiplayerButton(allDivs[oi].parentNode, function () {
-        hideShipSelectScreen();
-        showLobbyChoice();
-      });
-      break;
-    }
-  }
-}, 300);
+// inject multiplayer button into ship select overlay directly
+createMultiplayerButton(getShipSelectOverlay(), function () {
+  hideShipSelectScreen();
+  showLobbyChoice();
+});
 
 setLobbyCallbacks({
   onCreate: function () {
