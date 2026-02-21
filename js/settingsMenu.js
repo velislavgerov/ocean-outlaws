@@ -1,6 +1,7 @@
 // settingsMenu.js — settings gear menu: new game, export/import save, install prompt
 
 import { exportSave, importSave, deleteSave, hasSave } from "./save.js";
+import { getQuality, setQuality, isMobile } from "./mobile.js";
 
 var C = {
   bg: "rgba(5,10,20,0.85)",
@@ -42,14 +43,15 @@ export function createSettingsMenu(callbacks) {
   // gear button (top-right, below minimap area)
   gearBtn = document.createElement("div");
   gearBtn.textContent = "\u2699";
+  var gearSize = isMobile() ? "min-width:44px;min-height:44px;font-size:28px;padding:8px;display:flex;align-items:center;justify-content:center;" : "font-size:24px;padding:4px;";
   gearBtn.style.cssText = [
     "position:fixed", "top:16px", "right:180px",
-    "font-size:24px", "color:" + C.text, "cursor:pointer",
+    "color:" + C.text, "cursor:pointer",
     "pointer-events:auto", "user-select:none", "z-index:15",
-    "font-family:monospace", "line-height:1", "padding:4px",
+    "font-family:monospace", "line-height:1",
     "border-radius:4px", "background:" + C.bgLight,
     "border:1px solid " + C.border
-  ].join(";");
+  ].join(";") + ";" + gearSize;
   gearBtn.addEventListener("click", function (e) {
     e.stopPropagation();
     toggleMenu();
@@ -145,6 +147,55 @@ export function createSettingsMenu(callbacks) {
   });
   installBtn.style.display = deferredPrompt ? "block" : "none";
   menuPanel.appendChild(installBtn);
+
+  // Quality toggle (Low / Medium / High)
+  var qualityRow = document.createElement("div");
+  qualityRow.style.cssText = [
+    BTN, "display:flex", "align-items:center", "justify-content:center", "gap:8px"
+  ].join(";");
+  var qualityLabel = document.createElement("span");
+  qualityLabel.textContent = "QUALITY:";
+  qualityLabel.style.color = C.text;
+  qualityRow.appendChild(qualityLabel);
+
+  var qualityOptions = ["LOW", "MEDIUM", "HIGH"];
+  var qualityKeys = ["low", "medium", "high"];
+  var qualityBtns = [];
+  for (var qi = 0; qi < qualityOptions.length; qi++) {
+    (function (idx) {
+      var qBtn = document.createElement("span");
+      qBtn.textContent = qualityOptions[idx];
+      qBtn.style.cssText = [
+        "padding:4px 10px", "border-radius:3px", "cursor:pointer",
+        "font-size:12px", "min-width:44px", "min-height:44px",
+        "display:inline-flex", "align-items:center", "justify-content:center"
+      ].join(";");
+      qBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setQuality(qualityKeys[idx]);
+        updateQualityBtns();
+      });
+      qualityRow.appendChild(qBtn);
+      qualityBtns.push(qBtn);
+    })(qi);
+  }
+  menuPanel.appendChild(qualityRow);
+
+  function updateQualityBtns() {
+    var cur = getQuality();
+    for (var qb = 0; qb < qualityBtns.length; qb++) {
+      if (qualityKeys[qb] === cur) {
+        qualityBtns[qb].style.background = "rgba(60,120,80,0.6)";
+        qualityBtns[qb].style.color = C.yellow;
+        qualityBtns[qb].style.fontWeight = "bold";
+      } else {
+        qualityBtns[qb].style.background = "rgba(30,40,60,0.5)";
+        qualityBtns[qb].style.color = C.text;
+        qualityBtns[qb].style.fontWeight = "normal";
+      }
+    }
+  }
+  updateQualityBtns();
 
   // Close button
   var closeBtn = makeButton("CLOSE", C.text, function () {

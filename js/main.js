@@ -38,6 +38,7 @@ import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFire
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
 import { createSettingsMenu, isSettingsOpen } from "./settingsMenu.js";
+import { getQualityConfig, createOrientationPrompt, onQualityChange } from "./mobile.js";
 
 var SALVAGE_PER_KILL = 10;
 var prevPlayerHp = -1;
@@ -51,9 +52,10 @@ function fireWithSound(w, s, r, m) {
   }
 }
 
-var renderer = new THREE.WebGLRenderer({ antialias: true });
+var qCfg = getQualityConfig();
+var renderer = new THREE.WebGLRenderer({ antialias: qCfg.antialias });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, qCfg.pixelRatioCap));
 renderer.setClearColor(0x0a0e1a);
 document.body.appendChild(renderer.domElement);
 
@@ -67,16 +69,17 @@ scene.add(sun);
 var hemi = new THREE.HemisphereLight(0x1a1a3a, 0x050510, 0.3);
 scene.add(hemi);
 
-var ocean = createOcean();
+var ocean = createOcean(qCfg.oceanSegments);
+ocean.uniforms.uShaderDetail.value = qCfg.shaderDetail;
 scene.add(ocean.mesh);
 
 var weather = createWeather("calm");
 weather.fogRef = scene.fog;
 weather.ambientRef = ambient;
 weather.sunRef = sun;
-var rain = createRain(scene);
+var rain = createRain(scene, qCfg.rainCount);
 weather.rain = rain;
-var splashes = createSplashes(scene);
+var splashes = createSplashes(scene, qCfg.splashCount);
 weather.splashes = splashes;
 
 var dayNight = createDayNight();
@@ -210,6 +213,14 @@ createSettingsMenu({
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(function () {});
 }
+
+// --- mobile: orientation prompt + quality change handler ---
+createOrientationPrompt();
+onQualityChange(function (q) {
+  var cfg = getQualityConfig();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, cfg.pixelRatioCap));
+  ocean.uniforms.uShaderDetail.value = cfg.shaderDetail;
+});
 
 // --- multiplayer ---
 var mpState = createMultiplayerState();

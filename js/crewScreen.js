@@ -3,6 +3,7 @@ import {
   getStations, getAssigned, assignOfficer, unassignStation,
   getBonusLabel, getStationColor
 } from "./crew.js";
+import { isMobile } from "./mobile.js";
 
 var root = null;
 var stationEls = {};
@@ -100,6 +101,7 @@ export function createCrewScreen() {
     "font-family: monospace",
     "font-size: 20px",
     "padding: 14px 48px",
+    "min-height: 44px",
     "margin-top: 10px",
     "margin-bottom: 20px",
     "background: rgba(40, 80, 60, 0.8)",
@@ -129,6 +131,7 @@ function buildStationPanel(stationKey) {
     "border-radius: 8px",
     "padding: 12px",
     "width: 170px",
+    "min-width: 44px",
     "min-height: 130px",
     "cursor: pointer",
     "transition: border-color 0.2s"

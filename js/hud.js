@@ -1,6 +1,7 @@
 // hud.js — HUD elements: HP (top-left), wave (top-center), minimap (top-right),
 // weapons/ammo (bottom-center), ability & status (bottom-left)
 import { createMinimap, updateMinimap as renderMinimap } from "./minimap.js";
+import { isMobile } from "./mobile.js";
 
 // --- color palette ---
 var C = {
@@ -22,10 +23,12 @@ var C = {
   portGreen: "#44ff88"
 };
 
+var _mob = isMobile();
 var BTN_BASE = [
-  "font-family:monospace", "font-size:13px", "padding:6px 10px",
+  "font-family:monospace", "font-size:" + (_mob ? "15px" : "13px"), "padding:" + (_mob ? "10px 14px" : "6px 10px"),
   "border-radius:4px", "cursor:pointer", "pointer-events:auto",
-  "user-select:none", "text-align:center", "min-width:80px"
+  "user-select:none", "text-align:center",
+  "min-width:" + (_mob ? "44px" : "80px"), "min-height:" + (_mob ? "44px" : "auto")
 ].join(";");
 
 // --- top-left: HP, fuel, resources ---
@@ -86,26 +89,27 @@ function makeBar(width, height) {
 export function createHUD() {
   // === TOP-LEFT: HP, fuel, resources ===
   topLeftPanel = document.createElement("div");
+  var mobPad = _mob ? "top:env(safe-area-inset-top,16px);left:env(safe-area-inset-left,16px);" : "top:16px;left:16px;";
   topLeftPanel.style.cssText = [
-    "position:fixed", "top:16px", "left:16px", "pointer-events:none",
-    "font-family:monospace", "color:" + C.text, "font-size:13px",
+    "position:fixed", "pointer-events:none",
+    "font-family:monospace", "color:" + C.text, "font-size:" + (_mob ? "15px" : "13px"),
     "user-select:none", "z-index:10"
-  ].join(";");
+  ].join(";") + ";" + mobPad;
 
   hpLabel = document.createElement("div");
   hpLabel.textContent = "HP";
-  hpLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";margin-bottom:3px;";
+  hpLabel.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + C.textDim + ";margin-bottom:3px;";
   topLeftPanel.appendChild(hpLabel);
-  var hpBars = makeBar(160, 10);
+  var hpBars = makeBar(_mob ? 130 : 160, _mob ? 12 : 10);
   hpBarBg = hpBars.bg;
   hpBar = hpBars.fill;
   topLeftPanel.appendChild(hpBarBg);
 
   fuelLabel = document.createElement("div");
   fuelLabel.textContent = "FUEL";
-  fuelLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";margin-top:8px;margin-bottom:3px;";
+  fuelLabel.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + C.textDim + ";margin-top:8px;margin-bottom:3px;";
   topLeftPanel.appendChild(fuelLabel);
-  var fuelBars = makeBar(160, 8);
+  var fuelBars = makeBar(_mob ? 130 : 160, _mob ? 10 : 8);
   fuelBarBg = fuelBars.bg;
   fuelBar = fuelBars.fill;
   fuelBar.style.background = C.blueBright;
@@ -143,12 +147,12 @@ export function createHUD() {
 
   waveLabel = document.createElement("div");
   waveLabel.textContent = "WAVE 1";
-  waveLabel.style.cssText = "font-size:16px;font-weight:bold;color:" + C.text + ";";
+  waveLabel.style.cssText = "font-size:" + (_mob ? "18px" : "16px") + ";font-weight:bold;color:" + C.text + ";";
   topCenterPanel.appendChild(waveLabel);
 
   compassLabel = document.createElement("div");
   compassLabel.textContent = "N 0\u00B0";
-  compassLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";margin-top:4px;";
+  compassLabel.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + C.textDim + ";margin-top:4px;";
   topCenterPanel.appendChild(compassLabel);
 
   document.body.appendChild(topCenterPanel);
@@ -171,7 +175,10 @@ export function createHUD() {
   ].join(";");
   muteBtn = document.createElement("div");
   muteBtn.style.cssText = [
-    BTN_BASE, "font-size:16px", "min-width:36px", "padding:4px 8px",
+    BTN_BASE, "font-size:" + (_mob ? "20px" : "16px"),
+    "min-width:" + (_mob ? "44px" : "36px"),
+    "min-height:" + (_mob ? "44px" : "auto"),
+    "padding:" + (_mob ? "8px 12px" : "4px 8px"),
     "background:" + C.bgLight, "border:1px solid " + C.borderActive,
     "color:" + C.text
   ].join(";");
@@ -198,11 +205,12 @@ export function createHUD() {
 
   // === BOTTOM-CENTER: weapons, ammo, speed ===
   bottomPanel = document.createElement("div");
+  var botPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);" : "bottom:16px;";
   bottomPanel.style.cssText = [
-    "position:fixed", "bottom:16px", "left:50%", "transform:translateX(-50%)",
+    "position:fixed", "left:50%", "transform:translateX(-50%)",
     "pointer-events:none", "font-family:monospace", "color:" + C.text,
-    "font-size:13px", "user-select:none", "z-index:10", "text-align:center"
-  ].join(";");
+    "font-size:" + (_mob ? "15px" : "13px"), "user-select:none", "z-index:10", "text-align:center"
+  ].join(";") + ";" + botPad;
 
   weaponPanel = document.createElement("div");
   weaponPanel.style.cssText = "display:flex;gap:4px;justify-content:center;margin-bottom:6px;";
@@ -217,8 +225,11 @@ export function createHUD() {
     row.style.cssText = [
       BTN_BASE, "display:flex", "align-items:center", "gap:4px",
       "background:" + C.bgLight, "border:1px solid transparent",
-      "color:" + weaponDefs[w].color, "min-width:90px", "padding:5px 8px",
-      "font-size:12px"
+      "color:" + weaponDefs[w].color,
+      "min-width:" + (_mob ? "44px" : "90px"),
+      "padding:" + (_mob ? "8px 10px" : "5px 8px"),
+      "font-size:" + (_mob ? "14px" : "12px"),
+      "min-height:" + (_mob ? "44px" : "auto")
     ].join(";");
     row.dataset.weaponIndex = String(w);
     row.addEventListener("click", (function (idx) {
@@ -271,7 +282,10 @@ export function createHUD() {
   autofireLabel.style.cssText = [
     BTN_BASE, "margin-top:6px", "display:inline-block",
     "background:" + C.bgLight, "border:1px solid " + C.borderActive,
-    "color:" + C.textDim, "font-size:11px", "padding:4px 10px"
+    "color:" + C.textDim,
+    "font-size:" + (_mob ? "14px" : "11px"),
+    "padding:" + (_mob ? "10px 14px" : "4px 10px"),
+    "min-height:" + (_mob ? "44px" : "auto")
   ].join(";");
   autofireLabel.textContent = "AUTOFIRE: OFF [F]";
   autofireLabel.addEventListener("click", function (e) {
@@ -284,17 +298,20 @@ export function createHUD() {
 
   // === BOTTOM-LEFT: ability ===
   bottomLeftPanel = document.createElement("div");
+  var botLeftPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);left:env(safe-area-inset-left,16px);" : "bottom:16px;left:16px;";
   bottomLeftPanel.style.cssText = [
-    "position:fixed", "bottom:16px", "left:16px", "pointer-events:none",
-    "font-family:monospace", "color:" + C.text, "font-size:13px",
+    "position:fixed", "pointer-events:none",
+    "font-family:monospace", "color:" + C.text, "font-size:" + (_mob ? "15px" : "13px"),
     "user-select:none", "z-index:10"
-  ].join(";");
+  ].join(";") + ";" + botLeftPad;
 
   abilityBtn = document.createElement("div");
   abilityBtn.style.cssText = [
     BTN_BASE, "background:" + C.bgLight,
     "border:1px solid " + C.borderActive,
-    "color:" + C.purple, "margin-bottom:3px"
+    "color:" + C.purple, "margin-bottom:3px",
+    "min-height:" + (_mob ? "44px" : "auto"),
+    "font-size:" + (_mob ? "15px" : "13px")
   ].join(";");
   abilityBtn.textContent = "Ability";
   abilityBtn.addEventListener("click", function (e) {
@@ -326,7 +343,7 @@ export function createHUD() {
   banner.style.cssText = [
     "position:fixed", "top:25%", "left:50%",
     "transform:translate(-50%,-50%)", "font-family:monospace",
-    "font-size:32px", "font-weight:bold", "color:" + C.yellow,
+    "font-size:" + (_mob ? "24px" : "32px"), "font-weight:bold", "color:" + C.yellow,
     "text-shadow:0 0 20px rgba(255,200,60,0.6)", "pointer-events:none",
     "user-select:none", "z-index:20", "opacity:0", "transition:opacity 0.3s"
   ].join(";");
@@ -341,7 +358,7 @@ export function createHUD() {
     "z-index:100", "font-family:monospace", "user-select:none"
   ].join(";");
   overlayTitle = document.createElement("div");
-  overlayTitle.style.cssText = "font-size:48px;font-weight:bold;color:" + C.red + ";margin-bottom:16px;";
+  overlayTitle.style.cssText = "font-size:" + (_mob ? "36px" : "48px") + ";font-weight:bold;color:" + C.red + ";margin-bottom:16px;";
   overlay.appendChild(overlayTitle);
   overlaySubtext = document.createElement("div");
   overlaySubtext.style.cssText = "font-size:20px;color:" + C.text + ";margin-bottom:32px;";
@@ -349,10 +366,12 @@ export function createHUD() {
   overlayBtn = document.createElement("button");
   overlayBtn.textContent = "RESTART";
   overlayBtn.style.cssText = [
-    "font-family:monospace", "font-size:18px", "padding:12px 36px",
+    "font-family:monospace", "font-size:" + (_mob ? "20px" : "18px"),
+    "padding:" + (_mob ? "14px 44px" : "12px 36px"),
     "background:rgba(40,60,90,0.8)", "color:" + C.text,
     "border:1px solid " + C.borderActive, "border-radius:6px",
-    "cursor:pointer", "pointer-events:auto"
+    "cursor:pointer", "pointer-events:auto",
+    "min-height:44px"
   ].join(";");
   overlayBtn.addEventListener("click", function () {
     hideOverlay();

@@ -1,5 +1,6 @@
 // lobbyScreen.js — multiplayer lobby UI: main menu button, create/join room, player list, ready state
 import { getClassOrder, getAllClasses } from "./shipClass.js";
+import { isMobile } from "./mobile.js";
 
 var overlay = null;
 var mainMenuBtn = null;
@@ -40,7 +41,7 @@ var C = {
 var BTN = [
   "font-family:monospace", "font-size:14px", "padding:10px 24px",
   "border-radius:6px", "cursor:pointer", "pointer-events:auto",
-  "user-select:none", "text-align:center"
+  "user-select:none", "text-align:center", "min-height:44px"
 ].join(";");
 
 // --- create the main menu multiplayer button (injected into ship select screen) ---
@@ -52,12 +53,14 @@ export function createMultiplayerButton(parentEl, callback) {
     "background:rgba(20,40,80,0.8)",
     "color:" + C.blue,
     "border:1px solid " + C.blue,
-    "min-width:200px"
+    "min-width:200px",
+    "min-height:44px"
   ].join(";");
-  mainMenuBtn.addEventListener("mouseenter", function () {
+  // touch-friendly highlight
+  mainMenuBtn.addEventListener("touchstart", function () {
     mainMenuBtn.style.background = "rgba(30,60,120,0.9)";
   });
-  mainMenuBtn.addEventListener("mouseleave", function () {
+  mainMenuBtn.addEventListener("touchend", function () {
     mainMenuBtn.style.background = "rgba(20,40,80,0.8)";
   });
   mainMenuBtn.addEventListener("click", function (e) {
@@ -158,7 +161,7 @@ export function createLobbyScreen() {
     "display:none", "flex-direction:column", "align-items:center",
     "gap:12px", "padding:32px", "background:" + C.panel,
     "border:1px solid " + C.border, "border-radius:12px",
-    "min-width:360px", "max-width:500px"
+    "min-width:280px", "max-width:500px"
   ].join(";");
 
   var lobbyTitle = document.createElement("div");

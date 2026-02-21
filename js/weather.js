@@ -125,8 +125,8 @@ export function maybeChangeWeather(state) {
 }
 
 // --- create rain particle system ---
-export function createRain(scene) {
-  var count = 4000;
+export function createRain(scene, particleCount) {
+  var count = particleCount || 4000;
   var geometry = new THREE.BufferGeometry();
   var positions = new Float32Array(count * 3);
   var velocities = new Float32Array(count);
@@ -157,8 +157,8 @@ export function createRain(scene) {
 }
 
 // --- create rain splash particles (small rings on water surface) ---
-export function createSplashes(scene) {
-  var count = 200;
+export function createSplashes(scene, particleCount) {
+  var count = particleCount || 200;
   var geometry = new THREE.BufferGeometry();
   var positions = new Float32Array(count * 3);
   var scales = new Float32Array(count);

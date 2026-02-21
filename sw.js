@@ -49,6 +49,7 @@ var ASSETS = [
   "/ocean-outlaws/js/shipModels.js",
   "/ocean-outlaws/js/save.js",
   "/ocean-outlaws/js/settingsMenu.js",
+  "/ocean-outlaws/js/mobile.js",
   "/ocean-outlaws/icons/icon-192.png",
   "/ocean-outlaws/icons/icon-512.png"
 ];

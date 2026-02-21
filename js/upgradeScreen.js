@@ -1,6 +1,7 @@
 // upgradeScreen.js — between-wave upgrade UI overlay with ship diagram
 import { getUpgradeTree, canAfford, buyUpgrade, getNextCost, getMultipliers, getMultiplierForKey, findUpgrade } from "./upgrade.js";
 import { playUpgrade, playClick } from "./soundFx.js";
+import { isMobile } from "./mobile.js";
 
 var root = null;
 var salvageLabel = null;
@@ -30,6 +31,7 @@ var STAT_LABELS = {
 // --- create the upgrade screen DOM (called once) ---
 export function createUpgradeScreen() {
   root = document.createElement("div");
+  var _mob = isMobile();
   root.id = "upgrade-screen";
   root.style.cssText = [
     "position: fixed",
@@ -119,6 +121,7 @@ export function createUpgradeScreen() {
     "font-family: monospace",
     "font-size: 20px",
     "padding: 14px 48px",
+    "min-height: 44px",
     "margin-top: 20px",
     "margin-bottom: 20px",
     "background: rgba(40, 80, 60, 0.8)",
@@ -365,6 +368,7 @@ function buildUpgradeRow(up, color) {
   el.style.cssText = [
     "margin-bottom: 8px",
     "padding: 6px",
+    "min-height: 44px",
     "border-radius: 4px",
     "background: rgba(20, 25, 40, 0.6)",
     "cursor: pointer",

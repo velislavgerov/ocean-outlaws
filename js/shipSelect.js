@@ -1,6 +1,7 @@
 // shipSelect.js — ship class selection screen before game start
 import { getClassOrder, getAllClasses } from "./shipClass.js";
 import { getTotalSpent, respecUpgrades } from "./upgrade.js";
+import { isMobile } from "./mobile.js";
 
 var overlay = null;
 export function getShipSelectOverlay() { return overlay; }
@@ -20,31 +21,38 @@ export function createShipSelectScreen() {
     "display: flex",
     "flex-direction: column",
     "align-items: center",
-    "justify-content: center",
+    "justify-content: flex-start",
     "background: rgba(5, 5, 15, 0.92)",
     "z-index: 200",
     "font-family: monospace",
-    "user-select: none"
+    "user-select: none",
+    "overflow-y: auto",
+    "padding: 20px 0"
   ].join(";");
 
   var title = document.createElement("div");
   title.textContent = "CHOOSE YOUR SHIP";
+  var _mobTitle = isMobile();
   title.style.cssText = [
-    "font-size: 32px",
+    "font-size: " + (_mobTitle ? "24px" : "32px"),
     "font-weight: bold",
     "color: #8899aa",
-    "margin-bottom: 32px",
+    "margin-bottom: " + (_mobTitle ? "16px" : "32px"),
+    "margin-top: 16px",
     "text-shadow: 0 0 20px rgba(100,140,200,0.3)"
   ].join(";");
   overlay.appendChild(title);
 
   var grid = document.createElement("div");
+  var _mob = isMobile();
   grid.style.cssText = [
     "display: flex",
-    "gap: 16px",
+    "gap: " + (_mob ? "10px" : "16px"),
     "flex-wrap: wrap",
     "justify-content: center",
-    "max-width: 800px"
+    "max-width: 800px",
+    "width: 95%",
+    "padding: 0 8px"
   ].join(";");
 
   var order = getClassOrder();
@@ -59,7 +67,7 @@ export function createShipSelectScreen() {
   overlay.appendChild(grid);
 
   var hint = document.createElement("div");
-  hint.textContent = "Click a ship to start";
+  hint.textContent = isMobile() ? "Tap a ship to start" : "Click a ship to start";
   hint.style.cssText = [
     "font-size: 14px",
     "color: #556677",
@@ -81,7 +89,8 @@ export function createShipSelectScreen() {
     "border-radius: 6px",
     "cursor: pointer",
     "pointer-events: auto",
-    "display: none"
+    "display: none",
+    "min-height: 44px"
   ].join(";");
   resetBtn.addEventListener("click", function () {
     showResetConfirm();
@@ -136,7 +145,8 @@ export function createShipSelectScreen() {
     "border: 1px solid rgba(200, 60, 60, 0.6)",
     "border-radius: 4px",
     "cursor: pointer",
-    "pointer-events: auto"
+    "pointer-events: auto",
+    "min-height: 44px"
   ].join(";");
   confirmBtn.addEventListener("click", function () {
     if (currentUpgradeState) {
@@ -158,7 +168,8 @@ export function createShipSelectScreen() {
     "border: 1px solid rgba(80, 100, 130, 0.4)",
     "border-radius: 4px",
     "cursor: pointer",
-    "pointer-events: auto"
+    "pointer-events: auto",
+    "min-height: 44px"
   ].join(";");
   cancelBtn.addEventListener("click", function () {
     hideResetConfirm();
@@ -197,25 +208,31 @@ function updateResetButton() {
 }
 
 function buildCard(cls) {
+  var _mob = isMobile();
   var card = document.createElement("div");
   card.style.cssText = [
-    "width: 170px",
-    "padding: 16px",
+    _mob ? "width:calc(50% - 8px);min-width:140px" : "width: 170px",
+    "padding: " + (_mob ? "12px" : "16px"),
     "background: rgba(20, 30, 50, 0.8)",
-    "border: 1px solid rgba(80, 100, 130, 0.4)",
+    "border: 2px solid rgba(80, 100, 130, 0.4)",
     "border-radius: 8px",
     "cursor: pointer",
     "pointer-events: auto",
-    "transition: border-color 0.2s, transform 0.15s"
+    "transition: border-color 0.2s"
   ].join(";");
 
+  // touch-friendly: highlight on active instead of hover
+  card.addEventListener("touchstart", function () {
+    card.style.borderColor = cls.color;
+  }, { passive: true });
+  card.addEventListener("touchend", function () {
+    card.style.borderColor = "rgba(80, 100, 130, 0.4)";
+  }, { passive: true });
   card.addEventListener("mouseenter", function () {
     card.style.borderColor = cls.color;
-    card.style.transform = "scale(1.05)";
   });
   card.addEventListener("mouseleave", function () {
     card.style.borderColor = "rgba(80, 100, 130, 0.4)";
-    card.style.transform = "scale(1)";
   });
 
   var name = document.createElement("div");

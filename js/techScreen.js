@@ -3,6 +3,7 @@ import {
   getTechBranches, isUnlocked, canUnlock, unlockNode,
   getNextIndex, getTechBonuses, loadTechState
 } from "./techTree.js";
+import { isMobile } from "./mobile.js";
 
 var root = null;
 var currentState = null;
@@ -88,6 +89,7 @@ export function createTechScreen() {
     "font-family: monospace",
     "font-size: 20px",
     "padding: 14px 48px",
+    "min-height: 44px",
     "margin-top: 10px",
     "margin-bottom: 20px",
     "background: rgba(40, 80, 60, 0.8)",
@@ -179,6 +181,7 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
   el.style.cssText = [
     "width: 240px",
     "padding: 10px 12px",
+    "min-height: 44px",
     "border-radius: 8px",
     "background: rgba(20, 25, 40, 0.7)",
     "border: 2px solid " + branch.color + "33",

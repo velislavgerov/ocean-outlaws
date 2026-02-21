@@ -66,6 +66,7 @@ var fragmentShader = /* glsl */ `
   uniform vec3 uCameraPos;
   uniform sampler2D uTerrainMap;
   uniform float uHasTerrain;
+  uniform float uShaderDetail; // 0=low, 1=medium, 2=high
   varying float vHeight;
   varying vec2 vUv;
   varying vec3 vWorldPos;
@@ -120,57 +121,57 @@ var fragmentShader = /* glsl */ `
     // weather tint
     col += uWaterTint;
 
-    // --- scrolling normal map for surface detail ---
-    // use world XZ (plane local x maps to worldX, plane local y maps to worldZ)
     vec2 worldXZ = vec2(vWorldPos.x, vWorldPos.z);
-    vec3 detailNormal = scrollingNormal(worldXZ, uTime);
-
-    // perturb the wave normal with detail normal (in plane-local space)
-    vec3 perturbedLocal = normalize(vec3(
-      vNormal.x + detailNormal.x,
-      vNormal.y + detailNormal.y,
-      vNormal.z
-    ));
-
-    // transform to world (plane is rotated -PI/2 on X)
-    vec3 worldNormal = normalize(vec3(perturbedLocal.x, perturbedLocal.z, -perturbedLocal.y));
+    // use wave normal directly on low, perturbed on medium+
+    vec3 worldNormal;
+    if (uShaderDetail > 0.5) {
+      // --- scrolling normal map for surface detail (medium+) ---
+      vec3 detailNormal = scrollingNormal(worldXZ, uTime);
+      vec3 perturbedLocal = normalize(vec3(
+        vNormal.x + detailNormal.x,
+        vNormal.y + detailNormal.y,
+        vNormal.z
+      ));
+      worldNormal = normalize(vec3(perturbedLocal.x, perturbedLocal.z, -perturbedLocal.y));
+    } else {
+      worldNormal = normalize(vec3(vNormal.x, vNormal.z, -vNormal.y));
+    }
 
     // --- foam / whitecaps on wave crests ---
-    float foamThreshold = 0.75 - uFoamIntensity * 0.3;
-    float foam = smoothstep(foamThreshold, foamThreshold + 0.15, t);
-    // multi-octave noise for organic foam breakup
-    float fn1 = gnoise(worldXZ * 0.5 + vec2(uTime * 0.15, -uTime * 0.1));
-    float fn2 = gnoise(worldXZ * 1.2 + vec2(-uTime * 0.2, uTime * 0.18));
-    float fn3 = gnoise(worldXZ * 3.0 + vec2(uTime * 0.3, uTime * 0.25));
-    float foamNoise = fn1 * 0.5 + fn2 * 0.35 + fn3 * 0.15;
-    foam *= smoothstep(-0.1, 0.4, foamNoise);
-    // streaky foam texture along wave direction
-    float streak = sin(worldXZ.x * 2.0 + worldXZ.y * 0.5 + uTime * 0.3) * 0.5 + 0.5;
-    foam *= 0.6 + streak * 0.4;
-    vec3 foamCol = mix(vec3(0.55, 0.6, 0.65), vec3(0.7, 0.75, 0.8), foamNoise * 0.5 + 0.5);
-    col = mix(col, foamCol, foam * 0.55 * uFoamIntensity);
+    if (uShaderDetail > 0.5) {
+      float foamThreshold = 0.75 - uFoamIntensity * 0.3;
+      float foam = smoothstep(foamThreshold, foamThreshold + 0.15, t);
+      float fn1 = gnoise(worldXZ * 0.5 + vec2(uTime * 0.15, -uTime * 0.1));
+      float foamNoise = fn1;
+      if (uShaderDetail > 1.5) {
+        // high: full multi-octave foam
+        float fn2 = gnoise(worldXZ * 1.2 + vec2(-uTime * 0.2, uTime * 0.18));
+        float fn3 = gnoise(worldXZ * 3.0 + vec2(uTime * 0.3, uTime * 0.25));
+        foamNoise = fn1 * 0.5 + fn2 * 0.35 + fn3 * 0.15;
+      }
+      foam *= smoothstep(-0.1, 0.4, foamNoise);
+      float streak = sin(worldXZ.x * 2.0 + worldXZ.y * 0.5 + uTime * 0.3) * 0.5 + 0.5;
+      foam *= 0.6 + streak * 0.4;
+      vec3 foamCol = mix(vec3(0.55, 0.6, 0.65), vec3(0.7, 0.75, 0.8), foamNoise * 0.5 + 0.5);
+      col = mix(col, foamCol, foam * 0.55 * uFoamIntensity);
+    }
 
-    // --- shore foam where water meets terrain ---
-    if (uHasTerrain > 0.5) {
-      // sample terrain heightmap — UV maps world position to texture
+    // --- shore foam where water meets terrain (medium+) ---
+    if (uHasTerrain > 0.5 && uShaderDetail > 0.5) {
       vec2 terrainUv = (worldXZ + 200.0) / 400.0;
       terrainUv = clamp(terrainUv, 0.0, 1.0);
       float terrainH = texture2D(uTerrainMap, terrainUv).r;
-      // terrainH is encoded: 0.5 = sea level, >0.5 = land, <0.5 = deep water
-      // shore proximity: how close to land (shoreline at 0.5)
       float shoreProx = smoothstep(0.15, 0.5, terrainH);
-      // animated foam bands rolling toward shore
-      float shoreDist = (0.5 - terrainH) * 10.0; // distance from shore in encoded units
+      float shoreDist = (0.5 - terrainH) * 10.0;
       float roll1 = sin(shoreDist * 6.0 - uTime * 1.5) * 0.5 + 0.5;
       float roll2 = sin(shoreDist * 4.0 - uTime * 1.1 + 1.5) * 0.5 + 0.5;
       float rollFoam = max(roll1, roll2 * 0.7);
-      // noise to break up the foam line
-      float shoreNoise = gnoise(worldXZ * 0.4 + vec2(uTime * 0.1, -uTime * 0.08));
-      rollFoam *= smoothstep(-0.3, 0.3, shoreNoise);
-      // strong foam right at shoreline, fading further out
+      if (uShaderDetail > 1.5) {
+        float shoreNoise = gnoise(worldXZ * 0.4 + vec2(uTime * 0.1, -uTime * 0.08));
+        rollFoam *= smoothstep(-0.3, 0.3, shoreNoise);
+      }
       float shoreFoamMask = shoreProx * smoothstep(0.5, 0.42, terrainH);
       float shoreFoam = shoreFoamMask * rollFoam;
-      // bubbly shore foam color
       vec3 shoreFoamCol = mix(vec3(0.65, 0.7, 0.75), vec3(0.8, 0.85, 0.9), roll1);
       col = mix(col, shoreFoamCol * (0.5 + uSunIntensity * 0.5), shoreFoam * 0.7);
     }
@@ -179,34 +180,38 @@ var fragmentShader = /* glsl */ `
     vec3 viewDir = normalize(uCameraPos - vWorldPos);
     float fresnel = 1.0 - max(dot(viewDir, worldNormal), 0.0);
     fresnel = pow(fresnel, 3.0);
-    // blend toward sky — stronger at glancing, subtle overhead
     col = mix(col, uSkyColor * 0.7, fresnel * 0.55);
 
     // --- specular sun/moon glint ---
     vec3 reflectDir = reflect(-uSunDir, worldNormal);
     float spec = max(dot(viewDir, reflectDir), 0.0);
-    spec = pow(spec, 128.0);
+    spec = pow(spec, uShaderDetail > 1.5 ? 128.0 : 32.0);
     col += uSunColor * spec * uSunIntensity * 1.5;
 
-    // softer broad specular highlight
-    float specBroad = pow(max(dot(viewDir, reflectDir), 0.0), 16.0);
-    col += uSunColor * specBroad * uSunIntensity * 0.15;
+    // softer broad specular (high only)
+    if (uShaderDetail > 1.5) {
+      float specBroad = pow(max(dot(viewDir, reflectDir), 0.0), 16.0);
+      col += uSunColor * specBroad * uSunIntensity * 0.15;
+    }
 
     // --- cloud shadow patches ---
     float shadow = sin(vWorldPos.x * 0.02 + uTime * 0.15) * sin(vWorldPos.z * 0.025 - uTime * 0.12);
     shadow = smoothstep(0.3, 0.8, shadow);
     col *= 1.0 - shadow * uCloudShadow * 0.25;
 
-    // --- subtle shimmer from normal detail ---
-    float shimmer = gnoise(worldXZ * 3.5 + vec2(uTime * 1.5, uTime * 1.2));
-    col += vec3(0.012) * smoothstep(0.5, 1.0, shimmer) * t;
+    // --- subtle shimmer (high only) ---
+    if (uShaderDetail > 1.5) {
+      float shimmer = gnoise(worldXZ * 3.5 + vec2(uTime * 1.5, uTime * 1.2));
+      col += vec3(0.012) * smoothstep(0.5, 1.0, shimmer) * t;
+    }
 
     gl_FragColor = vec4(col, 1.0);
   }
 `;
 
-export function createOcean() {
-  var geometry = new THREE.PlaneGeometry(400, 400, 128, 128);
+export function createOcean(segments) {
+  var segs = segments || 128;
+  var geometry = new THREE.PlaneGeometry(400, 400, segs, segs);
 
   // default 1x1 black terrain texture (no terrain)
   var defaultTerrain = new THREE.DataTexture(
@@ -230,7 +235,8 @@ export function createOcean() {
     uCloudShadow: { value: 0.0 },
     uCameraPos: { value: new THREE.Vector3(0, 60, 30) },
     uTerrainMap: { value: defaultTerrain },
-    uHasTerrain: { value: 0.0 }
+    uHasTerrain: { value: 0.0 },
+    uShaderDetail: { value: 2.0 }
   };
 
   var material = new THREE.ShaderMaterial({
