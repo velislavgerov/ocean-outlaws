@@ -49,6 +49,9 @@ function onTouchMove(e) {
 }
 
 function onKeyDown(e) {
+  // skip hotkeys when typing in input fields
+  var tag = e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
   var key = e.key;
   if (key === " " || key === "f" || key === "F") {
     e.preventDefault();
