@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { addAmmo, addFuel, addParts } from "./resource.js";
 import { isLand } from "./terrain.js";
+import { nextRandom } from "./rng.js";
 
 // --- tuning ---
 var SPAWN_INTERVAL = 18;         // seconds between crate spawns
@@ -95,8 +96,8 @@ export function createCrateManager() {
 // --- find random water position for crate ---
 function findCrateSpawnPosition(ship, terrain) {
   for (var attempt = 0; attempt < 30; attempt++) {
-    var angle = Math.random() * Math.PI * 2;
-    var dist = SPAWN_DIST_MIN + Math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
+    var angle = nextRandom() * Math.PI * 2;
+    var dist = SPAWN_DIST_MIN + nextRandom() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
     var x = ship.posX + Math.sin(angle) * dist;
     var z = ship.posZ + Math.cos(angle) * dist;
 
@@ -118,7 +119,7 @@ function spawnCrate(manager, ship, terrain, scene) {
   var pos = findCrateSpawnPosition(ship, terrain);
   if (!pos) return;
 
-  var roll = Math.random();
+  var roll = nextRandom();
   var type;
   if (roll < CHANCE_AMMO) {
     type = "ammo";

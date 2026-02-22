@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { addAmmo, addFuel } from "./resource.js";
 import { getTerrainHeight, isLand } from "./terrain.js";
+import { nextRandom } from "./rng.js";
 
 // --- tuning ---
 var PORT_COUNT = 3;              // ports per map
@@ -24,8 +25,8 @@ function findCoastlinePositions(terrain) {
   var positions = [];
   for (var attempt = 0; attempt < COAST_SEARCH_ATTEMPTS && positions.length < PORT_COUNT; attempt++) {
     // random position on map, avoiding edges
-    var x = (Math.random() - 0.5) * (MAP_HALF * 2 - 80);
-    var z = (Math.random() - 0.5) * (MAP_HALF * 2 - 80);
+    var x = (nextRandom() - 0.5) * (MAP_HALF * 2 - 80);
+    var z = (nextRandom() - 0.5) * (MAP_HALF * 2 - 80);
 
     // check distance from center
     var cdist = Math.sqrt(x * x + z * z);

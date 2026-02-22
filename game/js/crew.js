@@ -1,4 +1,5 @@
 // crew.js — officer/crew system: data, procedural names, roster management, bonuses
+import { nextRandom } from "./rng.js";
 
 // --- stations ---
 var STATIONS = ["weapons", "engine", "helm", "medical"];
@@ -81,8 +82,8 @@ export function addOfficer(state, officer) {
 
 // --- generate a random officer reward ---
 export function generateOfficerReward(rank) {
-  var spec = STATIONS[Math.floor(Math.random() * STATIONS.length)];
-  var r = rank || (Math.random() < 0.6 ? 1 : (Math.random() < 0.7 ? 2 : 3));
+  var spec = STATIONS[Math.floor(nextRandom() * STATIONS.length)];
+  var r = rank || (nextRandom() < 0.6 ? 1 : (nextRandom() < 0.7 ? 2 : 3));
   return randomOfficer(spec, r);
 }
 

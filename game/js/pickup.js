@@ -1,6 +1,7 @@
 // pickup.js — resource pickups: floating crates/barrels dropped by enemies
 import * as THREE from "three";
 import { addAmmo, addFuel, addParts } from "./resource.js";
+import { nextRandom } from "./rng.js";
 
 // --- tuning ---
 var PICKUP_FLOAT_OFFSET = 0.8;
@@ -80,7 +81,7 @@ export function createPickupManager() {
 
 // --- spawn a pickup at position ---
 export function spawnPickup(manager, x, y, z, scene) {
-  var roll = Math.random();
+  var roll = nextRandom();
   var type;
   if (roll < DROP_CHANCE_AMMO) {
     type = "ammo";

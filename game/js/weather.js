@@ -1,5 +1,6 @@
 // weather.js — weather state machine, rain particles, lightning flashes, rain splashes
 import * as THREE from "three";
+import { nextRandom } from "./rng.js";
 
 // --- weather presets ---
 var PRESETS = {
@@ -116,8 +117,8 @@ export function getWeatherCloudShadow(state) {
 
 // --- maybe randomly change weather mid-wave ---
 export function maybeChangeWeather(state) {
-  if (Math.random() < MID_WAVE_CHANGE_CHANCE) {
-    var newKey = WEATHER_POOL[Math.floor(Math.random() * WEATHER_POOL.length)];
+  if (nextRandom() < MID_WAVE_CHANGE_CHANCE) {
+    var newKey = WEATHER_POOL[Math.floor(nextRandom() * WEATHER_POOL.length)];
     if (newKey !== state.current) {
       setWeather(state, newKey);
     }
@@ -287,7 +288,7 @@ export function updateWeather(state, dt, scene, shipX, shipZ) {
   updateSplashes(state.splashes, dt, p.rainDensity, shipX, shipZ);
 
   // lightning
-  if (p.lightningChance > 0 && Math.random() < p.lightningChance) {
+  if (p.lightningChance > 0 && nextRandom() < p.lightningChance) {
     state.lightningActive = true;
     state.lightningTimer = state.lightningDuration;
   }

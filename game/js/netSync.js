@@ -6,6 +6,8 @@ import { buildClassMesh } from "./shipModels.js";
 // --- tuning ---
 var SEND_RATE = 12;                     // state updates per second (cap)
 var SEND_INTERVAL = 1000 / SEND_RATE;   // ms between sends
+var REMOTE_PROJ_SPEED = 60;             // visual speed for remote projectiles
+var REMOTE_PROJ_LIFE = 1.5;             // seconds before despawn
 var POSITION_THRESHOLD = 0.3;           // min distance before sending update
 var ROTATION_THRESHOLD = 0.05;          // min heading change before sending
 var LERP_SPEED = 8;                     // interpolation speed for remote ships
@@ -16,6 +18,17 @@ var REMOTE_SHIP_FADE_TIME = 5;          // seconds to fade out disconnected ship
 var remoteShips = {};   // { playerId: { mesh, posX, posZ, heading, speed, targetX, targetZ, targetHeading, shipClass, health, lastUpdate, _smoothY, _smoothPitch, _smoothRoll, fading, fadeTimer } }
 var lastSendTime = 0;
 var lastSentState = { posX: 0, posZ: 0, heading: 0, speed: 0, health: 0 };
+
+// --- remote projectiles (visual only) ---
+var remoteProjectiles = [];
+var remoteProjGeo = null;
+var remoteProjMat = null;
+
+function ensureRemoteProjGeo() {
+  if (remoteProjGeo) return;
+  remoteProjGeo = new THREE.SphereGeometry(0.15, 6, 4);
+  remoteProjMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
+}
 
 // --- create remote ship mesh with tinted color ---
 function createRemoteShipMesh(shipClass, playerIndex) {
@@ -135,6 +148,15 @@ export function sendPickupClaim(mpState, pickupIndex) {
   broadcast(mpState, { type: "pickup_claim", index: pickupIndex });
 }
 
+// --- send ability activation ---
+export function sendAbilityEvent(mpState, abilityName) {
+  if (!mpState || !mpState.active) return;
+  broadcast(mpState, {
+    type: "ability",
+    ability: abilityName
+  });
+}
+
 // --- send game over / victory ---
 export function sendGameEvent(mpState, eventType, data) {
   if (!mpState || !mpState.active) return;
@@ -154,8 +176,22 @@ export function handleBroadcastMessage(msg, scene, mpState) {
   } else if (msg.type === "game_start") {
     // Handled in main.js
   } else if (msg.type === "fire") {
-    // Visual-only: remote player fired — could spawn a visual projectile
+    spawnRemoteProjectile(msg, scene);
   }
+}
+
+// --- spawn a visual projectile from a remote player's fire event ---
+function spawnRemoteProjectile(msg, scene) {
+  ensureRemoteProjGeo();
+  var mesh = new THREE.Mesh(remoteProjGeo, remoteProjMat);
+  mesh.position.set(msg.ox, 1.2, msg.oz);
+  scene.add(mesh);
+  remoteProjectiles.push({
+    mesh: mesh,
+    vx: msg.dx * REMOTE_PROJ_SPEED,
+    vz: msg.dz * REMOTE_PROJ_SPEED,
+    life: REMOTE_PROJ_LIFE
+  });
 }
 
 // --- update a remote player's ship position ---
@@ -297,6 +333,26 @@ export function updateRemoteShips(dt, getWaveHeight, elapsed, scene) {
       r.mesh.rotation.z = r._smoothRoll;
     }
   }
+
+  // update remote projectiles
+  var aliveProj = [];
+  for (var pi = 0; pi < remoteProjectiles.length; pi++) {
+    var rp = remoteProjectiles[pi];
+    rp.life -= dt;
+    if (rp.life <= 0) {
+      scene.remove(rp.mesh);
+      continue;
+    }
+    rp.mesh.position.x += rp.vx * dt;
+    rp.mesh.position.z += rp.vz * dt;
+    rp.mesh.position.y -= 4.0 * dt; // gentle arc
+    if (rp.mesh.position.y < 0.2) {
+      scene.remove(rp.mesh);
+      continue;
+    }
+    aliveProj.push(rp);
+  }
+  remoteProjectiles = aliveProj;
 }
 
 // --- get remote ships data for minimap ---
@@ -336,6 +392,11 @@ export function clearRemoteShips(scene) {
     scene.remove(remoteShips[pid].mesh);
   }
   remoteShips = {};
+  // clear remote projectiles
+  for (var pi = 0; pi < remoteProjectiles.length; pi++) {
+    scene.remove(remoteProjectiles[pi].mesh);
+  }
+  remoteProjectiles = [];
   lastSendTime = 0;
   lastSentState = { posX: 0, posZ: 0, heading: 0, speed: 0, health: 0 };
 }

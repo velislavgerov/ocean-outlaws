@@ -34,11 +34,12 @@ import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosi
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
-import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState } from "./netSync.js";
+import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendAbilityEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState } from "./netSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
 import { createSettingsMenu, isSettingsOpen } from "./settingsMenu.js";
 import { getQualityConfig, createOrientationPrompt, onQualityChange } from "./mobile.js";
+import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 
 var SALVAGE_PER_KILL = 10;
 var prevPlayerHp = -1;
@@ -332,8 +333,9 @@ function startMultiplayerCombat() {
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
-  // Use shared terrain seed for deterministic terrain
+  // Seed PRNG from shared terrain seed for deterministic simulation
   var seed = mpState.terrainSeed || Math.floor(Math.random() * 999999);
+  seedRNG(seed);
   activeTerrain = createTerrain(seed, 2);
   scene.add(activeTerrain.mesh);
   setTerrainMap(ocean.uniforms, activeTerrain);
@@ -412,10 +414,12 @@ function startZoneCombat(classKey, zoneId) {
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
-  // generate terrain: seed from zone id hash + random, difficulty scales land coverage
+  // generate terrain: seed from zone id hash, difficulty scales land coverage
   var terrainSeed = 0;
   for (var si = 0; si < zoneId.length; si++) terrainSeed += zoneId.charCodeAt(si) * (si + 1);
   terrainSeed += Math.floor(Math.random() * 10000);
+  // Seed PRNG for deterministic simulation
+  seedRNG(terrainSeed);
   activeTerrain = createTerrain(terrainSeed, zone.difficulty);
   scene.add(activeTerrain.mesh);
   setTerrainMap(ocean.uniforms, activeTerrain);
@@ -684,7 +688,7 @@ function animate() {
         addKillFeedEntry("BOSS DEFEATED! " + loot.label, "#ff6644");
         triggerScreenShake(1.5);
         hideBossHud();
-        var bossOfficer = generateOfficerReward(Math.random() < 0.5 ? 2 : 3);
+        var bossOfficer = generateOfficerReward(nextRandom() < 0.5 ? 2 : 3);
         addOfficer(crew, bossOfficer);
         showBanner("Officer recruited: " + bossOfficer.portrait + " " + bossOfficer.name, 4);
       }
@@ -734,7 +738,7 @@ function animate() {
           activeBoss = null; setNavBoss(null);
           hideBossHud();
         }
-        if (Math.random() < 0.5) {
+        if (nextRandom() < 0.5) {
           var waveOfficer = generateOfficerReward(1);
           addOfficer(crew, waveOfficer);
           showBanner("Officer recruited: " + waveOfficer.portrait + " " + waveOfficer.name, 3);

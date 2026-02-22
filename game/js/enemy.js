@@ -1,6 +1,7 @@
 // enemy.js — enemy patrol boats: spawn, chase AI, firing, health, destruction
 import * as THREE from "three";
 import { isLand, collideWithTerrain, terrainBlocksLine } from "./terrain.js";
+import { nextRandom } from "./rng.js";
 
 // --- tuning ---
 var ENEMY_SPEED = 14;
@@ -229,8 +230,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
   var x, z;
   var attempts = 0;
   do {
-    var angle = Math.random() * Math.PI * 2;
-    var dist = SPAWN_DIST_MIN + Math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
+    var angle = nextRandom() * Math.PI * 2;
+    var dist = SPAWN_DIST_MIN + nextRandom() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
     x = playerX + Math.sin(angle) * dist;
     z = playerZ + Math.cos(angle) * dist;
     attempts++;
@@ -253,9 +254,9 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     posX: x,
     posZ: z,
     heading: heading,
-    speed: ENEMY_SPEED * speedMult * (0.7 + Math.random() * 0.3),
-    fireCooldown: FIRE_COOLDOWN / fireRateMult * (0.8 + Math.random() * 0.4),
-    fireTimer: 1 + Math.random() * 2,
+    speed: ENEMY_SPEED * speedMult * (0.7 + nextRandom() * 0.3),
+    fireCooldown: FIRE_COOLDOWN / fireRateMult * (0.8 + nextRandom() * 0.4),
+    fireTimer: 1 + nextRandom() * 2,
     // destruction state
     sinking: false,
     sinkTimer: 0,
@@ -509,9 +510,9 @@ function spawnExplosion(manager, x, y, z, scene) {
     mesh.position.set(x, y + 0.5, z);
     scene.add(mesh);
 
-    var angle = Math.random() * Math.PI * 2;
-    var upSpeed = 3 + Math.random() * 5;
-    var outSpeed = PARTICLE_SPEED * (0.3 + Math.random() * 0.7);
+    var angle = nextRandom() * Math.PI * 2;
+    var upSpeed = 3 + nextRandom() * 5;
+    var outSpeed = PARTICLE_SPEED * (0.3 + nextRandom() * 0.7);
 
     manager.particles.push({
       mesh: mesh,

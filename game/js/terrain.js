@@ -1,5 +1,6 @@
 // terrain.js — procedural island generation, 3D mesh, collision queries
 import * as THREE from "three";
+import { nextRandom } from "./rng.js";
 
 // --- tuning ---
 var MAP_SIZE = 400;           // world units, matches ocean plane
@@ -473,14 +474,14 @@ export function removeTerrain(terrain, scene) {
 // --- public: find a valid (water) spawn position near a point ---
 export function findWaterPosition(terrain, nearX, nearZ, minDist, maxDist) {
   if (!terrain) {
-    var angle = Math.random() * Math.PI * 2;
-    var dist = minDist + Math.random() * (maxDist - minDist);
+    var angle = nextRandom() * Math.PI * 2;
+    var dist = minDist + nextRandom() * (maxDist - minDist);
     return { x: nearX + Math.sin(angle) * dist, z: nearZ + Math.cos(angle) * dist };
   }
   // try random positions until we find water
   for (var attempt = 0; attempt < 50; attempt++) {
-    var angle = Math.random() * Math.PI * 2;
-    var dist = minDist + Math.random() * (maxDist - minDist);
+    var angle = nextRandom() * Math.PI * 2;
+    var dist = minDist + nextRandom() * (maxDist - minDist);
     var x = nearX + Math.sin(angle) * dist;
     var z = nearZ + Math.cos(angle) * dist;
     if (!isLand(terrain, x, z)) {

@@ -1,6 +1,7 @@
 // boss.js — boss definitions, state machine, attacks, telegraphs, loot
 import * as THREE from "three";
 import { buildBossMesh } from "./bossModels.js";
+import { nextRandom } from "./rng.js";
 import { collideWithTerrain, isLand } from "./terrain.js";
 
 // --- boss definitions ---
@@ -74,7 +75,7 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
 
   var mesh = buildBossMesh(bossType);
   var spawnDist = 80;
-  var angle = Math.random() * Math.PI * 2;
+  var angle = nextRandom() * Math.PI * 2;
   var x = playerX + Math.sin(angle) * spawnDist;
   var z = playerZ + Math.cos(angle) * spawnDist;
   mesh.position.set(x, 0.5, z);
@@ -435,7 +436,7 @@ function updateDroneSpawns(boss, dt, scene) {
     ds.timer -= dt;
     if (ds.timer <= 0) {
       for (var d = 0; d < ds.count; d++) {
-        var angle = (d / ds.count) * Math.PI * 2 + Math.random() * 0.3;
+        var angle = (d / ds.count) * Math.PI * 2 + nextRandom() * 0.3;
         fireBossProjectile(boss, angle, 25, scene);
       }
     } else {
@@ -524,7 +525,7 @@ var LOOT_TABLE = [
 ];
 
 export function rollBossLoot() {
-  return LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
+  return LOOT_TABLE[Math.floor(nextRandom() * LOOT_TABLE.length)];
 }
 
 export function applyBossLoot(loot, upgrades, enemyMgr) {
