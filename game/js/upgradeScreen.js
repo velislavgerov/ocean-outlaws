@@ -1,5 +1,5 @@
 // upgradeScreen.js — between-wave upgrade UI overlay with ship diagram
-import { getUpgradeTree, canAfford, buyUpgrade, getNextCost, getMultipliers, getMultiplierForKey, findUpgrade, undoUpgrade } from "./upgrade.js";
+import { getUpgradeTree, canAfford, buyUpgrade, getNextCost, getMultiplierForKey, findUpgrade, undoUpgrade } from "./upgrade.js";
 import { playUpgrade, playClick } from "./soundFx.js";
 import { isMobile } from "./mobile.js";
 
@@ -11,8 +11,7 @@ var onCloseCallback = null;
 var currentState = null;
 var continueBtn = null;
 var selectedKey = null;   // currently highlighted upgrade key
-var pendingKey = null;     // upgrade just applied, awaiting confirm/undo
-var previewPanel = null;   // stat preview panel element
+var pendingKey = null;     // upgrade just applied, showing inline undo
 var activeTab = null;      // current mobile tab key
 var tabBtns = {};          // catKey -> tab button element
 
@@ -168,23 +167,6 @@ export function createUpgradeScreen() {
     switchTab(activeTab);
   }
 
-  // stat preview panel (below the grid, above continue)
-  previewPanel = document.createElement("div");
-  previewPanel.style.cssText = [
-    "max-width: 400px",
-    "width: 90%",
-    "min-height: 48px",
-    "margin-top: 12px",
-    "padding: 10px 16px",
-    "background: rgba(15, 20, 35, 0.9)",
-    "border: 1px solid rgba(80, 100, 130, 0.3)",
-    "border-radius: 6px",
-    "display: none",
-    "flex-direction: column",
-    "gap: 6px"
-  ].join(";");
-  root.appendChild(previewPanel);
-
   // continue button
   continueBtn = document.createElement("button");
   continueBtn.textContent = "CONTINUE";
@@ -204,7 +186,8 @@ export function createUpgradeScreen() {
     "text-shadow: 0 0 10px rgba(60,200,90,0.3)"
   ].join(";");
   continueBtn.addEventListener("click", function () {
-    if (pendingKey) return; // must confirm or undo first
+    pendingKey = null;
+    selectedKey = null;
     hideUpgradeScreen();
     if (onCloseCallback) onCloseCallback();
   });
@@ -352,12 +335,14 @@ function clickUpgrade(key) {
   if (!currentState) return;
 
   // if there's already a pending upgrade, ignore clicks on other rows
-  if (pendingKey) return;
+  if (pendingKey && pendingKey !== key) return;
+
+  // if clicking the pending row, ignore (use undo button instead)
+  if (pendingKey === key) return;
 
   // toggle selection off if clicking same key
   if (selectedKey === key) {
     selectedKey = null;
-    refreshPreview();
     refreshUI();
     return;
   }
@@ -368,7 +353,6 @@ function clickUpgrade(key) {
       playUpgrade();
       selectedKey = key;
       pendingKey = key;
-      refreshPreview();
       refreshUI();
       return;
     }
@@ -376,184 +360,7 @@ function clickUpgrade(key) {
 
   // can't afford or maxed — just select for preview
   selectedKey = key;
-  refreshPreview();
   refreshUI();
-}
-
-// --- refresh the preview panel ---
-function refreshPreview() {
-  if (!previewPanel || !currentState) return;
-
-  // clear
-  previewPanel.innerHTML = "";
-
-  if (!selectedKey) {
-    previewPanel.style.display = "none";
-    return;
-  }
-
-  var info = findUpgrade(selectedKey);
-  if (!info) { previewPanel.style.display = "none"; return; }
-
-  var level = currentState.levels[selectedKey] || 0;
-  var maxed = level >= 3;
-  var isPending = pendingKey === selectedKey;
-
-  previewPanel.style.display = "flex";
-
-  if (isPending) {
-    // show what was just applied, with undo/confirm
-    var header = document.createElement("div");
-    header.textContent = info.label + " — Tier " + level + " applied!";
-    header.style.cssText = "font-size:14px;font-weight:bold;color:#44dd66;margin-bottom:4px";
-    previewPanel.appendChild(header);
-
-    // show the stat change that was applied
-    var currentVal = getMultiplierForKey(currentState, selectedKey, 0);
-    var prevVal = getMultiplierForKey(currentState, selectedKey, -1);
-    var statLabel = STAT_LABELS[info.stat] || info.stat;
-
-    var statRow = document.createElement("div");
-    statRow.style.cssText = "font-size:13px;color:#8899aa;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
-
-    var statName = document.createElement("span");
-    statName.textContent = statLabel + ": ";
-    statName.style.color = "#667788";
-    statRow.appendChild(statName);
-
-    var prevSpan = document.createElement("span");
-    prevSpan.textContent = formatStat(info.stat, prevVal);
-    prevSpan.style.color = "#888";
-    statRow.appendChild(prevSpan);
-
-    var arrow = document.createElement("span");
-    arrow.textContent = " \u2192 ";
-    arrow.style.color = "#556677";
-    statRow.appendChild(arrow);
-
-    var newSpan = document.createElement("span");
-    newSpan.textContent = formatStat(info.stat, currentVal);
-    newSpan.style.cssText = "color:#44dd66;font-weight:bold";
-    statRow.appendChild(newSpan);
-
-    previewPanel.appendChild(statRow);
-
-    // undo + confirm buttons
-    var btnRow = document.createElement("div");
-    btnRow.style.cssText = "display:flex;gap:10px;margin-top:6px";
-
-    var undoBtn = document.createElement("button");
-    undoBtn.textContent = "UNDO";
-    undoBtn.style.cssText = [
-      "font-family: monospace",
-      "font-size: 13px",
-      "padding: 6px 24px",
-      "min-height: 44px",
-      "background: rgba(80, 40, 40, 0.8)",
-      "color: #dd6644",
-      "border: 1px solid rgba(140, 60, 60, 0.6)",
-      "border-radius: 4px",
-      "cursor: pointer",
-      "pointer-events: auto"
-    ].join(";");
-    undoBtn.addEventListener("click", function () {
-      if (!currentState || !pendingKey) return;
-      playClick();
-      undoUpgrade(currentState, pendingKey);
-      var undone = pendingKey;
-      pendingKey = null;
-      selectedKey = undone; // keep it selected so player sees current state
-      refreshPreview();
-      refreshUI();
-    });
-    btnRow.appendChild(undoBtn);
-
-    var confirmBtn = document.createElement("button");
-    confirmBtn.textContent = "CONFIRM";
-    confirmBtn.style.cssText = [
-      "font-family: monospace",
-      "font-size: 13px",
-      "padding: 6px 24px",
-      "min-height: 44px",
-      "background: rgba(40, 80, 60, 0.8)",
-      "color: #44dd66",
-      "border: 1px solid rgba(60, 140, 90, 0.6)",
-      "border-radius: 4px",
-      "cursor: pointer",
-      "pointer-events: auto"
-    ].join(";");
-    confirmBtn.addEventListener("click", function () {
-      playClick();
-      pendingKey = null;
-      selectedKey = null;
-      refreshPreview();
-      refreshUI();
-    });
-    btnRow.appendChild(confirmBtn);
-
-    previewPanel.appendChild(btnRow);
-  } else {
-    // normal preview (not pending) — show info about upgrade
-    var header2 = document.createElement("div");
-    header2.textContent = info.label + (maxed ? " (MAX)" : " — Tier " + (level + 1));
-    header2.style.cssText = "font-size:14px;font-weight:bold;color:#aabbcc;margin-bottom:4px";
-    previewPanel.appendChild(header2);
-
-    if (!maxed) {
-      var cost = getNextCost(currentState, selectedKey);
-      var affordable = canAfford(currentState, selectedKey);
-
-      if (cost > 0) {
-        // stat preview: current → new
-        var curVal = getMultiplierForKey(currentState, selectedKey, 0);
-        var nxtVal = getMultiplierForKey(currentState, selectedKey, 1);
-        var sLabel = STAT_LABELS[info.stat] || info.stat;
-
-        var sRow = document.createElement("div");
-        sRow.style.cssText = "font-size:13px;color:#8899aa;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
-
-        var sName = document.createElement("span");
-        sName.textContent = sLabel + ": ";
-        sName.style.color = "#667788";
-        sRow.appendChild(sName);
-
-        var curSpan = document.createElement("span");
-        curSpan.textContent = formatStat(info.stat, curVal);
-        curSpan.style.color = "#aabbcc";
-        sRow.appendChild(curSpan);
-
-        var arr = document.createElement("span");
-        arr.textContent = " \u2192 ";
-        arr.style.color = "#556677";
-        sRow.appendChild(arr);
-
-        var nxtSpan = document.createElement("span");
-        nxtSpan.textContent = formatStat(info.stat, nxtVal);
-        nxtSpan.style.cssText = "color:#44dd66;font-weight:bold";
-        sRow.appendChild(nxtSpan);
-
-        previewPanel.appendChild(sRow);
-
-        // cost line
-        var costLine = document.createElement("div");
-        costLine.textContent = "Cost: " + cost + " salvage";
-        costLine.style.cssText = "font-size:12px;color:" + (affordable ? "#ffcc44" : "#664422") + ";margin-top:2px";
-        previewPanel.appendChild(costLine);
-
-        if (!affordable) {
-          var hint = document.createElement("div");
-          hint.textContent = "Not enough salvage";
-          hint.style.cssText = "font-size:11px;color:#664422;margin-top:2px";
-          previewPanel.appendChild(hint);
-        } else {
-          var hint2 = document.createElement("div");
-          hint2.textContent = isMobile() ? "Tap to purchase" : "Click to purchase";
-          hint2.style.cssText = "font-size:11px;color:#667788;margin-top:2px";
-          previewPanel.appendChild(hint2);
-        }
-      }
-    }
-  }
 }
 
 // --- build a single upgrade row ---
@@ -599,6 +406,11 @@ function buildUpgradeRow(up, color) {
   costLabel.style.cssText = "font-size:" + (_mob ? "13px" : "11px") + ";color:#667788";
   el.appendChild(costLabel);
 
+  // inline detail area (stat change + undo) — hidden by default
+  var inlineDetail = document.createElement("div");
+  inlineDetail.style.cssText = "display:none;margin-top:6px";
+  el.appendChild(inlineDetail);
+
   // click to buy immediately (or select for preview if can't afford)
   el.addEventListener("click", function () {
     playClick();
@@ -610,8 +422,156 @@ function buildUpgradeRow(up, color) {
     key: up.key,
     pipEls: pipEls,
     costLabel: costLabel,
+    inlineDetail: inlineDetail,
     color: color
   };
+}
+
+// --- render inline detail content for a row ---
+function renderInlineDetail(row) {
+  var detail = row.inlineDetail;
+  detail.innerHTML = "";
+
+  if (!currentState) { detail.style.display = "none"; return; }
+
+  var isPending = pendingKey === row.key;
+  var isSelected = selectedKey === row.key;
+
+  if (!isPending && !isSelected) {
+    detail.style.display = "none";
+    return;
+  }
+
+  var info = findUpgrade(row.key);
+  if (!info) { detail.style.display = "none"; return; }
+
+  var level = currentState.levels[row.key] || 0;
+  var _mob = isMobile();
+
+  if (isPending) {
+    // show applied stat change + undo button inline
+    detail.style.display = "block";
+
+    var currentVal = getMultiplierForKey(currentState, row.key, 0);
+    var prevVal = getMultiplierForKey(currentState, row.key, -1);
+    var statLabel = STAT_LABELS[info.stat] || info.stat;
+
+    var statRow = document.createElement("div");
+    statRow.style.cssText = "font-size:" + (_mob ? "13px" : "12px") + ";color:#8899aa;display:flex;align-items:center;gap:4px;flex-wrap:wrap";
+
+    var statName = document.createElement("span");
+    statName.textContent = statLabel + ": ";
+    statName.style.color = "#667788";
+    statRow.appendChild(statName);
+
+    var prevSpan = document.createElement("span");
+    prevSpan.textContent = formatStat(info.stat, prevVal);
+    prevSpan.style.color = "#888";
+    statRow.appendChild(prevSpan);
+
+    var arrow = document.createElement("span");
+    arrow.textContent = " \u2192 ";
+    arrow.style.color = "#556677";
+    statRow.appendChild(arrow);
+
+    var newSpan = document.createElement("span");
+    newSpan.textContent = formatStat(info.stat, currentVal);
+    newSpan.style.cssText = "color:#44dd66;font-weight:bold";
+    statRow.appendChild(newSpan);
+
+    detail.appendChild(statRow);
+
+    // undo button
+    var undoBtn = document.createElement("button");
+    undoBtn.textContent = "UNDO";
+    undoBtn.style.cssText = [
+      "font-family: monospace",
+      "font-size: " + (_mob ? "13px" : "12px"),
+      "padding: " + (_mob ? "6px 20px" : "4px 16px"),
+      "min-height: 44px",
+      "margin-top: 6px",
+      "background: rgba(80, 40, 40, 0.8)",
+      "color: #dd6644",
+      "border: 1px solid rgba(140, 60, 60, 0.6)",
+      "border-radius: 4px",
+      "cursor: pointer",
+      "pointer-events: auto"
+    ].join(";");
+    undoBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!currentState || !pendingKey) return;
+      playClick();
+      undoUpgrade(currentState, pendingKey);
+      var undone = pendingKey;
+      pendingKey = null;
+      selectedKey = null;
+      refreshUI();
+    });
+    detail.appendChild(undoBtn);
+  } else if (isSelected) {
+    // show cost preview inline
+    var maxed = level >= 3;
+
+    if (maxed) {
+      detail.style.display = "none";
+      return;
+    }
+
+    var cost = getNextCost(currentState, row.key);
+    if (cost <= 0) { detail.style.display = "none"; return; }
+
+    detail.style.display = "block";
+
+    var affordable = canAfford(currentState, row.key);
+
+    // stat preview: current -> new
+    var curVal = getMultiplierForKey(currentState, row.key, 0);
+    var nxtVal = getMultiplierForKey(currentState, row.key, 1);
+    var sLabel = STAT_LABELS[info.stat] || info.stat;
+
+    var sRow = document.createElement("div");
+    sRow.style.cssText = "font-size:" + (_mob ? "13px" : "12px") + ";color:#8899aa;display:flex;align-items:center;gap:4px;flex-wrap:wrap";
+
+    var sName = document.createElement("span");
+    sName.textContent = sLabel + ": ";
+    sName.style.color = "#667788";
+    sRow.appendChild(sName);
+
+    var curSpan = document.createElement("span");
+    curSpan.textContent = formatStat(info.stat, curVal);
+    curSpan.style.color = "#aabbcc";
+    sRow.appendChild(curSpan);
+
+    var arr = document.createElement("span");
+    arr.textContent = " \u2192 ";
+    arr.style.color = "#556677";
+    sRow.appendChild(arr);
+
+    var nxtSpan = document.createElement("span");
+    nxtSpan.textContent = formatStat(info.stat, nxtVal);
+    nxtSpan.style.cssText = "color:#44dd66;font-weight:bold";
+    sRow.appendChild(nxtSpan);
+
+    detail.appendChild(sRow);
+
+    // cost line
+    var costLine = document.createElement("div");
+    costLine.textContent = "Cost: " + cost + " salvage";
+    costLine.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + (affordable ? "#ffcc44" : "#664422") + ";margin-top:2px";
+    detail.appendChild(costLine);
+
+    if (!affordable) {
+      var hint = document.createElement("div");
+      hint.textContent = "Not enough salvage";
+      hint.style.cssText = "font-size:11px;color:#664422;margin-top:2px";
+      detail.appendChild(hint);
+    } else {
+      var hint2 = document.createElement("div");
+      hint2.textContent = _mob ? "Tap to purchase" : "Click to purchase";
+      hint2.style.cssText = "font-size:11px;color:#667788;margin-top:2px";
+      detail.appendChild(hint2);
+    }
+  }
 }
 
 // --- refresh all UI elements ---
@@ -670,20 +630,10 @@ function refreshUI() {
         row.costLabel.textContent = cost + " salvage";
         row.costLabel.style.color = affordable ? "#aabbcc" : "#556677";
       }
-    }
-  }
 
-  // continue button: disabled while an upgrade is pending
-  if (pendingKey) {
-    continueBtn.style.background = "rgba(40, 40, 50, 0.6)";
-    continueBtn.style.color = "#556677";
-    continueBtn.style.borderColor = "rgba(60, 60, 70, 0.3)";
-    continueBtn.style.cursor = "default";
-  } else {
-    continueBtn.style.background = "rgba(40, 80, 60, 0.8)";
-    continueBtn.style.color = "#44dd66";
-    continueBtn.style.borderColor = "rgba(60, 140, 90, 0.6)";
-    continueBtn.style.cursor = "pointer";
+      // render inline detail
+      renderInlineDetail(row);
+    }
   }
 }
 
@@ -695,7 +645,6 @@ export function showUpgradeScreen(upgradeState, closeCb) {
   selectedKey = null;
   pendingKey = null;
   refreshUI();
-  refreshPreview();
   root.style.display = "flex";
 }
 
