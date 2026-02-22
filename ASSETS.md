@@ -55,21 +55,39 @@ game/assets/
 
 | Type | Format | Notes |
 |------|--------|-------|
-| 3D Models | `.fbx` (current) → `.glb` (target) | FBX for now, GLB migration planned |
-| Textures | `.png` | Shared atlas per pack, <256KB each |
+| 3D Models | `.glb` | Draco-compressed, exported from Unity via UnityGLTF |
+| Textures | Embedded in GLB | Flat-color materials, no large atlases |
 | Compositions | `.json` | Pre-authored island groups |
 | Manifest | `.json` | Asset registry for loader |
 
-### GLB Migration (Future)
-When ready, convert FBX → GLB using:
-```bash
-# Via gltf-transform (preferred)
-npx gltf-transform cp input.fbx output.glb --compress draco
+## Export Pipeline
 
-# Via Blender CLI
-blender --background --python fbx2glb.py -- input.fbx output.glb
+Models are exported from Unity following `docs/unity-export-guide.pdf`:
+
+1. **Unity** → UnityGLTF plugin exports raw GLB to `exports/raw/`
+2. **gltf-transform** → Draco compression to `exports/optimized/`
+   ```bash
+   gltf-transform optimize exports/raw/ship_sloop.glb exports/optimized/ship_sloop.glb --compress draco
+   ```
+3. **Copy** optimized GLBs into `game/assets/models/` per directory structure above
+
+### Size Targets
+
+| Asset type | Target size | Triangle budget |
+|-----------|------------|----------------|
+| Ship models | <150KB each | <5,000 tris |
+| Environment | <250KB each | <8,000 tris |
+
+### Runtime Loader
+```js
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+const loader = new GLTFLoader();
+loader.setDRACOLoader(dracoLoader);
 ```
-Switch `fbxVisual.js` → `glbVisual.js` using `GLTFLoader`. Same API surface.
 
 ## Manifest Format
 
@@ -128,8 +146,32 @@ Emil extracts and renames models from Unity into the structure above.
 
 ## Model Requirements
 
-- **Triangle budget:** <5,000 per model (mobile performance)
-- **Material:** Single shared texture atlas per pack (flat-color, low-poly)
+- **Triangle budget:** <5,000 per ship, <8,000 per environment piece
+- **Material:** Flat-color low-poly (no PBR, no large textures)
 - **Origin:** Bottom-center of model (ships: waterline center)
 - **Forward:** +Z axis (Three.js convention)
-- **Scale:** Normalized at load time via `fitToSize()` — raw FBX scale doesn't matter
+- **Scale:** Normalized at load time via `fitToSize()` — export scale doesn't matter
+
+## Sail Mesh Naming Convention (Ships)
+
+Ship models must follow this naming for runtime faction recoloring:
+
+| Mesh name | Purpose |
+|-----------|---------|
+| `sail_main` | Main mast sail |
+| `sail_fore` | Fore mast sail |
+| `sail_mizzen` | Mizzen mast sail |
+| `sail_main_01`, `sail_main_02` | Multiple sails on same mast |
+
+**Rules:**
+- Any mesh with `sail` in its name gets recolored at runtime for faction colors
+- Hull, deck, rigging meshes must NOT contain the word `sail`
+- Rename in Unity Hierarchy BEFORE exporting GLB
+
+**Faction colors:**
+```js
+player:   0xf5f0dc  // Cream/natural
+pirates:  0xff2200  // Red
+navy:     0x1a3a6b  // Navy blue
+merchant: 0xc8a850  // Gold/tan
+```
