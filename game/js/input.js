@@ -1,4 +1,5 @@
 // input.js — click/tap + keyboard input handler
+// QWER ability bar: Q/W/E/R mapped to slot0-slot3
 
 var mouse = {
   x: 0,
@@ -10,8 +11,8 @@ var mouse = {
 // keyboard action queue — consumed once per frame
 var keyActions = [];
 
-// autofire state
-var autofire = false;
+// autofire state (always on — no toggle key)
+var autofire = true;
 
 // game canvas reference — only clicks on canvas register as game input
 var gameCanvas = null;
@@ -53,23 +54,14 @@ function onKeyDown(e) {
   var tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
   var key = e.key;
-  if (key === " " || key === "f" || key === "F") {
-    e.preventDefault();
-    keyActions.push("toggleAutofire");
-  } else if (key === "1") {
-    keyActions.push("weapon0");
-  } else if (key === "2") {
-    keyActions.push("weapon1");
-  } else if (key === "3") {
-    keyActions.push("weapon2");
-  } else if (key === "q" || key === "Q") {
-    keyActions.push("weapon0");
+  if (key === "q" || key === "Q") {
+    keyActions.push("slot0");
   } else if (key === "w" || key === "W") {
-    keyActions.push("weapon1");
+    keyActions.push("slot1");
   } else if (key === "e" || key === "E") {
-    keyActions.push("weapon2");
-  } else if (key === "r" || key === "R" || key === "Shift") {
-    keyActions.push("ability");
+    keyActions.push("slot2");
+  } else if (key === "r" || key === "R") {
+    keyActions.push("slot3");
   }
 }
 

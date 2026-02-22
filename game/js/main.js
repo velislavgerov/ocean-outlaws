@@ -3,7 +3,7 @@ import { createOcean, updateOcean, getWaveHeight, setTerrainMap, clearTerrainMap
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
-import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
+import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setAbilityBarCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
@@ -148,28 +148,31 @@ var audioUnlockHandler = function () {
 setMuteCallback(function () { updateMuteButton(toggleMute()); });
 setVolumeCallback(function (vol) { setMasterVolume(vol); });
 
-setWeaponSwitchCallback(function (index) {
-  if (weapons) { switchWeapon(weapons, index); playClick(); }
-});
-setAbilityCallback(function () {
-  if (!abilityState || !weapons || gameFrozen) return;
-  playClick();
-  var activated = activateAbility(abilityState);
-  if (activated) {
+setAbilityBarCallback(function (slotIndex) {
+  if (gameFrozen || !weapons) return;
+  if (slotIndex < 3) {
+    // Q/W/E = weapon switch + fire
+    switchWeapon(weapons, slotIndex);
+    playClick();
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
-    if (selectedClass === "cruiser") {
-      for (var bs = 0; bs < 3; bs++) {
-        fireWithSound(weapons, scene, resources, mults);
-        weapons.cooldown = 0;
+    fireWithSound(weapons, scene, resources, mults);
+  } else {
+    // R = class ability
+    if (!abilityState) return;
+    playClick();
+    var activated = activateAbility(abilityState);
+    if (activated) {
+      var mults2 = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
+      if (selectedClass === "cruiser") {
+        for (var bs = 0; bs < 3; bs++) {
+          fireWithSound(weapons, scene, resources, mults2);
+          weapons.cooldown = 0;
+        }
+      } else if (selectedClass === "carrier") {
+        spawnDrone(droneMgr, ship.posX, ship.posZ, scene, 15);
       }
-    } else if (selectedClass === "carrier") {
-      spawnDrone(droneMgr, ship.posX, ship.posZ, scene, 15);
     }
   }
-});
-setAutofireToggleCallback(function () {
-  toggleAutofire();
-  playClick();
 });
 setSettingsDataCallback(function (data) { updateSettingsData(data); });
 
@@ -203,7 +206,7 @@ createSettingsMenu({
     if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
     if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
     upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
-    setAutofire(false);
+    setAutofire(true);
     setWeather(weather, "calm");
     hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
@@ -540,7 +543,7 @@ setRestartCallback(function () {
   }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
-  setAutofire(false);
+  setAutofire(true);
   setWeather(weather, "calm");
   hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
   if (isMultiplayerActive(mpState)) {
@@ -566,19 +569,17 @@ function animate() {
   if (!gameFrozen && !upgradeScreenOpen && !crewScreenOpen && !techScreenOpen && !isSettingsOpen() && gameStarted) {
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
 
-    // process keyboard actions
+    // process keyboard actions (QWER ability bar)
     var actions = getKeyActions();
     for (var ki = 0; ki < actions.length; ki++) {
       var act = actions[ki];
-      if (act === "toggleAutofire") {
-        toggleAutofire();
-      } else if (act === "weapon0") {
-        if (weapons) switchWeapon(weapons, 0);
-      } else if (act === "weapon1") {
-        if (weapons) switchWeapon(weapons, 1);
-      } else if (act === "weapon2") {
-        if (weapons) switchWeapon(weapons, 2);
-      } else if (act === "ability") {
+      if (act === "slot0" || act === "slot1" || act === "slot2") {
+        var slotIdx = parseInt(act.charAt(4));
+        if (weapons) {
+          switchWeapon(weapons, slotIdx);
+          fireWithSound(weapons, scene, resources, mults);
+        }
+      } else if (act === "slot3") {
         if (abilityState && weapons && !gameFrozen) {
           var kActivated = activateAbility(abilityState);
           if (kActivated) {
@@ -788,20 +789,47 @@ function animate() {
     updateHealthBars(cam.camera, enemyMgr.enemies, ship, hpInfo.hp, hpInfo.maxHp);
     var waveState = getWaveState(waveMgr);
     var weaponOrder = getWeaponOrder();
-    var ammoCosts = [];
-    for (var wi = 0; wi < weaponOrder.length; wi++) ammoCosts.push(getWeaponConfig(weaponOrder[wi]).ammoCost);
-    var weaponInfo = { activeIndex: weapons.activeWeapon, ammoCosts: ammoCosts };
-    var abilityHudInfo = null;
+    var weaponIcons = ["\u2022", "\u25C6", "\u25AC"];
+    var weaponColors = ["#ffcc44", "#ff6644", "#44aaff"];
+
+    // Build QWER ability bar info (4 slots)
+    var abilityBarSlots = [];
+    for (var si = 0; si < 3; si++) {
+      var wCfg = getWeaponConfig(weaponOrder[si]);
+      var wCooldownPct = 1;
+      var wCooldownSecs = 0;
+      if (weapons.activeWeapon === si && weapons.cooldown > 0) {
+        wCooldownPct = 1 - weapons.cooldown / (wCfg.fireRate || 1);
+        wCooldownSecs = weapons.cooldown;
+      }
+      abilityBarSlots.push({
+        icon: weaponIcons[si], color: weaponColors[si],
+        active: false, cooldownPct: wCooldownPct, cooldownSecs: wCooldownSecs,
+        isActiveSlot: si === weapons.activeWeapon
+      });
+    }
+    // R slot = class ability
+    var rSlot = { icon: "\u26A1", color: "#cc66ff", active: false, cooldownPct: 1, cooldownSecs: 0, isActiveSlot: false };
     if (abilityState && selectedClass) {
       var classCfg = getShipClass(selectedClass);
-      abilityHudInfo = { name: classCfg.ability.name, color: classCfg.color, active: abilityState.active,
-        activeTimer: abilityState.activeTimer, duration: abilityState.duration,
-        cooldownTimer: abilityState.cooldownTimer, cooldown: abilityState.cooldown };
+      rSlot.color = classCfg.color;
+      if (abilityState.active) {
+        rSlot.active = true;
+        rSlot.cooldownPct = abilityState.activeTimer / abilityState.duration;
+        rSlot.cooldownSecs = abilityState.activeTimer;
+      } else if (abilityState.cooldownTimer > 0) {
+        rSlot.cooldownPct = 1 - abilityState.cooldownTimer / abilityState.cooldown;
+        rSlot.cooldownSecs = abilityState.cooldownTimer;
+      }
     }
+    abilityBarSlots.push(rSlot);
+
+    var weaponInfo = { activeIndex: weapons.activeWeapon };
+    var abilityHudInfo = null;
     var portInfo = getPortsInfo(portMgr, ship);
     updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
-      waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo);
+      waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo, abilityBarSlots);
 
     // minimap: collect port positions
     var portPositions = [];
