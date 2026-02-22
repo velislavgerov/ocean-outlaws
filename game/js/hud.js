@@ -1,4 +1,4 @@
-// hud.js — Minimal HUD: HP bar (top-left), weapon icons (bottom-center),
+// hud.js — Minimal HUD: HP bar (top-left), weapon icons + stats row (bottom-center),
 // minimap (top-right), fade-on-change popups, ability cooldown ring
 import { createMinimap, updateMinimap as renderMinimap } from "./minimap.js";
 import { isMobile } from "./mobile.js";
@@ -35,6 +35,10 @@ var minimapContainer = null;
 
 var bottomPanel = null;
 var weaponPanel = null, weaponItems = [];
+
+// --- always-visible stats row (below weapon selector) ---
+var statsRow = null;
+var ammoLabel = null, salvageLabel = null, autofireBtn = null;
 
 // --- ability cooldown ring (bottom-left) ---
 var abilityRing = null, abilityCanvas = null, abilityCtx = null;
@@ -171,6 +175,44 @@ export function createHUD() {
     weaponItems.push({ el: btn, color: weaponDefs[w].color, index: w });
   }
   bottomPanel.appendChild(weaponPanel);
+
+  // === STATS ROW: ammo | autofire toggle | salvage ===
+  statsRow = document.createElement("div");
+  statsRow.style.cssText = [
+    "display:flex", "align-items:center", "justify-content:center",
+    "gap:" + (_mob ? "10px" : "8px"), "margin-top:" + (_mob ? "6px" : "4px"),
+    "font-family:monospace", "font-size:" + (_mob ? "13px" : "11px")
+  ].join(";");
+
+  ammoLabel = document.createElement("div");
+  ammoLabel.style.cssText = "color:" + C.text + ";pointer-events:none;white-space:nowrap;";
+  ammoLabel.textContent = "\u2022 --";
+  statsRow.appendChild(ammoLabel);
+
+  autofireBtn = document.createElement("div");
+  var afSz = _mob ? "min-width:44px;min-height:36px;padding:4px 10px;" : "padding:2px 8px;";
+  autofireBtn.style.cssText = [
+    "color:" + C.textDim, "background:" + C.bgLight,
+    "border:1px solid " + C.border, "border-radius:4px",
+    "cursor:pointer", "pointer-events:auto", "white-space:nowrap",
+    "display:flex", "align-items:center", "justify-content:center",
+    "font-family:monospace", "font-size:" + (_mob ? "13px" : "11px"),
+    "transition:color 0.15s,border-color 0.15s"
+  ].join(";") + ";" + afSz;
+  autofireBtn.textContent = "AF";
+  autofireBtn.title = "Toggle autofire (F)";
+  autofireBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (onAutofireToggleCallback) onAutofireToggleCallback();
+  });
+  statsRow.appendChild(autofireBtn);
+
+  salvageLabel = document.createElement("div");
+  salvageLabel.style.cssText = "color:" + C.yellow + ";pointer-events:none;white-space:nowrap;";
+  salvageLabel.textContent = "\u2726 0";
+  statsRow.appendChild(salvageLabel);
+
+  bottomPanel.appendChild(statsRow);
   document.body.appendChild(bottomPanel);
 
   // === BOTTOM-LEFT: ability cooldown ring ===
@@ -417,6 +459,23 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
       item.el.style.borderColor = isActive ? item.color : "transparent";
       item.el.style.opacity = isActive ? "1" : "0.4";
     }
+  }
+
+  // Always-visible ammo count
+  if (ammoLabel && ammo !== undefined) {
+    ammoLabel.textContent = "\u2022 " + ammo + "/" + maxAmmo;
+    ammoLabel.style.color = ammo <= 5 ? C.red : C.text;
+  }
+
+  // Always-visible salvage counter
+  if (salvageLabel && salvage !== undefined) {
+    salvageLabel.textContent = "\u2726 " + salvage;
+  }
+
+  // Always-visible autofire button state
+  if (autofireBtn && autofireOn !== undefined) {
+    autofireBtn.style.color = autofireOn ? C.greenBright : C.textDim;
+    autofireBtn.style.borderColor = autofireOn ? C.greenBright : C.border;
   }
 
   // Ammo popup — show on change, fade after 2.5s
