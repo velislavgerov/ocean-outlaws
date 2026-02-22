@@ -119,7 +119,7 @@ export function createSettingsMenu(callbacks) {
 
   waveInfo = document.createElement("div");
   waveInfo.style.cssText = INFO_ROW + ";font-weight:bold;";
-  waveInfo.textContent = "WAVE 1";
+  waveInfo.textContent = "FLEET 1";
   infoSection.appendChild(waveInfo);
 
   fuelInfo = document.createElement("div");
@@ -139,7 +139,7 @@ export function createSettingsMenu(callbacks) {
 
   salvageInfo = document.createElement("div");
   salvageInfo.style.cssText = INFO_ROW + ";color:" + C.yellow;
-  salvageInfo.textContent = "SALVAGE: 0";
+  salvageInfo.textContent = "GOLD: 0";
   infoSection.appendChild(salvageInfo);
 
   weatherInfo = document.createElement("div");
@@ -346,8 +346,8 @@ function refreshInfoLabels() {
   var d = _gameData;
   if (d.wave !== undefined && waveInfo) {
     if (d.waveState === "WAITING") { waveInfo.textContent = "REPAIRING..."; waveInfo.style.color = C.green; }
-    else if (d.waveState === "WAVE_COMPLETE") { waveInfo.textContent = "WAVE " + d.wave + " CLEAR"; waveInfo.style.color = C.green; }
-    else { waveInfo.textContent = "WAVE " + d.wave; waveInfo.style.color = C.text; }
+    else if (d.waveState === "WAVE_COMPLETE") { waveInfo.textContent = "FLEET " + d.wave + " CLEAR"; waveInfo.style.color = C.green; }
+    else { waveInfo.textContent = "FLEET " + d.wave; waveInfo.style.color = C.text; }
   }
   if (d.fuel !== undefined && fuelInfo) {
     var fuelPct = Math.max(0, d.fuel / d.maxFuel) * 100;
@@ -363,7 +363,7 @@ function refreshInfoLabels() {
     partsInfo.style.color = d.parts > 0 ? C.green : C.text;
   }
   if (d.salvage !== undefined && salvageInfo) {
-    salvageInfo.textContent = "SALVAGE: " + d.salvage;
+    salvageInfo.textContent = "GOLD: " + d.salvage;
   }
   if (d.weatherText && weatherInfo) {
     weatherInfo.textContent = "WEATHER: " + d.weatherText;

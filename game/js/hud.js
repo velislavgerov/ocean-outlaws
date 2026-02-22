@@ -329,7 +329,7 @@ export function showGameOver(waveReached) {
   if (!overlay) return;
   overlayTitle.textContent = "GAME OVER";
   overlayTitle.style.color = C.red;
-  overlaySubtext.textContent = "You reached Wave " + waveReached;
+  overlaySubtext.textContent = "You reached Fleet " + waveReached;
   overlayBtn.textContent = "RESTART";
   overlay.style.display = "flex";
 }
@@ -337,7 +337,7 @@ export function showVictory(waveReached) {
   if (!overlay) return;
   overlayTitle.textContent = "VICTORY";
   overlayTitle.style.color = C.greenBright;
-  overlaySubtext.textContent = "All " + waveReached + " waves survived!";
+  overlaySubtext.textContent = "All " + waveReached + " fleets defeated!";
   overlayBtn.textContent = "CONTINUE";
   overlay.style.display = "flex";
 }
@@ -489,7 +489,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
 
   // Salvage popup — show on change, fade after 2.5s
   if (salvage !== undefined && prevSalvage >= 0 && salvage !== prevSalvage) {
-    salvagePopup.textContent = "SALVAGE +" + (salvage - prevSalvage);
+    salvagePopup.textContent = "GOLD +" + (salvage - prevSalvage);
     salvagePopup.style.color = C.yellow;
     salvagePopupTimer = 2.5;
   }

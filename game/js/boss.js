@@ -7,7 +7,7 @@ import { collideWithTerrain, isLand } from "./terrain.js";
 // --- boss definitions ---
 var BOSS_DEFS = {
   battleship: {
-    name: "Iron Leviathan",
+    name: "Blackthorn the Relentless",
     hp: 80,
     hitRadius: 5.0,
     speed: 6,
@@ -20,7 +20,7 @@ var BOSS_DEFS = {
     color: 0x884444
   },
   carrier: {
-    name: "Swarm Mother",
+    name: "The Widow's Galleon",
     hp: 60,
     hitRadius: 6.0,
     speed: 5,
@@ -520,7 +520,7 @@ var LOOT_TABLE = [
   { type: "upgrade", label: "+30% Max HP", stat: "maxHp", value: 0.30 },
   { type: "upgrade", label: "+20% Fire Rate", stat: "fireRate", value: 0.20 },
   { type: "upgrade", label: "+20% Speed", stat: "maxSpeed", value: 0.20 },
-  { type: "salvage", label: "+100 Salvage", value: 100 },
+  { type: "salvage", label: "+100 Gold", value: 100 },
   { type: "repair", label: "Full Repair", value: 1.0 }
 ];
 

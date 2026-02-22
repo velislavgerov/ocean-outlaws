@@ -119,7 +119,7 @@ setOnDeathCallback(enemyMgr, function (x, y, z) {
   addSalvage(upgrades, sal);
   playExplosion();
   playKillConfirm();
-  addKillFeedEntry("Enemy destroyed  +" + sal + " salvage", "#ffcc44");
+  addKillFeedEntry("Enemy destroyed  +" + sal + " gold", "#ffcc44");
   triggerScreenShake(0.3);
 });
 
@@ -364,7 +364,7 @@ function startMultiplayerCombat() {
   upgradeScreenOpen = false;
   activeZoneId = null;
   fadeIn(0.6);
-  showBanner("Multiplayer — Wave 1", 3);
+  showBanner("Multiplayer — Fleet Approaching!", 3);
 }
 
 function handleShipSelect(classKey) {
@@ -447,7 +447,7 @@ function startZoneCombat(classKey, zoneId) {
   gameStarted = true;
   upgradeScreenOpen = false;
   fadeIn(0.6);
-  showBanner(zone.name + " — Wave 1", 3);
+  showBanner(zone.name + " — Fleet Approaching!", 3);
 }
 
 function handleZoneVictory() {
@@ -717,8 +717,8 @@ function animate() {
 
     if (event) {
       if (event === "wave_start") {
-        showBanner("Wave " + waveMgr.wave + " incoming!", 3);
-        addKillFeedEntry("Wave " + waveMgr.wave + " incoming!", "#44aaff");
+        showBanner("Fleet " + waveMgr.wave + " Approaching!", 3);
+        addKillFeedEntry("Fleet " + waveMgr.wave + " Approaching!", "#44aaff");
         playWaveHorn();
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
@@ -731,11 +731,11 @@ function animate() {
           showBossHud(activeBoss.def.name);
           showBanner("BOSS: " + activeBoss.def.name + "!", 4);
         } else {
-          showBanner("Wave " + waveMgr.wave + " incoming!", 3);
+          showBanner("Fleet " + waveMgr.wave + " Approaching!", 3);
         }
       } else if (event === "wave_complete") {
-        showBanner("Wave " + waveMgr.wave + " cleared!", 2.5);
-        addKillFeedEntry("Wave " + waveMgr.wave + " cleared!", "#44dd66");
+        showBanner("Fleet " + waveMgr.wave + " defeated!", 2.5);
+        addKillFeedEntry("Fleet " + waveMgr.wave + " defeated!", "#44dd66");
         clearPickups(pickupMgr, scene);
         clearCrates(crateMgr, scene);
         if (activeBoss) {

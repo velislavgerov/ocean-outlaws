@@ -189,7 +189,7 @@ function showResetConfirm() {
   var refund = getTotalSpent(currentUpgradeState);
   var refundLabel = confirmDialog.querySelector("#reset-refund-label");
   if (refundLabel) {
-    refundLabel.textContent = "Refund: " + refund + " salvage";
+    refundLabel.textContent = "Refund: " + refund + " gold";
   }
   confirmDialog.style.display = "flex";
 }

@@ -556,13 +556,13 @@ function renderInlineDetail(row) {
 
     // cost line
     var costLine = document.createElement("div");
-    costLine.textContent = "Cost: " + cost + " salvage";
+    costLine.textContent = "Cost: " + cost + " gold";
     costLine.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + (affordable ? "#ffcc44" : "#664422") + ";margin-top:2px";
     detail.appendChild(costLine);
 
     if (!affordable) {
       var hint = document.createElement("div");
-      hint.textContent = "Not enough salvage";
+      hint.textContent = "Not enough gold";
       hint.style.cssText = "font-size:11px;color:#664422;margin-top:2px";
       detail.appendChild(hint);
     } else {
@@ -578,7 +578,7 @@ function renderInlineDetail(row) {
 function refreshUI() {
   if (!currentState || !root) return;
 
-  salvageLabel.textContent = "Salvage: " + currentState.salvage;
+  salvageLabel.textContent = "Gold: " + currentState.salvage;
 
   var tree = getUpgradeTree();
   var cats = Object.keys(tree);
@@ -627,7 +627,7 @@ function refreshUI() {
         row.costLabel.textContent = "N/A";
         row.costLabel.style.color = "#445566";
       } else {
-        row.costLabel.textContent = cost + " salvage";
+        row.costLabel.textContent = cost + " gold";
         row.costLabel.style.color = affordable ? "#aabbcc" : "#556677";
       }
 

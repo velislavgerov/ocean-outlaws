@@ -4,7 +4,7 @@
 var SHIP_CLASSES = {
   destroyer: {
     key: "destroyer",
-    name: "Destroyer",
+    name: "Sloop",
     description: "Fast and agile, but fragile",
     color: "#44aaff",
     stats: {
@@ -24,7 +24,7 @@ var SHIP_CLASSES = {
   },
   cruiser: {
     key: "cruiser",
-    name: "Cruiser",
+    name: "Brigantine",
     description: "Balanced all-rounder",
     color: "#ffcc44",
     stats: {
@@ -44,7 +44,7 @@ var SHIP_CLASSES = {
   },
   carrier: {
     key: "carrier",
-    name: "Carrier",
+    name: "Galleon",
     description: "Slow but launches attack drones",
     color: "#44dd66",
     stats: {
@@ -64,8 +64,8 @@ var SHIP_CLASSES = {
   },
   submarine: {
     key: "submarine",
-    name: "Submarine",
-    description: "Stealth vessel with torpedo focus",
+    name: "Man-o'-War",
+    description: "Stealth vessel with fire bomb focus",
     color: "#cc66ff",
     stats: {
       hp: 9,

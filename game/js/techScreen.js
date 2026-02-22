@@ -288,7 +288,7 @@ function refreshUI() {
   if (!currentState || !root) return;
 
   var salvage = currentSalvage ? currentSalvage.get() : 0;
-  salvageLabel.textContent = "Salvage: " + salvage;
+  salvageLabel.textContent = "Gold: " + salvage;
 
   var branches = getTechBranches();
   var branchKeys = Object.keys(branches);
@@ -328,7 +328,7 @@ function refreshUI() {
         nEl.icon.style.borderColor = bPanel.color + "88";
         nEl.icon.style.color = bPanel.color;
         nEl.nameEl.style.color = "#aabbcc";
-        nEl.costLabel.textContent = node.cost + " salvage";
+        nEl.costLabel.textContent = node.cost + " gold";
         nEl.costLabel.style.color = affordable ? "#aabbcc" : "#556677";
         nEl.statusLabel.textContent = affordable ? "UNLOCK" : "LOCKED";
         nEl.statusLabel.style.color = affordable ? "#44dd66" : "#556677";
@@ -341,7 +341,7 @@ function refreshUI() {
         nEl.icon.style.borderColor = "#333344";
         nEl.icon.style.color = "#444455";
         nEl.nameEl.style.color = "#445566";
-        nEl.costLabel.textContent = node.cost + " salvage";
+        nEl.costLabel.textContent = node.cost + " gold";
         nEl.costLabel.style.color = "#334455";
         nEl.statusLabel.textContent = "LOCKED";
         nEl.statusLabel.style.color = "#334455";

@@ -33,9 +33,9 @@ var TECH_BRANCHES = {
     nodes: [
       { key: "wide_radar",    label: "Wide Radar",       desc: "+30% radar range",        cost: 40,  stat: "enemyRange",   bonus: 0.30 },
       { key: "mag_pickup",    label: "Mag. Pickup",      desc: "+40% pickup range",       cost: 80,  stat: "pickupRange",  bonus: 0.40 },
-      { key: "salvage_bonus", label: "Salvage Bonus",    desc: "+25% salvage earned",     cost: 120, stat: "salvageBonus", bonus: 0.25 },
+      { key: "salvage_bonus", label: "Gold Bonus",       desc: "+25% gold earned",        cost: 120, stat: "salvageBonus", bonus: 0.25 },
       { key: "swift_nav",     label: "Swift Nav",        desc: "+15% max speed",          cost: 180, stat: "maxSpeed",     bonus: 0.15 },
-      { key: "master_loot",   label: "Master Loot",      desc: "+50% salvage, +20% range", cost: 260, stat: "masterLoot",  bonus: 1    }
+      { key: "master_loot",   label: "Master Loot",      desc: "+50% gold, +20% range",   cost: 260, stat: "masterLoot",  bonus: 1    }
     ]
   }
 };
