@@ -7,7 +7,7 @@ import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVict
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
-import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget } from "./nav.js";
+import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
@@ -190,7 +190,7 @@ createSettingsMenu({
     resetCrew(crew);
     clearRemoteShips(scene);
     resetSendState();
-    if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+    if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
     hideBossHud();
     clearPorts(portMgr, scene);
     clearCrates(crateMgr, scene);
@@ -328,7 +328,7 @@ function startMultiplayerCombat() {
   resetCrew(crew);
   clearRemoteShips(scene);
   resetSendState();
-  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   // Use shared terrain seed for deterministic terrain
@@ -407,7 +407,7 @@ function startZoneCombat(classKey, zoneId) {
   resetUpgrades(upgrades);
   resetDrones(droneMgr, scene);
   resetCrew(crew);
-  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   // generate terrain: seed from zone id hash + random, difficulty scales land coverage
@@ -511,7 +511,7 @@ setRestartCallback(function () {
   resetCrew(crew);
   clearRemoteShips(scene);
   resetSendState();
-  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; }
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
@@ -629,13 +629,24 @@ function animate() {
     // auto-targeting: acquire nearest enemy if no combat target
     var target = getCombatTarget();
     if (!target) {
-      var nearest = findNearestEnemy(ship, enemyMgr.enemies);
-      if (nearest) {
-        var tdx = nearest.posX - ship.posX;
-        var tdz = nearest.posZ - ship.posZ;
-        if (Math.sqrt(tdx * tdx + tdz * tdz) <= getActiveWeaponRange(weapons)) {
-          setCombatTarget(nearest);
-          target = nearest;
+      // prioritize boss
+      if (activeBoss && activeBoss.alive) {
+        var bdx = activeBoss.posX - ship.posX;
+        var bdz = activeBoss.posZ - ship.posZ;
+        if (Math.sqrt(bdx * bdx + bdz * bdz) <= getActiveWeaponRange(weapons)) {
+          setCombatTarget(activeBoss);
+          target = activeBoss;
+        }
+      }
+      if (!target) {
+        var nearest = findNearestEnemy(ship, enemyMgr.enemies);
+        if (nearest) {
+          var tdx = nearest.posX - ship.posX;
+          var tdz = nearest.posZ - ship.posZ;
+          if (Math.sqrt(tdx * tdx + tdz * tdz) <= getActiveWeaponRange(weapons)) {
+            setCombatTarget(nearest);
+            target = nearest;
+          }
         }
       }
     }
@@ -703,6 +714,7 @@ function animate() {
         var zone = getZone(activeZoneId);
         var difficulty = zone ? zone.difficulty : 1;
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
+        setNavBoss(activeBoss);
         playWaveHorn();
         if (activeBoss) {
           showBossHud(activeBoss.def.name);
@@ -717,7 +729,7 @@ function animate() {
         clearCrates(crateMgr, scene);
         if (activeBoss) {
           removeBoss(activeBoss, scene);
-          activeBoss = null;
+          activeBoss = null; setNavBoss(null);
           hideBossHud();
         }
         if (Math.random() < 0.5) {

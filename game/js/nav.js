@@ -17,6 +17,7 @@ var navShipRef = null;
 var navCameraRef = null;
 var navEnemyMgrRef = null;
 var navTerrainRef = null;
+var navBossRef = null;
 var initialized = false;
 
 // combat target reticle (ring around targeted enemy)
@@ -101,21 +102,37 @@ function projectToOcean(clientX, clientY, camera) {
 var ENEMY_CLICK_RADIUS = 4.0;
 
 function findClickedEnemy(worldX, worldZ) {
-  if (!navEnemyMgrRef) return null;
-  var enemies = navEnemyMgrRef.enemies;
   var best = null;
   var bestDist = ENEMY_CLICK_RADIUS * ENEMY_CLICK_RADIUS;
-  for (var i = 0; i < enemies.length; i++) {
-    var e = enemies[i];
-    if (!e.alive) continue;
-    var dx = e.posX - worldX;
-    var dz = e.posZ - worldZ;
-    var distSq = dx * dx + dz * dz;
-    if (distSq < bestDist) {
-      bestDist = distSq;
-      best = e;
+
+  // check boss first (larger click radius)
+  if (navBossRef && navBossRef.alive) {
+    var bx = navBossRef.posX - worldX;
+    var bz = navBossRef.posZ - worldZ;
+    var bDistSq = bx * bx + bz * bz;
+    var bClickR = (navBossRef.hitRadius || 5.0) + 2.0;
+    if (bDistSq < bClickR * bClickR) {
+      best = navBossRef;
+      bestDist = bDistSq;
     }
   }
+
+  // check regular enemies
+  if (navEnemyMgrRef) {
+    var enemies = navEnemyMgrRef.enemies;
+    for (var i = 0; i < enemies.length; i++) {
+      var e = enemies[i];
+      if (!e.alive) continue;
+      var dx = e.posX - worldX;
+      var dz = e.posZ - worldZ;
+      var distSq = dx * dx + dz * dz;
+      if (distSq < bestDist) {
+        bestDist = distSq;
+        best = e;
+      }
+    }
+  }
+
   return best;
 }
 
@@ -182,6 +199,10 @@ export function getCombatTarget() {
 // --- set combat target programmatically (for auto-acquire) ---
 export function setCombatTarget(enemy) {
   combatTarget = enemy;
+}
+
+export function setNavBoss(boss) {
+  navBossRef = boss;
 }
 
 // --- clear combat target ---
