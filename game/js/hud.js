@@ -1,5 +1,5 @@
-// hud.js — HUD elements: HP (top-left), wave (top-center), minimap (top-right),
-// weapons/ammo (bottom-center), ability & status (bottom-left)
+// hud.js — Minimal HUD: HP bar (top-left), weapon icons (bottom-center),
+// minimap (top-right), fade-on-change popups, ability cooldown ring
 import { createMinimap, updateMinimap as renderMinimap } from "./minimap.js";
 import { isMobile } from "./mobile.js";
 
@@ -23,40 +23,30 @@ var C = {
   portGreen: "#44ff88"
 };
 
-var _mob = isMobile();
-var BTN_BASE = [
-  "font-family:monospace", "font-size:" + (_mob ? "15px" : "13px"), "padding:" + (_mob ? "10px 14px" : "6px 10px"),
-  "border-radius:4px", "cursor:pointer", "pointer-events:auto",
-  "user-select:none", "text-align:center",
-  "min-width:" + (_mob ? "44px" : "80px"), "min-height:" + (_mob ? "44px" : "auto")
-].join(";");
+export { C as HUD_COLORS };
 
-// --- top-left: HP, fuel, resources ---
+var _mob = isMobile();
+
+// --- always-visible elements ---
 var topLeftPanel = null;
 var hpBarBg = null, hpBar = null, hpLabel = null;
-var fuelBarBg = null, fuelBar = null, fuelLabel = null;
-var partsLabel = null, salvageLabel = null;
-var weatherLabel = null, portLabel = null;
 
-// --- top-center: wave info ---
-var topCenterPanel = null;
-var waveLabel = null;
-var compassLabel = null;
-
-// --- top-right: minimap + sound ---
 var minimapContainer = null;
-var soundPanel = null, muteBtn = null, volumeSlider = null;
 
-// --- bottom-center: weapons/ammo ---
 var bottomPanel = null;
 var weaponPanel = null, weaponItems = [];
-var ammoLabel = null;
-var speedBar = null, speedLabel = null;
-var autofireLabel = null;
 
-// --- bottom-left: ability ---
-var bottomLeftPanel = null;
-var abilityBtn = null, abilityBarBg = null, abilityBar = null, abilityStatus = null;
+// --- ability cooldown ring (bottom-left) ---
+var abilityRing = null, abilityCanvas = null, abilityCtx = null;
+var RING_SIZE = _mob ? 44 : 36;
+
+// --- fade-on-change popups ---
+var ammoPopup = null, ammoPopupTimer = 0, prevAmmo = -1;
+var salvagePopup = null, salvagePopupTimer = 0, prevSalvage = -1;
+var autofirePopup = null, autofirePopupTimer = 0, prevAutofire = null;
+
+// --- port proximity label ---
+var portLabel = null;
 
 // --- overlays ---
 var banner = null, bannerTimer = 0;
@@ -69,6 +59,9 @@ var onAutofireToggleCallback = null;
 var onRestartCallback = null;
 var onMuteCallback = null;
 var onVolumeCallback = null;
+
+// --- settings menu data callbacks ---
+var settingsDataCallback = null;
 
 function makeBar(width, height) {
   var bg = document.createElement("div");
@@ -86,8 +79,24 @@ function makeBar(width, height) {
   return { bg: bg, fill: fill };
 }
 
+function makePopup(side) {
+  var el = document.createElement("div");
+  var pos = side === "left" ? "left:16px;" : "right:16px;";
+  el.style.cssText = [
+    "position:fixed", "bottom:80px", pos,
+    "font-family:monospace", "font-size:" + (_mob ? "14px" : "12px"),
+    "color:" + C.text, "background:" + C.bg,
+    "border:1px solid " + C.border, "border-radius:4px",
+    "padding:4px 10px", "pointer-events:none",
+    "user-select:none", "z-index:10",
+    "opacity:0", "transition:opacity 0.3s"
+  ].join(";");
+  document.body.appendChild(el);
+  return el;
+}
+
 export function createHUD() {
-  // === TOP-LEFT: HP, fuel, resources ===
+  // === TOP-LEFT: HP bar only ===
   topLeftPanel = document.createElement("div");
   var mobPad = _mob ? "top:env(safe-area-inset-top,16px);left:env(safe-area-inset-left,16px);" : "top:16px;left:16px;";
   topLeftPanel.style.cssText = [
@@ -97,246 +106,112 @@ export function createHUD() {
   ].join(";") + ";" + mobPad;
 
   hpLabel = document.createElement("div");
-  hpLabel.textContent = "HP";
-  hpLabel.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + C.textDim + ";margin-bottom:3px;";
+  hpLabel.textContent = "";
+  hpLabel.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + C.textDim + ";margin-bottom:2px;height:14px;";
   topLeftPanel.appendChild(hpLabel);
-  var hpBars = makeBar(_mob ? 130 : 160, _mob ? 12 : 10);
+  var hpBars = makeBar(_mob ? 100 : 120, _mob ? 10 : 8);
   hpBarBg = hpBars.bg;
   hpBar = hpBars.fill;
   topLeftPanel.appendChild(hpBarBg);
 
-  fuelLabel = document.createElement("div");
-  fuelLabel.textContent = "FUEL";
-  fuelLabel.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + C.textDim + ";margin-top:8px;margin-bottom:3px;";
-  topLeftPanel.appendChild(fuelLabel);
-  var fuelBars = makeBar(_mob ? 130 : 160, _mob ? 10 : 8);
-  fuelBarBg = fuelBars.bg;
-  fuelBar = fuelBars.fill;
-  fuelBar.style.background = C.blueBright;
-  topLeftPanel.appendChild(fuelBarBg);
-
-  partsLabel = document.createElement("div");
-  partsLabel.textContent = "PARTS: 0";
-  partsLabel.style.cssText = "margin-top:6px;font-size:12px;color:" + C.text + ";";
-  topLeftPanel.appendChild(partsLabel);
-
-  salvageLabel = document.createElement("div");
-  salvageLabel.textContent = "SALVAGE: 0";
-  salvageLabel.style.cssText = "margin-top:3px;font-size:12px;color:" + C.yellow + ";";
-  topLeftPanel.appendChild(salvageLabel);
-
-  weatherLabel = document.createElement("div");
-  weatherLabel.textContent = "CALM";
-  weatherLabel.style.cssText = "margin-top:6px;font-size:12px;color:" + C.textDim + ";";
-  topLeftPanel.appendChild(weatherLabel);
-
+  // port proximity (shows only when near)
   portLabel = document.createElement("div");
   portLabel.textContent = "";
-  portLabel.style.cssText = "margin-top:3px;font-size:12px;color:" + C.portGreen + ";";
+  portLabel.style.cssText = "margin-top:4px;font-size:11px;color:" + C.portGreen + ";height:14px;";
   topLeftPanel.appendChild(portLabel);
 
   document.body.appendChild(topLeftPanel);
 
-  // === TOP-CENTER: wave info ===
-  topCenterPanel = document.createElement("div");
-  topCenterPanel.style.cssText = [
-    "position:fixed", "top:16px", "left:50%", "transform:translateX(-50%)",
-    "pointer-events:none", "font-family:monospace", "color:" + C.text,
-    "font-size:13px", "user-select:none", "z-index:10", "text-align:center"
-  ].join(";");
-
-  waveLabel = document.createElement("div");
-  waveLabel.textContent = "WAVE 1";
-  waveLabel.style.cssText = "font-size:" + (_mob ? "18px" : "16px") + ";font-weight:bold;color:" + C.text + ";";
-  topCenterPanel.appendChild(waveLabel);
-
-  compassLabel = document.createElement("div");
-  compassLabel.textContent = "N 0\u00B0";
-  compassLabel.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + C.textDim + ";margin-top:4px;";
-  topCenterPanel.appendChild(compassLabel);
-
-  document.body.appendChild(topCenterPanel);
-
-  // === TOP-RIGHT: minimap + sound ===
+  // === TOP-RIGHT: minimap only (no sound controls) ===
   minimapContainer = document.createElement("div");
   minimapContainer.style.cssText = [
     "position:fixed", "top:16px", "right:16px",
     "pointer-events:none", "user-select:none", "z-index:10"
   ].join(";");
-
   createMinimap(minimapContainer);
-
-  // sound controls below minimap
-  soundPanel = document.createElement("div");
-  soundPanel.style.cssText = [
-    "display:flex", "align-items:center", "gap:6px",
-    "margin-top:8px", "font-family:monospace", "font-size:12px",
-    "color:" + C.text, "justify-content:center"
-  ].join(";");
-  muteBtn = document.createElement("div");
-  muteBtn.style.cssText = [
-    BTN_BASE, "font-size:" + (_mob ? "20px" : "16px"),
-    "min-width:" + (_mob ? "44px" : "36px"),
-    "min-height:" + (_mob ? "44px" : "auto"),
-    "padding:" + (_mob ? "8px 12px" : "4px 8px"),
-    "background:" + C.bgLight, "border:1px solid " + C.borderActive,
-    "color:" + C.text
-  ].join(";");
-  muteBtn.textContent = "\u266A";
-  muteBtn.addEventListener("click", function (e) {
-    e.stopPropagation();
-    if (onMuteCallback) onMuteCallback();
-  });
-  soundPanel.appendChild(muteBtn);
-  volumeSlider = document.createElement("input");
-  volumeSlider.type = "range";
-  volumeSlider.min = "0";
-  volumeSlider.max = "100";
-  volumeSlider.value = "50";
-  volumeSlider.style.cssText = "width:70px;cursor:pointer;pointer-events:auto;accent-color:" + C.blue + ";";
-  volumeSlider.addEventListener("input", function (e) {
-    e.stopPropagation();
-    if (onVolumeCallback) onVolumeCallback(parseFloat(volumeSlider.value) / 100);
-  });
-  soundPanel.appendChild(volumeSlider);
-  minimapContainer.appendChild(soundPanel);
-
   document.body.appendChild(minimapContainer);
 
-  // === BOTTOM-CENTER: weapons, ammo, speed ===
+  // === BOTTOM-CENTER: weapon selector (icon-based) ===
   bottomPanel = document.createElement("div");
   var botPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);" : "bottom:16px;";
   bottomPanel.style.cssText = [
     "position:fixed", "left:50%", "transform:translateX(-50%)",
     "pointer-events:none", "font-family:monospace", "color:" + C.text,
-    "font-size:" + (_mob ? "15px" : "13px"), "user-select:none", "z-index:10", "text-align:center"
+    "user-select:none", "z-index:10", "text-align:center"
   ].join(";") + ";" + botPad;
 
   weaponPanel = document.createElement("div");
-  weaponPanel.style.cssText = "display:flex;gap:4px;justify-content:center;margin-bottom:6px;";
+  weaponPanel.style.cssText = "display:flex;gap:" + (_mob ? "6px" : "4px") + ";justify-content:center;";
   var weaponDefs = [
-    { name: "Turret", color: "#ffcc44", key: "1" },
-    { name: "Missile", color: "#ff6644", key: "2" },
-    { name: "Torpedo", color: "#44aaff", key: "3" }
+    { icon: "\u2022", color: "#ffcc44" },
+    { icon: "\u25C6", color: "#ff6644" },
+    { icon: "\u25AC", color: "#44aaff" }
   ];
   weaponItems = [];
   for (var w = 0; w < weaponDefs.length; w++) {
-    var row = document.createElement("div");
-    row.style.cssText = [
-      BTN_BASE, "display:flex", "align-items:center", "gap:4px",
-      "background:" + C.bgLight, "border:1px solid transparent",
-      "color:" + weaponDefs[w].color,
-      "min-width:" + (_mob ? "44px" : "90px"),
-      "padding:" + (_mob ? "8px 10px" : "5px 8px"),
-      "font-size:" + (_mob ? "14px" : "12px"),
-      "min-height:" + (_mob ? "44px" : "auto")
+    var btn = document.createElement("div");
+    var sz = _mob ? 44 : 32;
+    btn.style.cssText = [
+      "width:" + sz + "px", "height:" + sz + "px",
+      "display:flex", "align-items:center", "justify-content:center",
+      "background:" + C.bgLight, "border:2px solid transparent",
+      "border-radius:4px", "cursor:pointer", "pointer-events:auto",
+      "font-size:" + (_mob ? "18px" : "14px"), "color:" + weaponDefs[w].color,
+      "transition:border-color 0.15s,opacity 0.15s"
     ].join(";");
-    row.dataset.weaponIndex = String(w);
-    row.addEventListener("click", (function (idx) {
+    btn.textContent = weaponDefs[w].icon;
+    btn.dataset.weaponIndex = String(w);
+    btn.addEventListener("click", (function (idx) {
       return function (e) {
         e.stopPropagation();
         if (onWeaponSwitchCallback) onWeaponSwitchCallback(idx);
       };
     })(w));
-    var keyHint = document.createElement("span");
-    keyHint.textContent = "[" + weaponDefs[w].key + "]";
-    keyHint.style.cssText = "color:" + C.textDim + ";font-size:10px;";
-    row.appendChild(keyHint);
-    var nameEl = document.createElement("span");
-    nameEl.textContent = weaponDefs[w].name;
-    row.appendChild(nameEl);
-    var label = document.createElement("span");
-    label.textContent = "--";
-    label.style.color = C.text;
-    row.appendChild(label);
-    weaponPanel.appendChild(row);
-    weaponItems.push({ el: row, label: label, nameEl: nameEl, color: weaponDefs[w].color, index: w });
+    weaponPanel.appendChild(btn);
+    weaponItems.push({ el: btn, color: weaponDefs[w].color, index: w });
   }
   bottomPanel.appendChild(weaponPanel);
-
-  ammoLabel = document.createElement("div");
-  ammoLabel.textContent = "AMMO: --";
-  ammoLabel.style.cssText = "font-size:13px;color:" + C.text + ";margin-bottom:6px;";
-  bottomPanel.appendChild(ammoLabel);
-
-  // speed bar row
-  var speedRow = document.createElement("div");
-  speedRow.style.cssText = "display:flex;align-items:center;gap:8px;justify-content:center;";
-  var speedBarBg = document.createElement("div");
-  speedBarBg.style.cssText = [
-    "width:100px", "height:6px", "background:" + C.bgLight,
-    "border:1px solid " + C.border, "border-radius:3px", "overflow:hidden"
-  ].join(";");
-  speedBar = document.createElement("div");
-  speedBar.style.cssText = "width:0%;height:100%;background:" + C.blue + ";border-radius:2px;transition:width 0.1s;";
-  speedBarBg.appendChild(speedBar);
-  speedRow.appendChild(speedBarBg);
-  speedLabel = document.createElement("span");
-  speedLabel.textContent = "0 kn";
-  speedLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";min-width:50px;";
-  speedRow.appendChild(speedLabel);
-  bottomPanel.appendChild(speedRow);
-
-  // autofire toggle
-  autofireLabel = document.createElement("div");
-  autofireLabel.style.cssText = [
-    BTN_BASE, "margin-top:6px", "display:inline-block",
-    "background:" + C.bgLight, "border:1px solid " + C.borderActive,
-    "color:" + C.textDim,
-    "font-size:" + (_mob ? "14px" : "11px"),
-    "padding:" + (_mob ? "10px 14px" : "4px 10px"),
-    "min-height:" + (_mob ? "44px" : "auto")
-  ].join(";");
-  autofireLabel.textContent = "AUTOFIRE: OFF [F]";
-  autofireLabel.addEventListener("click", function (e) {
-    e.stopPropagation();
-    if (onAutofireToggleCallback) onAutofireToggleCallback();
-  });
-  bottomPanel.appendChild(autofireLabel);
-
   document.body.appendChild(bottomPanel);
 
-  // === BOTTOM-LEFT: ability ===
-  bottomLeftPanel = document.createElement("div");
-  var botLeftPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);left:env(safe-area-inset-left,16px);" : "bottom:16px;left:16px;";
-  bottomLeftPanel.style.cssText = [
-    "position:fixed", "pointer-events:none",
-    "font-family:monospace", "color:" + C.text, "font-size:" + (_mob ? "15px" : "13px"),
+  // === BOTTOM-LEFT: ability cooldown ring ===
+  abilityRing = document.createElement("div");
+  var abilityPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);left:env(safe-area-inset-left,16px);" : "bottom:16px;left:16px;";
+  abilityRing.style.cssText = [
+    "position:fixed", "pointer-events:auto", "cursor:pointer",
     "user-select:none", "z-index:10"
-  ].join(";") + ";" + botLeftPad;
-
-  abilityBtn = document.createElement("div");
-  abilityBtn.style.cssText = [
-    BTN_BASE, "background:" + C.bgLight,
-    "border:1px solid " + C.borderActive,
-    "color:" + C.purple, "margin-bottom:3px",
-    "min-height:" + (_mob ? "44px" : "auto"),
-    "font-size:" + (_mob ? "15px" : "13px")
-  ].join(";");
-  abilityBtn.textContent = "Ability";
-  abilityBtn.addEventListener("click", function (e) {
+  ].join(";") + ";" + abilityPad;
+  abilityCanvas = document.createElement("canvas");
+  abilityCanvas.width = RING_SIZE;
+  abilityCanvas.height = RING_SIZE;
+  abilityCanvas.style.cssText = "width:" + RING_SIZE + "px;height:" + RING_SIZE + "px;";
+  abilityCtx = abilityCanvas.getContext("2d");
+  abilityRing.appendChild(abilityCanvas);
+  abilityRing.addEventListener("click", function (e) {
     e.stopPropagation();
     if (onAbilityCallback) onAbilityCallback();
   });
-  bottomLeftPanel.appendChild(abilityBtn);
-  abilityBarBg = document.createElement("div");
-  abilityBarBg.style.cssText = [
-    "width:120px", "height:8px", "background:" + C.bgLight,
-    "border:1px solid " + C.border, "border-radius:4px", "overflow:hidden"
-  ].join(";");
-  abilityBar = document.createElement("div");
-  abilityBar.style.cssText = [
-    "width:100%", "height:100%", "background:" + C.purple,
-    "border-radius:3px", "transition:width 0.1s"
-  ].join(";");
-  abilityBarBg.appendChild(abilityBar);
-  bottomLeftPanel.appendChild(abilityBarBg);
-  abilityStatus = document.createElement("div");
-  abilityStatus.textContent = "READY";
-  abilityStatus.style.cssText = "font-size:11px;color:" + C.purple + ";margin-top:2px;";
-  bottomLeftPanel.appendChild(abilityStatus);
+  document.body.appendChild(abilityRing);
 
-  document.body.appendChild(bottomLeftPanel);
+  // === FADE-ON-CHANGE POPUPS ===
+  ammoPopup = makePopup("left");
+  ammoPopup.style.bottom = _mob ? "70px" : "60px";
+  ammoPopup.style.left = "";
+  ammoPopup.style.right = "";
+  ammoPopup.style.left = "50%";
+  ammoPopup.style.transform = "translateX(-50%)";
+  ammoPopup.style.bottom = _mob ? "70px" : "56px";
+
+  salvagePopup = makePopup("left");
+  salvagePopup.style.bottom = "";
+  salvagePopup.style.left = "";
+  salvagePopup.style.top = _mob ? "50px" : "46px";
+  salvagePopup.style.left = "16px";
+
+  autofirePopup = makePopup("left");
+  autofirePopup.style.bottom = "";
+  autofirePopup.style.left = "50%";
+  autofirePopup.style.transform = "translateX(-50%)";
+  autofirePopup.style.top = "50%";
 
   // === BANNER ===
   banner = document.createElement("div");
@@ -387,8 +262,10 @@ export function setRestartCallback(cb) { onRestartCallback = cb; }
 export function setAutofireToggleCallback(cb) { onAutofireToggleCallback = cb; }
 export function setMuteCallback(cb) { onMuteCallback = cb; }
 export function setVolumeCallback(cb) { onVolumeCallback = cb; }
-export function updateMuteButton(m) { if (!muteBtn) return; muteBtn.textContent = m ? "\u266A\u2715" : "\u266A"; muteBtn.style.color = m ? C.red : C.text; }
-export function updateVolumeSlider(v) { if (volumeSlider) volumeSlider.value = String(Math.round(v * 100)); }
+export function updateMuteButton(m) { /* moved to settings menu — no-op for compat */ }
+export function updateVolumeSlider(v) { /* moved to settings menu — no-op for compat */ }
+
+export function setSettingsDataCallback(cb) { settingsDataCallback = cb; }
 
 export function showBanner(text, duration) {
   if (!banner) return;
@@ -431,87 +308,156 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
   renderMinimap(playerX, playerZ, playerHeading, enemies, pickups, ports, remotePlayers);
 }
 
+// --- draw ability cooldown ring ---
+function drawAbilityRing(info) {
+  if (!abilityCtx) return;
+  var ctx = abilityCtx;
+  var cx = RING_SIZE / 2;
+  var cy = RING_SIZE / 2;
+  var r = RING_SIZE / 2 - 3;
+  ctx.clearRect(0, 0, RING_SIZE, RING_SIZE);
+
+  var ac = (info && info.color) || C.purple;
+  var pct = 1;
+  var label = "Q";
+
+  if (info) {
+    if (info.active) {
+      pct = Math.max(0, info.activeTimer / info.duration);
+      label = "\u26A1";
+    } else if (info.cooldownTimer > 0) {
+      pct = 1 - info.cooldownTimer / info.cooldown;
+      label = Math.ceil(info.cooldownTimer) + "";
+      ac = "#556677";
+    }
+  }
+
+  // background circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = C.bgLight;
+  ctx.fill();
+  ctx.strokeStyle = C.border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // progress arc
+  if (pct < 1) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = ac;
+    ctx.globalAlpha = 0.35;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ring border colored when ready
+  if (info && !info.active && info.cooldownTimer <= 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = info.color || C.purple;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // label
+  ctx.fillStyle = info && !info.active && info.cooldownTimer <= 0 ? (info.color || C.purple) : C.text;
+  ctx.font = (_mob ? "14" : "12") + "px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, cx, cy);
+}
+
+// --- fade popup helpers ---
+function fadePopup(el, timer, dt) {
+  if (timer > 0) {
+    timer -= dt;
+    if (timer > 0.5) {
+      el.style.opacity = "1";
+    } else {
+      el.style.opacity = String(Math.max(0, timer / 0.5));
+    }
+    if (timer <= 0) { el.style.opacity = "0"; }
+  }
+  return timer;
+}
+
 // --- main HUD update ---
 export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText, autofireOn, portInfo) {
   if (!topLeftPanel) return;
-  // HP bar
+
+  // HP bar — no numbers unless damaged
   if (hp !== undefined && hpBar) {
     var hpPct = Math.max(0, hp / maxHp) * 100;
     hpBar.style.width = hpPct + "%";
     hpBar.style.background = hpPct > 50 ? C.green : hpPct > 25 ? "#aaaa44" : C.red;
-    hpLabel.textContent = "HP: " + Math.round(hp) + " / " + Math.round(maxHp);
-    hpLabel.style.color = hpPct > 25 ? C.textDim : C.red;
+    if (hp < maxHp) {
+      hpLabel.textContent = Math.round(hp) + " / " + Math.round(maxHp);
+      hpLabel.style.color = hpPct > 25 ? C.textDim : C.red;
+    } else {
+      hpLabel.textContent = "";
+    }
   }
-  // Fuel bar
-  if (fuel !== undefined && fuelBar) {
-    var fuelPct = Math.max(0, fuel / maxFuel) * 100;
-    fuelBar.style.width = fuelPct + "%";
-    fuelBar.style.background = fuelPct > 30 ? C.blueBright : fuelPct > 15 ? C.orange : C.red;
-    fuelLabel.textContent = "FUEL: " + Math.round(fuel) + "%";
-    fuelLabel.style.color = fuelPct > 15 ? C.textDim : C.red;
-  }
-  // Resources
-  if (parts !== undefined && partsLabel) { partsLabel.textContent = "PARTS: " + parts; partsLabel.style.color = parts > 0 ? C.greenBright : C.text; }
-  if (salvage !== undefined && salvageLabel) salvageLabel.textContent = "SALVAGE: " + salvage;
-  // Weather + port
-  if (weatherText && weatherLabel) {
-    weatherLabel.textContent = "WEATHER: " + weatherText;
-    weatherLabel.style.color = ({ CALM: C.green, ROUGH: "#ccaa44", STORM: C.red })[weatherText] || C.textDim;
-  }
+
+  // Port proximity
   if (portLabel) {
     if (portInfo && portInfo.dist < 50) {
-      portLabel.textContent = portInfo.available ? "PORT: " + Math.round(portInfo.dist) + "m" : "PORT: " + Math.ceil(portInfo.cooldown) + "s";
+      portLabel.textContent = portInfo.available ? "PORT " + Math.round(portInfo.dist) + "m" : "PORT " + Math.ceil(portInfo.cooldown) + "s";
       portLabel.style.color = portInfo.available ? C.portGreen : "#884422";
     } else { portLabel.textContent = ""; }
   }
-  // Wave info
-  if (wave !== undefined && waveLabel) {
-    if (waveState === "WAITING") { waveLabel.textContent = "REPAIRING..."; waveLabel.style.color = C.greenBright; }
-    else if (waveState === "WAVE_COMPLETE") { waveLabel.textContent = "WAVE " + wave + " CLEAR"; waveLabel.style.color = C.greenBright; }
-    else { waveLabel.textContent = "WAVE " + wave; waveLabel.style.color = C.text; }
-  }
-  // Compass
-  var deg = ((heading * 180 / Math.PI) % 360 + 360) % 360;
-  var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  compassLabel.textContent = dirs[Math.round(deg / 45) % 8] + " " + Math.round(deg) + "\u00B0";
-  // Weapons
+
+  // Weapon icons — highlight active
   if (weaponInfo && weaponItems.length > 0) {
     for (var w = 0; w < weaponItems.length; w++) {
-      var item = weaponItems[w], isActive = w === weaponInfo.activeIndex, cost = weaponInfo.ammoCosts[w];
-      item.el.style.background = isActive ? "rgba(40,60,90,0.6)" : C.bgLight;
-      item.el.style.border = isActive ? "1px solid " + item.color : "1px solid transparent";
-      item.label.textContent = "x" + cost;
-      item.label.style.color = ammo >= cost ? C.text : C.red;
-      item.nameEl.style.opacity = isActive ? "1" : "0.5";
+      var item = weaponItems[w];
+      var isActive = w === weaponInfo.activeIndex;
+      item.el.style.borderColor = isActive ? item.color : "transparent";
+      item.el.style.opacity = isActive ? "1" : "0.4";
     }
   }
-  if (ammo !== undefined) { ammoLabel.textContent = "AMMO: " + ammo + " / " + maxAmmo; ammoLabel.style.color = ammo <= 5 ? "#cc6644" : ammo === 0 ? "#cc2222" : C.text; }
-  // Speed
-  speedBar.style.width = Math.min(1, speedRatio) * 100 + "%";
-  speedLabel.textContent = displaySpeed.toFixed(1) + " kn";
-  // Autofire
-  if (autofireLabel) {
-    autofireLabel.textContent = autofireOn ? "AUTOFIRE: ON [F]" : "AUTOFIRE: OFF [F]";
-    autofireLabel.style.color = autofireOn ? C.greenBright : C.textDim;
-    autofireLabel.style.borderColor = autofireOn ? C.greenBright : C.borderActive;
+
+  // Ammo popup — show on change, fade after 2.5s
+  if (ammo !== undefined && prevAmmo >= 0 && ammo !== prevAmmo) {
+    ammoPopup.textContent = "AMMO " + ammo + "/" + maxAmmo;
+    ammoPopup.style.color = ammo <= 5 ? C.red : C.text;
+    ammoPopupTimer = 2.5;
   }
-  // Ability
-  if (abilityInfo && abilityBtn) {
-    var ac = abilityInfo.color || C.purple;
-    abilityBtn.textContent = abilityInfo.name;
-    abilityBtn.style.color = ac;
-    if (abilityInfo.active) {
-      abilityBar.style.width = Math.max(0, abilityInfo.activeTimer / abilityInfo.duration) * 100 + "%";
-      abilityBar.style.background = ac;
-      abilityStatus.textContent = "ACTIVE"; abilityStatus.style.color = ac; abilityBtn.style.borderColor = ac;
-    } else if (abilityInfo.cooldownTimer > 0) {
-      abilityBar.style.width = (1 - abilityInfo.cooldownTimer / abilityInfo.cooldown) * 100 + "%";
-      abilityBar.style.background = "#556677";
-      abilityStatus.textContent = Math.ceil(abilityInfo.cooldownTimer) + "s"; abilityStatus.style.color = C.textDim; abilityBtn.style.borderColor = C.borderActive;
-    } else {
-      abilityBar.style.width = "100%"; abilityBar.style.background = ac;
-      abilityStatus.textContent = "READY"; abilityStatus.style.color = ac; abilityBtn.style.borderColor = ac;
-    }
+  prevAmmo = ammo !== undefined ? ammo : prevAmmo;
+  ammoPopupTimer = fadePopup(ammoPopup, ammoPopupTimer, dt || 0.016);
+
+  // Salvage popup — show on change, fade after 2.5s
+  if (salvage !== undefined && prevSalvage >= 0 && salvage !== prevSalvage) {
+    salvagePopup.textContent = "SALVAGE +" + (salvage - prevSalvage);
+    salvagePopup.style.color = C.yellow;
+    salvagePopupTimer = 2.5;
   }
+  prevSalvage = salvage !== undefined ? salvage : prevSalvage;
+  salvagePopupTimer = fadePopup(salvagePopup, salvagePopupTimer, dt || 0.016);
+
+  // Autofire popup — show on change, fade after 2s
+  if (prevAutofire !== null && autofireOn !== prevAutofire) {
+    autofirePopup.textContent = autofireOn ? "AUTOFIRE ON" : "AUTOFIRE OFF";
+    autofirePopup.style.color = autofireOn ? C.greenBright : C.textDim;
+    autofirePopupTimer = 2;
+  }
+  prevAutofire = autofireOn;
+  autofirePopupTimer = fadePopup(autofirePopup, autofirePopupTimer, dt || 0.016);
+
+  // Ability cooldown ring
+  drawAbilityRing(abilityInfo);
+
+  // Provide data to settings menu for display
+  if (settingsDataCallback) {
+    settingsDataCallback({
+      fuel: fuel, maxFuel: maxFuel, parts: parts, salvage: salvage,
+      weatherText: weatherText, speedRatio: speedRatio, displaySpeed: displaySpeed,
+      heading: heading, wave: wave, waveState: waveState, autofireOn: autofireOn,
+      ammo: ammo, maxAmmo: maxAmmo
+    });
+  }
+
   updateBanner(dt || 0.016);
 }

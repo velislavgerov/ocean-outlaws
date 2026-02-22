@@ -3,7 +3,7 @@ import { createOcean, updateOcean, getWaveHeight, setTerrainMap, clearTerrainMap
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
-import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, updateMuteButton, updateVolumeSlider } from "./hud.js";
+import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setWeaponSwitchCallback, setAbilityCallback, setAutofireToggleCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
@@ -37,7 +37,7 @@ import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, s
 import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendAbilityEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState } from "./netSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
-import { createSettingsMenu, isSettingsOpen } from "./settingsMenu.js";
+import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButton, updateVolumeSlider } from "./settingsMenu.js";
 import { getQualityConfig, createOrientationPrompt, onQualityChange } from "./mobile.js";
 import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 
@@ -171,6 +171,7 @@ setAutofireToggleCallback(function () {
   toggleAutofire();
   playClick();
 });
+setSettingsDataCallback(function (data) { updateSettingsData(data); });
 
 initHealthBars();
 createBossHud();
@@ -180,6 +181,9 @@ createShipSelectScreen();
 
 // --- settings menu ---
 createSettingsMenu({
+  onMute: function () { updateMuteButton(toggleMute()); },
+  onVolume: function (vol) { setMasterVolume(vol); },
+  onAutofireToggle: function () { toggleAutofire(); playClick(); },
   onNewGame: function () {
     gameFrozen = true;
     gameStarted = false;

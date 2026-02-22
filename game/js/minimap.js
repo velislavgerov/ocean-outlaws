@@ -1,8 +1,9 @@
 // minimap.js — radar-style minimap showing player, enemies, pickups, ports
+import { isMobile } from "./mobile.js";
 
 var minimapCanvas = null;
 var minimapCtx = null;
-var MINIMAP_SIZE = 140;
+var MINIMAP_SIZE = isMobile() ? 100 : 110;
 var MINIMAP_RANGE = 120;
 
 export function createMinimap(parentEl) {
