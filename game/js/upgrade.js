@@ -58,9 +58,8 @@ export function createUpgradeState() {
   return state;
 }
 
-// --- reset upgrades (on game over restart) ---
+// --- reset upgrades (on new zone/restart) — keeps salvage (persistent currency) ---
 export function resetUpgrades(state) {
-  state.salvage = 0;
   var keys = Object.keys(state.levels);
   for (var i = 0; i < keys.length; i++) {
     state.levels[keys[i]] = 0;

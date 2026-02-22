@@ -186,6 +186,7 @@ createSettingsMenu({
     resetResources(resources);
     resetEnemyManager(enemyMgr, scene);
     resetUpgrades(upgrades);
+    upgrades.salvage = 0;
     resetDrones(droneMgr, scene);
     resetCrew(crew);
     clearRemoteShips(scene);
@@ -385,6 +386,7 @@ function openTechThenMap() {
     spend: function (cost) { upgrades.salvage -= cost; }
   }, function () {
     techScreenOpen = false;
+    performAutoSave();
     openMap();
   });
 }
