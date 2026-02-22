@@ -14,6 +14,7 @@ var salvageLabel = null;
 
 // --- create tech screen DOM (called once) ---
 export function createTechScreen() {
+  var _mob = isMobile();
   root = document.createElement("div");
   root.id = "tech-screen";
   root.style.cssText = [
@@ -29,14 +30,14 @@ export function createTechScreen() {
     "font-family: monospace",
     "user-select: none",
     "overflow-y: auto",
-    "padding: 20px 0"
+    "padding: " + (_mob ? "12px 0" : "20px 0")
   ].join(";");
 
   // title
   var title = document.createElement("div");
   title.textContent = "TECH TREE";
   title.style.cssText = [
-    "font-size: 36px",
+    "font-size: " + (_mob ? "24px" : "36px"),
     "font-weight: bold",
     "color: #ffcc44",
     "margin-bottom: 4px",
@@ -45,16 +46,16 @@ export function createTechScreen() {
   root.appendChild(title);
 
   var subtitle = document.createElement("div");
-  subtitle.textContent = "Permanent upgrades — persists across runs";
+  subtitle.textContent = _mob ? "Permanent upgrades" : "Permanent upgrades — persists across runs";
   subtitle.style.cssText = "font-size:13px;color:#667788;margin-bottom:8px";
   root.appendChild(subtitle);
 
   // salvage display
   salvageLabel = document.createElement("div");
   salvageLabel.style.cssText = [
-    "font-size: 18px",
+    "font-size: " + (_mob ? "16px" : "18px"),
     "color: #ffcc44",
-    "margin-bottom: 16px"
+    "margin-bottom: " + (_mob ? "10px" : "16px")
   ].join(";");
   root.appendChild(salvageLabel);
 
@@ -62,9 +63,10 @@ export function createTechScreen() {
   var branchesRow = document.createElement("div");
   branchesRow.style.cssText = [
     "display: flex",
-    "flex-wrap: wrap",
+    _mob ? "flex-direction: column" : "flex-wrap: wrap",
     "justify-content: center",
-    "gap: 24px",
+    "align-items: center",
+    "gap: " + (_mob ? "16px" : "24px"),
     "max-width: 1000px",
     "width: 95%",
     "margin-bottom: 20px"
@@ -111,13 +113,14 @@ export function createTechScreen() {
 
 // --- build a branch panel with node-graph ---
 function buildBranchPanel(branchKey, branch) {
+  var _mob = isMobile();
   var el = document.createElement("div");
   el.style.cssText = [
     "background: rgba(15, 20, 35, 0.8)",
     "border: 1px solid " + branch.color + "33",
     "border-radius: 10px",
-    "padding: 16px",
-    "width: 280px",
+    "padding: " + (_mob ? "12px" : "16px"),
+    _mob ? "width: 100%;max-width: 400px" : "width: 280px",
     "display: flex",
     "flex-direction: column",
     "align-items: center"
@@ -175,19 +178,21 @@ function buildBranchPanel(branchKey, branch) {
 
 // --- build a single tech node element ---
 function buildNodeEl(branchKey, nodeIndex, branch) {
+  var _mob = isMobile();
   var node = branch.nodes[nodeIndex];
 
   var el = document.createElement("div");
   el.style.cssText = [
-    "width: 240px",
-    "padding: 10px 12px",
+    _mob ? "width: 100%" : "width: 240px",
+    "padding: " + (_mob ? "12px 14px" : "10px 12px"),
     "min-height: 44px",
     "border-radius: 8px",
     "background: rgba(20, 25, 40, 0.7)",
     "border: 2px solid " + branch.color + "33",
     "cursor: pointer",
     "pointer-events: auto",
-    "transition: border-color 0.2s, background 0.2s"
+    "transition: border-color 0.2s, background 0.2s",
+    "box-sizing: border-box"
   ].join(";");
 
   // top row: icon + name
@@ -239,8 +244,8 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
 
   el.appendChild(costRow);
 
-  // click handler
-  el.addEventListener("click", function () {
+  // click/touch handler
+  function handleNodeTap() {
     if (!currentState || !currentSalvage) return;
     var salvage = currentSalvage.get();
     if (canUnlock(currentState, branchKey, nodeIndex, salvage)) {
@@ -249,6 +254,20 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
         currentSalvage.spend(cost);
         refreshUI();
       }
+    }
+  }
+  el.addEventListener("click", handleNodeTap);
+
+  // touch support: track touchstart/touchend to avoid scroll-triggered taps
+  var _touchStartY = 0;
+  el.addEventListener("touchstart", function (e) {
+    _touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  el.addEventListener("touchend", function (e) {
+    var dy = Math.abs(e.changedTouches[0].clientY - _touchStartY);
+    if (dy < 10) {
+      e.preventDefault();
+      handleNodeTap();
     }
   });
 

@@ -6,12 +6,15 @@ import { isMobile } from "./mobile.js";
 var root = null;
 var salvageLabel = null;
 var categoryEls = {};
+var categoryPanels = {};  // catKey -> panel DOM element (for mobile tab switching)
 var onCloseCallback = null;
 var currentState = null;
 var continueBtn = null;
 var selectedKey = null;   // currently highlighted upgrade key
 var pendingKey = null;     // upgrade just applied, awaiting confirm/undo
 var previewPanel = null;   // stat preview panel element
+var activeTab = null;      // current mobile tab key
+var tabBtns = {};          // catKey -> tab button element
 
 // --- stat display names ---
 var STAT_LABELS = {
@@ -41,23 +44,24 @@ export function createUpgradeScreen() {
     "display: none",
     "flex-direction: column",
     "align-items: center",
-    "justify-content: center",
+    _mob ? "justify-content: flex-start" : "justify-content: center",
     "background: rgba(5, 5, 15, 0.92)",
     "z-index: 90",
     "font-family: monospace",
     "user-select: none",
-    "overflow-y: auto"
+    "overflow-y: auto",
+    _mob ? "padding: 12px 0" : ""
   ].join(";");
 
   // title
   var title = document.createElement("div");
   title.textContent = "UPGRADES";
   title.style.cssText = [
-    "font-size: 36px",
+    "font-size: " + (_mob ? "24px" : "36px"),
     "font-weight: bold",
     "color: #ffcc44",
     "margin-bottom: 8px",
-    "margin-top: 20px",
+    "margin-top: " + (_mob ? "10px" : "20px"),
     "text-shadow: 0 0 15px rgba(255,200,60,0.4)"
   ].join(";");
   root.appendChild(title);
@@ -65,37 +69,103 @@ export function createUpgradeScreen() {
   // salvage display
   salvageLabel = document.createElement("div");
   salvageLabel.style.cssText = [
-    "font-size: 18px",
+    "font-size: " + (_mob ? "16px" : "18px"),
     "color: #ffcc44",
-    "margin-bottom: 20px"
+    "margin-bottom: " + (_mob ? "12px" : "20px")
   ].join(";");
   root.appendChild(salvageLabel);
 
-  // ship diagram + categories container
-  var body = document.createElement("div");
-  body.style.cssText = [
-    "display: flex",
-    "flex-wrap: wrap",
-    "justify-content: center",
-    "align-items: flex-start",
-    "gap: 16px",
-    "max-width: 900px",
-    "width: 90%"
-  ].join(";");
-  root.appendChild(body);
-
-  // ship diagram (center)
-  var diagram = buildShipDiagram();
-  body.appendChild(diagram);
-
-  // category panels
+  // mobile: tab bar for W/P/D/R
   var tree = getUpgradeTree();
   var cats = Object.keys(tree);
+
+  if (_mob) {
+    var tabBar = document.createElement("div");
+    tabBar.style.cssText = [
+      "display: flex",
+      "gap: 6px",
+      "margin-bottom: 12px",
+      "width: 90%",
+      "max-width: 400px",
+      "justify-content: center"
+    ].join(";");
+
+    for (var t = 0; t < cats.length; t++) {
+      (function (catKey) {
+        var cat = tree[catKey];
+        var tabBtn = document.createElement("div");
+        tabBtn.textContent = cat.label;
+        tabBtn.style.cssText = [
+          "flex: 1",
+          "text-align: center",
+          "padding: 10px 4px",
+          "min-height: 44px",
+          "display: flex",
+          "align-items: center",
+          "justify-content: center",
+          "font-size: 13px",
+          "font-weight: bold",
+          "color: " + cat.color,
+          "background: rgba(15, 20, 35, 0.6)",
+          "border: 1px solid " + cat.color + "33",
+          "border-radius: 6px",
+          "cursor: pointer",
+          "pointer-events: auto",
+          "transition: background 0.15s, border-color 0.15s"
+        ].join(";");
+        tabBtn.addEventListener("click", function () {
+          switchTab(catKey);
+        });
+        tabBar.appendChild(tabBtn);
+        tabBtns[catKey] = tabBtn;
+      })(cats[t]);
+    }
+
+    root.appendChild(tabBar);
+    activeTab = cats[0];
+  }
+
+  // ship diagram + categories container
+  var body = document.createElement("div");
+  if (_mob) {
+    body.style.cssText = [
+      "display: flex",
+      "flex-direction: column",
+      "align-items: center",
+      "width: 90%",
+      "max-width: 400px"
+    ].join(";");
+  } else {
+    body.style.cssText = [
+      "display: flex",
+      "flex-wrap: wrap",
+      "justify-content: center",
+      "align-items: flex-start",
+      "gap: 16px",
+      "max-width: 900px",
+      "width: 90%"
+    ].join(";");
+  }
+  root.appendChild(body);
+
+  // ship diagram (desktop only)
+  if (!_mob) {
+    var diagram = buildShipDiagram();
+    body.appendChild(diagram);
+  }
+
+  // category panels
   for (var c = 0; c < cats.length; c++) {
     var catKey = cats[c];
     var cat = tree[catKey];
-    var panel = buildCategoryPanel(catKey, cat);
+    var panel = buildCategoryPanel(catKey, cat, _mob);
     body.appendChild(panel);
+    categoryPanels[catKey] = panel;
+  }
+
+  // set initial mobile tab visibility
+  if (_mob) {
+    switchTab(activeTab);
   }
 
   // stat preview panel (below the grid, above continue)
@@ -141,6 +211,29 @@ export function createUpgradeScreen() {
   root.appendChild(continueBtn);
 
   document.body.appendChild(root);
+}
+
+// --- switch mobile tab ---
+function switchTab(catKey) {
+  activeTab = catKey;
+  var tree = getUpgradeTree();
+  var cats = Object.keys(tree);
+  for (var i = 0; i < cats.length; i++) {
+    var k = cats[i];
+    var panel = categoryPanels[k];
+    var btn = tabBtns[k];
+    if (!panel || !btn) continue;
+
+    if (k === catKey) {
+      panel.style.display = "block";
+      btn.style.background = tree[k].color + "22";
+      btn.style.borderColor = tree[k].color + "88";
+    } else {
+      panel.style.display = "none";
+      btn.style.background = "rgba(15, 20, 35, 0.6)";
+      btn.style.borderColor = tree[k].color + "33";
+    }
+  }
 }
 
 // --- build ship diagram (SVG top-down view) ---
@@ -213,14 +306,14 @@ function buildShipDiagram() {
 }
 
 // --- build a category panel ---
-function buildCategoryPanel(catKey, cat) {
+function buildCategoryPanel(catKey, cat, mob) {
   var panel = document.createElement("div");
   panel.style.cssText = [
     "background: rgba(15, 20, 35, 0.8)",
     "border: 1px solid " + cat.color + "33",
     "border-radius: 8px",
     "padding: 12px",
-    "width: 180px"
+    mob ? "width: 100%" : "width: 180px"
   ].join(";");
 
   var heading = document.createElement("div");
@@ -321,7 +414,7 @@ function refreshPreview() {
     var statLabel = STAT_LABELS[info.stat] || info.stat;
 
     var statRow = document.createElement("div");
-    statRow.style.cssText = "font-size:13px;color:#8899aa;display:flex;align-items:center;gap:6px";
+    statRow.style.cssText = "font-size:13px;color:#8899aa;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
 
     var statName = document.createElement("span");
     statName.textContent = statLabel + ": ";
@@ -355,6 +448,7 @@ function refreshPreview() {
       "font-family: monospace",
       "font-size: 13px",
       "padding: 6px 24px",
+      "min-height: 44px",
       "background: rgba(80, 40, 40, 0.8)",
       "color: #dd6644",
       "border: 1px solid rgba(140, 60, 60, 0.6)",
@@ -380,6 +474,7 @@ function refreshPreview() {
       "font-family: monospace",
       "font-size: 13px",
       "padding: 6px 24px",
+      "min-height: 44px",
       "background: rgba(40, 80, 60, 0.8)",
       "color: #44dd66",
       "border: 1px solid rgba(60, 140, 90, 0.6)",
@@ -415,7 +510,7 @@ function refreshPreview() {
         var sLabel = STAT_LABELS[info.stat] || info.stat;
 
         var sRow = document.createElement("div");
-        sRow.style.cssText = "font-size:13px;color:#8899aa;display:flex;align-items:center;gap:6px";
+        sRow.style.cssText = "font-size:13px;color:#8899aa;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
 
         var sName = document.createElement("span");
         sName.textContent = sLabel + ": ";
@@ -452,7 +547,7 @@ function refreshPreview() {
           previewPanel.appendChild(hint);
         } else {
           var hint2 = document.createElement("div");
-          hint2.textContent = "Click to purchase";
+          hint2.textContent = isMobile() ? "Tap to purchase" : "Click to purchase";
           hint2.style.cssText = "font-size:11px;color:#667788;margin-top:2px";
           previewPanel.appendChild(hint2);
         }
@@ -463,10 +558,11 @@ function refreshPreview() {
 
 // --- build a single upgrade row ---
 function buildUpgradeRow(up, color) {
+  var _mob = isMobile();
   var el = document.createElement("div");
   el.style.cssText = [
     "margin-bottom: 8px",
-    "padding: 6px",
+    "padding: " + (_mob ? "10px" : "6px"),
     "min-height: 44px",
     "border-radius: 4px",
     "background: rgba(20, 25, 40, 0.6)",
@@ -477,7 +573,7 @@ function buildUpgradeRow(up, color) {
   // label
   var label = document.createElement("div");
   label.textContent = up.label;
-  label.style.cssText = "font-size:12px;color:#8899aa;margin-bottom:4px";
+  label.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:#8899aa;margin-bottom:4px";
   el.appendChild(label);
 
   // tier pips
@@ -487,8 +583,8 @@ function buildUpgradeRow(up, color) {
   for (var t = 0; t < 3; t++) {
     var pip = document.createElement("div");
     pip.style.cssText = [
-      "width: 14px",
-      "height: 6px",
+      "width: " + (_mob ? "20px" : "14px"),
+      "height: " + (_mob ? "8px" : "6px"),
       "border-radius: 2px",
       "background: rgba(40, 50, 70, 0.8)",
       "border: 1px solid rgba(80, 100, 130, 0.3)"
@@ -500,7 +596,7 @@ function buildUpgradeRow(up, color) {
 
   // cost label
   var costLabel = document.createElement("div");
-  costLabel.style.cssText = "font-size:11px;color:#667788";
+  costLabel.style.cssText = "font-size:" + (_mob ? "13px" : "11px") + ";color:#667788";
   el.appendChild(costLabel);
 
   // click to buy immediately (or select for preview if can't afford)

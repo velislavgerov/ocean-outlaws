@@ -14,6 +14,7 @@ var selectedOfficerId = null;
 
 // --- create crew screen DOM (called once) ---
 export function createCrewScreen() {
+  var _mob = isMobile();
   root = document.createElement("div");
   root.id = "crew-screen";
   root.style.cssText = [
@@ -23,29 +24,30 @@ export function createCrewScreen() {
     "display: none",
     "flex-direction: column",
     "align-items: center",
-    "justify-content: center",
+    _mob ? "justify-content: flex-start" : "justify-content: center",
     "background: rgba(5, 5, 15, 0.92)",
     "z-index: 91",
     "font-family: monospace",
     "user-select: none",
-    "overflow-y: auto"
+    "overflow-y: auto",
+    _mob ? "padding: 12px 0" : ""
   ].join(";");
 
   // title
   var title = document.createElement("div");
   title.textContent = "CREW ROSTER";
   title.style.cssText = [
-    "font-size: 36px",
+    "font-size: " + (_mob ? "24px" : "36px"),
     "font-weight: bold",
     "color: #44ccff",
     "margin-bottom: 4px",
-    "margin-top: 20px",
+    "margin-top: " + (_mob ? "10px" : "20px"),
     "text-shadow: 0 0 15px rgba(60,180,255,0.4)"
   ].join(";");
   root.appendChild(title);
 
   var subtitle = document.createElement("div");
-  subtitle.textContent = "Click an officer, then click a station to assign";
+  subtitle.textContent = _mob ? "Tap an officer, then tap a station" : "Click an officer, then click a station to assign";
   subtitle.style.cssText = "font-size:13px;color:#667788;margin-bottom:16px";
   root.appendChild(subtitle);
 
@@ -55,7 +57,7 @@ export function createCrewScreen() {
     "display: flex",
     "flex-wrap: wrap",
     "justify-content: center",
-    "gap: 12px",
+    "gap: " + (_mob ? "8px" : "12px"),
     "margin-bottom: 20px",
     "max-width: 800px",
     "width: 90%"
@@ -123,6 +125,7 @@ export function createCrewScreen() {
 
 // --- build a station panel ---
 function buildStationPanel(stationKey) {
+  var _mob = isMobile();
   var color = getStationColor(stationKey);
   var el = document.createElement("div");
   el.style.cssText = [
@@ -130,9 +133,8 @@ function buildStationPanel(stationKey) {
     "border: 1px solid " + color + "44",
     "border-radius: 8px",
     "padding: 12px",
-    "width: 170px",
-    "min-width: 44px",
-    "min-height: 130px",
+    _mob ? "width: calc(50% - 8px);min-width: 120px;box-sizing: border-box" : "width: 170px",
+    "min-height: " + (_mob ? "100px" : "130px"),
     "cursor: pointer",
     "transition: border-color 0.2s"
   ].join(";");
@@ -188,16 +190,18 @@ function buildStationPanel(stationKey) {
 
 // --- build a roster officer card ---
 function buildOfficerCard(officer, isAssigned) {
+  var _mob = isMobile();
   var specColor = getStationColor(officer.specialty);
   var el = document.createElement("div");
   el.style.cssText = [
     "background: rgba(20, 25, 40, 0.7)",
     "border: 1px solid " + (isAssigned ? "#334455" : specColor + "66"),
     "border-radius: 6px",
-    "padding: 8px 12px",
+    "padding: " + (_mob ? "10px 14px" : "8px 12px"),
     "cursor: " + (isAssigned ? "default" : "pointer"),
     "opacity: " + (isAssigned ? "0.4" : "1"),
-    "min-width: 140px",
+    _mob ? "min-width: calc(50% - 8px);box-sizing: border-box" : "min-width: 140px",
+    "min-height: 44px",
     "text-align: center",
     "transition: border-color 0.2s, background 0.2s"
   ].join(";");
@@ -282,7 +286,7 @@ function refreshUI() {
       }
     } else {
       panel.assignedEl.innerHTML = "";
-      panel.assignedEl.textContent = selectedOfficerId ? "Click to assign" : "\u2014 Empty \u2014";
+      panel.assignedEl.textContent = selectedOfficerId ? (isMobile() ? "Tap to assign" : "Click to assign") : "\u2014 Empty \u2014";
       panel.assignedEl.style.color = selectedOfficerId ? "#44ccff" : "#556677";
       panel.bonusEl.textContent = "";
     }

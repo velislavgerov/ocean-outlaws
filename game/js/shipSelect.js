@@ -48,8 +48,9 @@ export function createShipSelectScreen() {
   grid.style.cssText = [
     "display: flex",
     "gap: " + (_mob ? "10px" : "16px"),
-    "flex-wrap: wrap",
+    _mob ? "flex-direction: column" : "flex-wrap: wrap",
     "justify-content: center",
+    "align-items: center",
     "max-width: 800px",
     "width: 95%",
     "padding: 0 8px"
@@ -211,8 +212,8 @@ function buildCard(cls) {
   var _mob = isMobile();
   var card = document.createElement("div");
   card.style.cssText = [
-    _mob ? "width:calc(50% - 8px);min-width:140px" : "width: 170px",
-    "padding: " + (_mob ? "12px" : "16px"),
+    _mob ? "width:100%;max-width:340px" : "width: 170px",
+    "padding: " + (_mob ? "14px 16px" : "16px"),
     "background: rgba(20, 30, 50, 0.8)",
     "border: 2px solid rgba(80, 100, 130, 0.4)",
     "border-radius: 8px",
@@ -238,7 +239,7 @@ function buildCard(cls) {
   var name = document.createElement("div");
   name.textContent = cls.name;
   name.style.cssText = [
-    "font-size: 18px",
+    "font-size: " + (_mob ? "20px" : "18px"),
     "font-weight: bold",
     "color: " + cls.color,
     "margin-bottom: 6px"
@@ -248,7 +249,7 @@ function buildCard(cls) {
   var desc = document.createElement("div");
   desc.textContent = cls.description;
   desc.style.cssText = [
-    "font-size: 11px",
+    "font-size: " + (_mob ? "13px" : "11px"),
     "color: #667788",
     "margin-bottom: 10px",
     "min-height: 28px"
@@ -268,7 +269,7 @@ function buildCard(cls) {
     row.style.cssText = [
       "display: flex",
       "justify-content: space-between",
-      "font-size: 11px",
+      "font-size: " + (_mob ? "13px" : "11px"),
       "color: #8899aa",
       "margin-bottom: 2px"
     ].join(";");

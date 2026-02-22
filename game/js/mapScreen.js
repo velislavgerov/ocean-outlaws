@@ -1,6 +1,7 @@
 // mapScreen.js — strategic map overlay with nautical chart aesthetic
 
 import { getZones, loadMapState, isZoneUnlocked, getZoneStars } from "./mapData.js";
+import { isMobile } from "./mobile.js";
 
 var overlay = null;
 var mapCanvas = null;
@@ -19,6 +20,7 @@ var CONDITION_COLORS = {
 
 // --- create the map screen (call once) ---
 export function createMapScreen() {
+  var _mob = isMobile();
   overlay = document.createElement("div");
   overlay.style.cssText = [
     "position: fixed",
@@ -29,11 +31,13 @@ export function createMapScreen() {
     "display: none",
     "flex-direction: column",
     "align-items: center",
-    "justify-content: center",
+    _mob ? "justify-content: flex-start" : "justify-content: center",
     "background: rgba(5, 5, 15, 0.95)",
     "z-index: 150",
     "font-family: monospace",
-    "user-select: none"
+    "user-select: none",
+    "overflow-y: auto",
+    _mob ? "padding: 12px 0" : ""
   ].join(";");
 
   // title
@@ -94,7 +98,7 @@ export function createMapScreen() {
     "color: #aabbaa",
     "pointer-events: none",
     "display: none",
-    "white-space: nowrap",
+    _mob ? "white-space: normal;max-width: 200px" : "white-space: nowrap",
     "z-index: 160"
   ].join(";");
   canvasWrap.appendChild(tooltipEl);
@@ -124,6 +128,10 @@ export function createMapScreen() {
     tooltipEl.style.display = "none";
   });
 
+  // touch support for mobile
+  mapCanvas.addEventListener("touchstart", onTouchStart, { passive: false });
+  mapCanvas.addEventListener("touchend", onTouchEnd, { passive: false });
+
   document.body.appendChild(overlay);
 }
 
@@ -136,6 +144,85 @@ function getCanvasPos(e) {
     x: (e.clientX - rect.left) * scaleX,
     y: (e.clientY - rect.top) * scaleY
   };
+}
+
+function getCanvasPosFromTouch(touch) {
+  var rect = mapCanvas.getBoundingClientRect();
+  var scaleX = mapCanvas.width / rect.width;
+  var scaleY = mapCanvas.height / rect.height;
+  return {
+    x: (touch.clientX - rect.left) * scaleX,
+    y: (touch.clientY - rect.top) * scaleY
+  };
+}
+
+var _touchStartPos = null;
+function onTouchStart(e) {
+  if (!e.touches.length) return;
+  _touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}
+
+function onTouchEnd(e) {
+  if (!e.changedTouches.length || !_touchStartPos) return;
+  var touch = e.changedTouches[0];
+  var dx = Math.abs(touch.clientX - _touchStartPos.x);
+  var dy = Math.abs(touch.clientY - _touchStartPos.y);
+  // only count as tap if finger didn't move much (not a scroll)
+  if (dx > 15 || dy > 15) return;
+
+  e.preventDefault();
+  var pos = getCanvasPosFromTouch(touch);
+  var zoneId = findZoneAt(pos.x, pos.y);
+
+  // show tooltip on first tap, select on second tap (or tap on same zone)
+  if (zoneId && currentState) {
+    if (hoveredZone === zoneId && isZoneUnlocked(currentState, zoneId)) {
+      // second tap on same unlocked zone — select it
+      if (onSelectCallback) onSelectCallback(zoneId);
+      return;
+    }
+    // first tap — show tooltip
+    hoveredZone = zoneId;
+    showTooltipForZone(zoneId, touch);
+    drawMap();
+  } else {
+    hoveredZone = null;
+    tooltipEl.style.display = "none";
+    drawMap();
+  }
+}
+
+function showTooltipForZone(zoneId, touch) {
+  var zone = null;
+  var zones = getZones();
+  for (var i = 0; i < zones.length; i++) {
+    if (zones[i].id === zoneId) { zone = zones[i]; break; }
+  }
+  if (!zone) return;
+
+  var unlocked = isZoneUnlocked(currentState, zoneId);
+  var stars = getZoneStars(currentState, zoneId);
+  var starStr = stars > 0 ? " " + starString(stars) : "";
+
+  tooltipEl.innerHTML = '<div style="font-size:14px;font-weight:bold;color:' +
+    (unlocked ? "#ccccaa" : "#556666") + ';margin-bottom:4px">' +
+    zone.name + starStr + '</div>' +
+    '<div style="color:#889988">Difficulty: ' + zone.difficulty + '/6</div>' +
+    '<div style="color:' + CONDITION_COLORS[zone.condition] + '">Seas: ' +
+    zone.condition.charAt(0).toUpperCase() + zone.condition.slice(1) + '</div>' +
+    '<div style="color:#778877">' + zone.waves + ' waves</div>' +
+    '<div style="color:#778877;margin-top:4px;font-style:italic">' + zone.description + '</div>' +
+    (unlocked ? '<div style="color:#aacc88;margin-top:6px">Tap again to deploy</div>' :
+      '<div style="color:#665555;margin-top:6px">Complete adjacent zone to unlock</div>');
+
+  var rect = mapCanvas.getBoundingClientRect();
+  var tx = touch.clientX - rect.left + 16;
+  var ty = touch.clientY - rect.top - 10;
+  if (tx + 200 > rect.width) tx = tx - 220;
+  if (ty < 0) ty = 10;
+  tooltipEl.style.left = tx + "px";
+  tooltipEl.style.top = ty + "px";
+  tooltipEl.style.display = "block";
 }
 
 function findZoneAt(px, py) {
