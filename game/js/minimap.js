@@ -107,7 +107,7 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
 
   // remote players — cyan triangles
   if (remotePlayers) {
-    var mpColors = ["#44aaff", "#ff6644", "#44dd66", "#ffcc44"];
+    var mpColors = ["#44aaff", "#44dd66", "#ff9944", "#aa66ff"];
     for (var ri = 0; ri < remotePlayers.length; ri++) {
       var rp = remotePlayers[ri];
       var rdx = (rp.posX - playerX) * scale;

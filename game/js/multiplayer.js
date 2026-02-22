@@ -450,7 +450,7 @@ export function isMultiplayerActive(state) {
 }
 
 // --- get player color by index (for rendering remote ships) ---
-var PLAYER_COLORS = [0x44aaff, 0xff6644, 0x44dd66, 0xffcc44];
+var PLAYER_COLORS = [0x44aaff, 0x44dd66, 0xff9944, 0xaa66ff];
 export function getPlayerColor(index) {
   return PLAYER_COLORS[index % PLAYER_COLORS.length];
 }

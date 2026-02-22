@@ -30,11 +30,93 @@ function ensureRemoteProjGeo() {
   remoteProjMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
 }
 
+// --- floating username labels (HTML overlay) ---
+var labelContainer = null;
+var labelElements = {};   // { playerId: HTMLDivElement }
+var labelVec = new THREE.Vector3();
+var LABEL_COLORS = ["#44aaff", "#44dd66", "#ff9944", "#aa66ff"];
+
+export function initRemoteLabels() {
+  if (labelContainer) return;
+  labelContainer = document.createElement("div");
+  labelContainer.style.cssText = [
+    "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
+    "pointer-events:none", "z-index:6"
+  ].join(";");
+  document.body.appendChild(labelContainer);
+}
+
+function ensureLabel(playerId, username, playerIndex) {
+  if (labelElements[playerId]) return labelElements[playerId];
+  var el = document.createElement("div");
+  var color = LABEL_COLORS[playerIndex % LABEL_COLORS.length];
+  el.style.cssText = [
+    "position:absolute", "font-family:monospace", "font-size:11px",
+    "color:" + color, "text-align:center", "white-space:nowrap",
+    "text-shadow:0 0 4px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.6)",
+    "transform:translate(-50%, -100%)", "pointer-events:none"
+  ].join(";");
+  el.textContent = username || "";
+  labelContainer.appendChild(el);
+  labelElements[playerId] = el;
+  return el;
+}
+
+export function updateRemoteLabels(camera) {
+  if (!labelContainer || !camera) return;
+  var halfW = window.innerWidth / 2;
+  var halfH = window.innerHeight / 2;
+
+  // hide labels for ships that no longer exist
+  for (var lid in labelElements) {
+    if (!remoteShips[lid] || remoteShips[lid].fading) {
+      labelElements[lid].style.display = "none";
+    }
+  }
+
+  for (var pid in remoteShips) {
+    var r = remoteShips[pid];
+    if (r.fading) continue;
+
+    var el = ensureLabel(pid, r.username, r.playerIndex || 0);
+    el.textContent = r.username || pid.substring(0, 8);
+
+    labelVec.set(r.posX, (r._smoothY || 1.2) + 2.8, r.posZ);
+    labelVec.project(camera);
+
+    if (labelVec.z > 1) {
+      el.style.display = "none";
+      continue;
+    }
+
+    var sx = (labelVec.x * halfW) + halfW;
+    var sy = -(labelVec.y * halfH) + halfH;
+
+    if (sx < -80 || sx > window.innerWidth + 80 || sy < -30 || sy > window.innerHeight + 30) {
+      el.style.display = "none";
+      continue;
+    }
+
+    el.style.display = "block";
+    el.style.left = sx + "px";
+    el.style.top = sy + "px";
+  }
+}
+
+function clearRemoteLabels() {
+  for (var lid in labelElements) {
+    if (labelElements[lid].parentNode) {
+      labelElements[lid].parentNode.removeChild(labelElements[lid]);
+    }
+  }
+  labelElements = {};
+}
+
 // --- create remote ship mesh with tinted color ---
 function createRemoteShipMesh(shipClass, playerIndex) {
   var mesh = buildClassMesh(shipClass || "cruiser");
   // tint the hull slightly to differentiate
-  var colors = [0x44aaff, 0xff6644, 0x44dd66, 0xffcc44];
+  var colors = [0x44aaff, 0x44dd66, 0xff9944, 0xaa66ff];
   var tint = colors[playerIndex % colors.length];
   mesh.traverse(function (child) {
     if (child.isMesh && child.material) {
@@ -83,7 +165,8 @@ export function sendShipState(mpState, ship, health, maxHealth, weaponIndex, aut
     maxHealth: maxHealth,
     weapon: weaponIndex,
     autofire: autofireOn,
-    shipClass: mpState.players[mpState.playerId] ? mpState.players[mpState.playerId].shipClass : "cruiser"
+    shipClass: mpState.players[mpState.playerId] ? mpState.players[mpState.playerId].shipClass : "cruiser",
+    username: mpState.username
   });
 }
 
@@ -219,8 +302,10 @@ function updateRemoteShip(playerId, data, scene, mpState) {
       targetZ: data.posZ,
       targetHeading: data.heading,
       shipClass: data.shipClass,
+      username: data.username || "",
       health: data.health || 10,
       maxHealth: data.maxHealth || 10,
+      playerIndex: playerIdx,
       lastUpdate: Date.now(),
       _smoothY: 0.5,
       _smoothPitch: 0,
@@ -239,6 +324,7 @@ function updateRemoteShip(playerId, data, scene, mpState) {
   remote.speed = data.speed || 0;
   remote.health = data.health;
   remote.maxHealth = data.maxHealth;
+  if (data.username) remote.username = data.username;
   remote.lastUpdate = Date.now();
   remote.fading = false;
   remote.fadeTimer = 0;
@@ -282,6 +368,10 @@ export function updateRemoteShips(dt, getWaveHeight, elapsed, scene) {
       if (fadeAlpha <= 0) {
         scene.remove(r.mesh);
         delete remoteShips[pid];
+        if (labelElements[pid]) {
+          if (labelElements[pid].parentNode) labelElements[pid].parentNode.removeChild(labelElements[pid]);
+          delete labelElements[pid];
+        }
         continue;
       }
     }
@@ -397,6 +487,7 @@ export function clearRemoteShips(scene) {
     scene.remove(remoteProjectiles[pi].mesh);
   }
   remoteProjectiles = [];
+  clearRemoteLabels();
   lastSendTime = 0;
   lastSentState = { posX: 0, posZ: 0, heading: 0, speed: 0, health: 0 };
 }
@@ -406,6 +497,12 @@ export function removeRemoteShip(playerId, scene) {
   if (remoteShips[playerId]) {
     scene.remove(remoteShips[playerId].mesh);
     delete remoteShips[playerId];
+  }
+  if (labelElements[playerId]) {
+    if (labelElements[playerId].parentNode) {
+      labelElements[playerId].parentNode.removeChild(labelElements[playerId]);
+    }
+    delete labelElements[playerId];
   }
 }
 

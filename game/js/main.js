@@ -34,7 +34,7 @@ import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosi
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
-import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendAbilityEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState } from "./netSync.js";
+import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendAbilityEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels } from "./netSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
 import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButton, updateVolumeSlider } from "./settingsMenu.js";
@@ -232,6 +232,7 @@ onQualityChange(function (q) {
 var mpState = createMultiplayerState();
 var mpReady = false;
 createLobbyScreen();
+initRemoteLabels();
 
 // inject multiplayer button into ship select overlay directly
 createMultiplayerButton(getShipSelectOverlay(), function () {
@@ -821,6 +822,7 @@ function animate() {
     if (isMultiplayerActive(mpState)) {
       sendShipState(mpState, ship, hpInfo.hp, hpInfo.maxHp, weapons.activeWeapon, getAutofire());
       updateRemoteShips(dt, weatherWaveHeight, elapsed, scene);
+      updateRemoteLabels(cam.camera);
       // Host sends enemy state to other clients
       if (mpState.isHost) {
         sendEnemyState(mpState, enemyMgr.enemies);
