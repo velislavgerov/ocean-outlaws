@@ -13,13 +13,20 @@ var keyActions = [];
 // autofire state
 var autofire = false;
 
+// game canvas reference — only clicks on canvas register as game input
+var gameCanvas = null;
+
+function isGameTarget(e) {
+  return gameCanvas && e.target === gameCanvas;
+}
+
 function onMouseMove(e) {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 }
 
 function onMouseDown(e) {
-  if (e.button === 0) {
+  if (e.button === 0 && isGameTarget(e)) {
     mouse.clicked = true;
     mouse.clickConsumed = false;
   }
@@ -29,8 +36,10 @@ function onTouchStart(e) {
   var touch = e.touches[0];
   mouse.x = touch.clientX;
   mouse.y = touch.clientY;
-  mouse.clicked = true;
-  mouse.clickConsumed = false;
+  if (isGameTarget(e)) {
+    mouse.clicked = true;
+    mouse.clickConsumed = false;
+  }
 }
 
 function onTouchMove(e) {
@@ -61,7 +70,8 @@ function onKeyDown(e) {
   }
 }
 
-export function initInput() {
+export function initInput(canvas) {
+  gameCanvas = canvas || null;
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mousedown", onMouseDown);
   window.addEventListener("touchstart", onTouchStart, { passive: true });

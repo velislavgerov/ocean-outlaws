@@ -136,7 +136,7 @@ setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
 });
 
 var waveMgr = createWaveManager();
-initInput();
+initInput(renderer.domElement);
 createHUD();
 
 var audioUnlockHandler = function () {
