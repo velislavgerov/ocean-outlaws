@@ -200,6 +200,18 @@ export function respecUpgrades(state) {
   return refund;
 }
 
+// --- undo a single upgrade tier (refund cost, decrement level) ---
+export function undoUpgrade(state, key) {
+  var info = findUpgrade(key);
+  if (!info) return false;
+  var level = state.levels[key] || 0;
+  if (level <= 0) return false;
+  var cost = info.costs[level - 1];
+  state.salvage += cost;
+  state.levels[key] = level - 1;
+  return true;
+}
+
 // --- get the multiplier for a single upgrade key at a given level ---
 export function getMultiplierForKey(state, key, extraLevels) {
   var info = findUpgrade(key);
