@@ -4,6 +4,7 @@ import {
   getBonusLabel, getStationColor
 } from "./crew.js";
 import { isMobile } from "./mobile.js";
+import { T, FONT, PARCHMENT_BG } from "./theme.js";
 
 var root = null;
 var stationEls = {};
@@ -25,9 +26,9 @@ export function createCrewScreen() {
     "flex-direction: column",
     "align-items: center",
     _mob ? "justify-content: flex-start" : "justify-content: center",
-    "background: rgba(5, 5, 15, 0.92)",
+    "background: " + T.bgOverlay,
     "z-index: 91",
-    "font-family: monospace",
+    "font-family: " + FONT,
     "user-select: none",
     "overflow-y: auto",
     _mob ? "padding: 12px 0" : ""
@@ -39,16 +40,16 @@ export function createCrewScreen() {
   title.style.cssText = [
     "font-size: " + (_mob ? "24px" : "36px"),
     "font-weight: bold",
-    "color: #44ccff",
+    "color: " + T.gold,
     "margin-bottom: 4px",
     "margin-top: " + (_mob ? "10px" : "20px"),
-    "text-shadow: 0 0 15px rgba(60,180,255,0.4)"
+    "text-shadow: 0 0 15px rgba(212,164,74,0.4), 0 1px 3px rgba(0,0,0,0.5)"
   ].join(";");
   root.appendChild(title);
 
   var subtitle = document.createElement("div");
   subtitle.textContent = _mob ? "Tap an officer, then tap a station" : "Click an officer, then click a station to assign";
-  subtitle.style.cssText = "font-size:13px;color:#667788;margin-bottom:16px";
+  subtitle.style.cssText = "font-size:13px;color:" + T.textDim + ";margin-bottom:16px;font-family:" + FONT;
   root.appendChild(subtitle);
 
   // stations row
@@ -78,8 +79,9 @@ export function createCrewScreen() {
   rosterTitle.style.cssText = [
     "font-size: 16px",
     "font-weight: bold",
-    "color: #8899aa",
-    "margin-bottom: 8px"
+    "color: " + T.text,
+    "margin-bottom: 8px",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   root.appendChild(rosterTitle);
 
@@ -100,19 +102,19 @@ export function createCrewScreen() {
   var btn = document.createElement("button");
   btn.textContent = "CONTINUE";
   btn.style.cssText = [
-    "font-family: monospace",
+    "font-family: " + FONT,
     "font-size: 20px",
     "padding: 14px 48px",
     "min-height: 44px",
     "margin-top: 10px",
     "margin-bottom: 20px",
-    "background: rgba(40, 80, 60, 0.8)",
-    "color: #44dd66",
-    "border: 1px solid rgba(60, 140, 90, 0.6)",
+    "background: " + T.bgLight,
+    "color: " + T.greenBright,
+    "border: 1px solid " + T.border,
     "border-radius: 6px",
     "cursor: pointer",
     "pointer-events: auto",
-    "text-shadow: 0 0 10px rgba(60,200,90,0.3)"
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   btn.addEventListener("click", function () {
     hideCrewScreen();
@@ -129,8 +131,8 @@ function buildStationPanel(stationKey) {
   var color = getStationColor(stationKey);
   var el = document.createElement("div");
   el.style.cssText = [
-    "background: rgba(15, 20, 35, 0.8)",
-    "border: 1px solid " + color + "44",
+    PARCHMENT_BG,
+    "border: 1px solid " + T.border,
     "border-radius: 8px",
     "padding: 12px",
     _mob ? "width: calc(50% - 8px);min-width: 120px;box-sizing: border-box" : "width: 170px",
@@ -146,14 +148,15 @@ function buildStationPanel(stationKey) {
     "font-weight: bold",
     "color: " + color,
     "margin-bottom: 8px",
-    "text-align: center"
+    "text-align: center",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   el.appendChild(label);
 
   var assignedEl = document.createElement("div");
   assignedEl.style.cssText = [
     "font-size: 13px",
-    "color: #8899aa",
+    "color: " + T.text,
     "text-align: center",
     "min-height: 50px",
     "display: flex",
@@ -165,7 +168,7 @@ function buildStationPanel(stationKey) {
   el.appendChild(assignedEl);
 
   var bonusEl = document.createElement("div");
-  bonusEl.style.cssText = "font-size:11px;color:#667788;text-align:center;margin-top:6px";
+  bonusEl.style.cssText = "font-size:11px;color:" + T.textDim + ";text-align:center;margin-top:6px";
   el.appendChild(bonusEl);
 
   // click station: assign selected officer or unassign
@@ -194,8 +197,8 @@ function buildOfficerCard(officer, isAssigned) {
   var specColor = getStationColor(officer.specialty);
   var el = document.createElement("div");
   el.style.cssText = [
-    "background: rgba(20, 25, 40, 0.7)",
-    "border: 1px solid " + (isAssigned ? "#334455" : specColor + "66"),
+    "background: rgba(55, 42, 26, 0.7)",
+    "border: 1px solid " + (isAssigned ? T.textDark : specColor + "66"),
     "border-radius: 6px",
     "padding: " + (_mob ? "10px 14px" : "8px 12px"),
     "cursor: " + (isAssigned ? "default" : "pointer"),
@@ -208,7 +211,7 @@ function buildOfficerCard(officer, isAssigned) {
 
   // portrait + name row
   var nameRow = document.createElement("div");
-  nameRow.style.cssText = "font-size:14px;color:#ccddee;margin-bottom:4px";
+  nameRow.style.cssText = "font-size:14px;color:" + T.textLight + ";margin-bottom:4px";
   nameRow.textContent = officer.portrait + " " + officer.name;
   el.appendChild(nameRow);
 
@@ -234,8 +237,8 @@ function buildOfficerCard(officer, isAssigned) {
 
   // highlight if selected
   if (selectedOfficerId === officer.id) {
-    el.style.borderColor = "#44ccff";
-    el.style.background = "rgba(30, 60, 80, 0.6)";
+    el.style.borderColor = T.gold;
+    el.style.background = "rgba(80, 60, 30, 0.6)";
   }
 
   return el;
@@ -270,7 +273,7 @@ function refreshUI() {
       panel.assignedEl.appendChild(portrait);
 
       var nameEl = document.createElement("div");
-      nameEl.style.cssText = "font-size:12px;color:#ccddee";
+      nameEl.style.cssText = "font-size:12px;color:" + T.textLight;
       nameEl.textContent = assigned.name;
       panel.assignedEl.appendChild(nameEl);
 
@@ -287,7 +290,7 @@ function refreshUI() {
     } else {
       panel.assignedEl.innerHTML = "";
       panel.assignedEl.textContent = selectedOfficerId ? (isMobile() ? "Tap to assign" : "Click to assign") : "\u2014 Empty \u2014";
-      panel.assignedEl.style.color = selectedOfficerId ? "#44ccff" : "#556677";
+      panel.assignedEl.style.color = selectedOfficerId ? T.gold : T.textDark;
       panel.bonusEl.textContent = "";
     }
 
@@ -295,7 +298,7 @@ function refreshUI() {
     if (selectedOfficerId) {
       panel.el.style.borderColor = panel.color + "88";
     } else {
-      panel.el.style.borderColor = panel.color + "44";
+      panel.el.style.borderColor = T.border;
     }
   }
 
@@ -305,7 +308,7 @@ function refreshUI() {
   if (roster.length === 0) {
     var emptyMsg = document.createElement("div");
     emptyMsg.textContent = "No officers yet — complete waves to recruit!";
-    emptyMsg.style.cssText = "font-size:13px;color:#556677;padding:16px";
+    emptyMsg.style.cssText = "font-size:13px;color:" + T.textDark + ";padding:16px";
     rosterEl.appendChild(emptyMsg);
     return;
   }

@@ -1,5 +1,6 @@
-// minimap.js — radar-style minimap showing player, enemies, pickups, ports
+// minimap.js — compass-rose style minimap with parchment/nautical aesthetic
 import { isMobile } from "./mobile.js";
+import { T, FONT } from "./theme.js";
 
 var minimapCanvas = null;
 var minimapCtx = null;
@@ -12,8 +13,9 @@ export function createMinimap(parentEl) {
   minimapCanvas.height = MINIMAP_SIZE;
   minimapCanvas.style.cssText = [
     "width:" + MINIMAP_SIZE + "px", "height:" + MINIMAP_SIZE + "px",
-    "border-radius:50%", "border:2px solid rgba(80,100,130,0.4)",
-    "background:rgba(5,10,20,0.7)"
+    "border-radius:50%", "border:2px solid " + T.borderGold,
+    "background:rgba(30,22,14,0.8)",
+    "box-shadow:0 0 12px rgba(0,0,0,0.5),inset 0 0 8px rgba(0,0,0,0.3)"
   ].join(";");
   minimapCtx = minimapCanvas.getContext("2d");
   parentEl.appendChild(minimapCanvas);
@@ -28,19 +30,22 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
 
   ctx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
 
-  // background circle
+  // background circle — aged parchment tint
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(5,10,20,0.8)";
+  var bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+  bgGrad.addColorStop(0, "rgba(50,38,24,0.9)");
+  bgGrad.addColorStop(1, "rgba(35,26,16,0.95)");
+  ctx.fillStyle = bgGrad;
   ctx.fill();
-  ctx.strokeStyle = "rgba(80,100,130,0.5)";
+  ctx.strokeStyle = "rgba(139,109,68,0.5)";
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.clip();
 
-  // range rings
-  ctx.strokeStyle = "rgba(80,100,130,0.2)";
+  // range rings — warm brown
+  ctx.strokeStyle = "rgba(139,109,68,0.2)";
   ctx.lineWidth = 0.5;
   for (var r = 1; r <= 3; r++) {
     ctx.beginPath();
@@ -48,21 +53,41 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
     ctx.stroke();
   }
 
-  // crosshair
+  // compass rose lines (N/S/E/W)
+  ctx.strokeStyle = "rgba(139,109,68,0.25)";
+  ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(cx - 6, cy);
-  ctx.lineTo(cx + 6, cy);
-  ctx.moveTo(cx, cy - 6);
-  ctx.lineTo(cx, cy + 6);
-  ctx.strokeStyle = "rgba(80,100,130,0.4)";
+  ctx.moveTo(cx, cy - radius);
+  ctx.lineTo(cx, cy + radius);
+  ctx.moveTo(cx - radius, cy);
+  ctx.lineTo(cx + radius, cy);
+  ctx.stroke();
+
+  // diagonal lines for compass rose
+  ctx.strokeStyle = "rgba(139,109,68,0.12)";
+  ctx.beginPath();
+  var d = radius * 0.7;
+  ctx.moveTo(cx - d, cy - d);
+  ctx.lineTo(cx + d, cy + d);
+  ctx.moveTo(cx + d, cy - d);
+  ctx.lineTo(cx - d, cy + d);
+  ctx.stroke();
+
+  // crosshair (small center marker)
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, cy);
+  ctx.lineTo(cx + 4, cy);
+  ctx.moveTo(cx, cy - 4);
+  ctx.lineTo(cx, cy + 4);
+  ctx.strokeStyle = "rgba(212,164,74,0.4)";
   ctx.lineWidth = 1;
   ctx.stroke();
 
   var scale = radius / MINIMAP_RANGE;
 
-  // ports — blue squares
+  // ports — golden squares
   if (ports) {
-    ctx.fillStyle = "#4488cc";
+    ctx.fillStyle = T.gold;
     for (var pi = 0; pi < ports.length; pi++) {
       var p = ports[pi];
       var pdx = (p.x - playerX) * scale;
@@ -75,7 +100,7 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
 
   // pickups — green dots
   if (pickups) {
-    ctx.fillStyle = "#44dd66";
+    ctx.fillStyle = T.greenBright;
     for (var ki = 0; ki < pickups.length; ki++) {
       var pk = pickups[ki];
       if (!pk.mesh) continue;
@@ -91,7 +116,7 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
 
   // enemies — red dots
   if (enemies) {
-    ctx.fillStyle = "#ff4444";
+    ctx.fillStyle = T.redBright;
     for (var ei = 0; ei < enemies.length; ei++) {
       var e = enemies[ei];
       if (!e.alive) continue;
@@ -105,9 +130,9 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
     }
   }
 
-  // remote players — cyan triangles
+  // remote players — warm colored triangles
   if (remotePlayers) {
-    var mpColors = ["#44aaff", "#44dd66", "#ff9944", "#aa66ff"];
+    var mpColors = [T.blueBright, T.greenBright, "#cc8833", T.purple];
     for (var ri = 0; ri < remotePlayers.length; ri++) {
       var rp = remotePlayers[ri];
       var rdx = (rp.posX - playerX) * scale;
@@ -128,11 +153,11 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
     }
   }
 
-  // player — white triangle
+  // player — cream/gold triangle
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(-playerHeading);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = T.cream;
   ctx.beginPath();
   ctx.moveTo(0, -5);
   ctx.lineTo(-3, 4);
@@ -141,11 +166,15 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
   ctx.fill();
   ctx.restore();
 
-  // heading indicator
-  ctx.fillStyle = "rgba(136,153,170,0.6)";
-  ctx.font = "9px monospace";
+  // compass directions — N/S/E/W labels
+  ctx.fillStyle = "rgba(212,164,74,0.6)";
+  ctx.font = "bold 9px serif";
   ctx.textAlign = "center";
-  ctx.fillText("N", cx, 14);
+  ctx.textBaseline = "middle";
+  ctx.fillText("N", cx, 10);
+  ctx.fillText("S", cx, MINIMAP_SIZE - 8);
+  ctx.fillText("E", MINIMAP_SIZE - 8, cy);
+  ctx.fillText("W", 9, cy);
 
   ctx.restore();
 }

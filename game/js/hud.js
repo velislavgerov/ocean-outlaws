@@ -1,27 +1,28 @@
-// hud.js — HUD: HP bar + fuel bar (top-left), QWER ability bar (bottom-center),
+// hud.js — HUD: Hull Integrity bar + Wind bar (top-left), QWER ability bar (bottom-center),
 // minimap (top-right), fade-on-change popups, banner/overlay
 import { createMinimap, updateMinimap as renderMinimap } from "./minimap.js";
 import { isMobile } from "./mobile.js";
+import { T, FONT, SCROLL_BG, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
 
-// --- color palette ---
+// --- color palette (parchment/nautical) ---
 var C = {
-  bg: "rgba(5,10,20,0.7)",
-  bgLight: "rgba(20,30,50,0.7)",
-  border: "rgba(80,100,130,0.4)",
-  borderActive: "rgba(80,100,130,0.5)",
-  text: "#8899aa",
-  textDim: "#667788",
-  green: "#44aa66",
-  greenBright: "#44dd66",
-  yellow: "#ffcc44",
-  orange: "#cc8822",
-  amber: "#ddaa33",
-  red: "#cc4444",
-  blue: "#4477aa",
-  blueBright: "#2288cc",
-  purple: "#cc66ff",
-  cyan: "#44aaff",
-  portGreen: "#44ff88"
+  bg: T.bg,
+  bgLight: T.bgLight,
+  border: T.border,
+  borderActive: T.borderActive,
+  text: T.text,
+  textDim: T.textDim,
+  green: T.hullGreen,
+  greenBright: T.greenBright,
+  yellow: T.gold,
+  orange: T.amber,
+  amber: T.windAmber,
+  red: T.red,
+  blue: T.blue,
+  blueBright: T.blueBright,
+  purple: T.purple,
+  cyan: T.cyan,
+  portGreen: T.portGreen
 };
 
 export { C as HUD_COLORS };
@@ -48,10 +49,10 @@ var onMuteCallback = null, onVolumeCallback = null;
 var settingsDataCallback = null;
 
 var SLOT_DEFS = [
-  { key: "Q", icon: "\u2022", defaultColor: "#ffcc44" },  // Cannon
-  { key: "W", icon: "\u25C6", defaultColor: "#ff6644" },  // Chain Shot
-  { key: "E", icon: "\u25AC", defaultColor: "#44aaff" },  // Fire Bomb
-  { key: "R", icon: "\u26A1", defaultColor: "#cc66ff" }   // Ability
+  { key: "Q", icon: "\u2022", defaultColor: T.gold },      // Cannon
+  { key: "W", icon: "\u25C6", defaultColor: "#cc6633" },    // Chain Shot
+  { key: "E", icon: "\u25AC", defaultColor: T.blueBright }, // Fire Bomb
+  { key: "R", icon: "\u26A1", defaultColor: T.purple }      // Ability
 ];
 
 function makeBar(width, height) {
@@ -75,12 +76,13 @@ function makePopup(side) {
   var pos = side === "left" ? "left:16px;" : "right:16px;";
   el.style.cssText = [
     "position:fixed", "bottom:80px", pos,
-    "font-family:monospace", "font-size:" + (_mob ? "14px" : "12px"),
+    "font-family:" + FONT, "font-size:" + (_mob ? "14px" : "12px"),
     "color:" + C.text, "background:" + C.bg,
     "border:1px solid " + C.border, "border-radius:4px",
     "padding:4px 10px", "pointer-events:none",
     "user-select:none", "z-index:10",
-    "opacity:0", "transition:opacity 0.3s"
+    "opacity:0", "transition:opacity 0.3s",
+    "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   document.body.appendChild(el);
   return el;
@@ -92,13 +94,13 @@ export function createHUD() {
   var mobPad = _mob ? "top:env(safe-area-inset-top,16px);left:env(safe-area-inset-left,16px);" : "top:16px;left:16px;";
   topLeftPanel.style.cssText = [
     "position:fixed", "pointer-events:none",
-    "font-family:monospace", "color:" + C.text, "font-size:" + (_mob ? "15px" : "13px"),
+    "font-family:" + FONT, "color:" + C.text, "font-size:" + (_mob ? "15px" : "13px"),
     "user-select:none", "z-index:10"
   ].join(";") + ";" + mobPad;
 
   hpLabel = document.createElement("div");
   hpLabel.textContent = "";
-  hpLabel.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + C.textDim + ";margin-bottom:2px;height:14px;";
+  hpLabel.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + C.textDim + ";margin-bottom:2px;height:14px;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
   topLeftPanel.appendChild(hpLabel);
   var hpBars = makeBar(_mob ? 100 : 120, _mob ? 10 : 8);
   hpBarBg = hpBars.bg;
@@ -116,7 +118,7 @@ export function createHUD() {
   // port proximity (shows only when near)
   portLabel = document.createElement("div");
   portLabel.textContent = "";
-  portLabel.style.cssText = "margin-top:4px;font-size:11px;color:" + C.portGreen + ";height:14px;";
+  portLabel.style.cssText = "margin-top:4px;font-size:11px;color:" + C.portGreen + ";height:14px;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
   topLeftPanel.appendChild(portLabel);
 
   document.body.appendChild(topLeftPanel);
@@ -135,7 +137,7 @@ export function createHUD() {
   var botPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);" : "bottom:16px;";
   abilityBar.style.cssText = [
     "position:fixed", "left:50%", "transform:translateX(-50%)",
-    "pointer-events:none", "font-family:monospace", "color:" + C.text,
+    "pointer-events:none", "font-family:" + FONT, "color:" + C.text,
     "user-select:none", "z-index:10", "text-align:center"
   ].join(";") + ";" + botPad;
 
@@ -165,8 +167,9 @@ export function createHUD() {
     keyLabel.textContent = def.key;
     keyLabel.style.cssText = [
       "position:absolute", "bottom:2px", "right:3px",
-      "font-size:" + (_mob ? "10px" : "9px"), "font-family:monospace",
-      "color:" + C.text, "pointer-events:none", "line-height:1"
+      "font-size:" + (_mob ? "10px" : "9px"), "font-family:" + FONT,
+      "color:" + C.text, "pointer-events:none", "line-height:1",
+      "text-shadow:0 1px 2px rgba(0,0,0,0.5)"
     ].join(";");
     container.appendChild(keyLabel);
 
@@ -187,7 +190,7 @@ export function createHUD() {
   statsRow.style.cssText = [
     "display:flex", "align-items:center", "justify-content:center",
     "gap:" + (_mob ? "10px" : "8px"), "margin-top:" + (_mob ? "4px" : "3px"),
-    "font-family:monospace", "font-size:" + (_mob ? "12px" : "10px")
+    "font-family:" + FONT, "font-size:" + (_mob ? "12px" : "10px")
   ].join(";");
 
   ammoLabel = document.createElement("div");
@@ -196,8 +199,8 @@ export function createHUD() {
   statsRow.appendChild(ammoLabel);
 
   salvageLabel = document.createElement("div");
-  salvageLabel.style.cssText = "color:" + C.yellow + ";pointer-events:none;white-space:nowrap;";
-  salvageLabel.textContent = "\u2726 0";
+  salvageLabel.style.cssText = "color:" + C.yellow + ";pointer-events:none;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
+  salvageLabel.textContent = "\uD83E\uDE99 0";
   statsRow.appendChild(salvageLabel);
 
   abilityBar.appendChild(statsRow);
@@ -215,14 +218,20 @@ export function createHUD() {
   salvagePopup.style.left = "16px";
   salvagePopup.style.top = _mob ? "50px" : "46px";
 
-  // === BANNER ===
+  // === BANNER (parchment scroll style) ===
   banner = document.createElement("div");
   banner.style.cssText = [
     "position:fixed", "top:25%", "left:50%",
-    "transform:translate(-50%,-50%)", "font-family:monospace",
-    "font-size:" + (_mob ? "24px" : "32px"), "font-weight:bold", "color:" + C.yellow,
-    "text-shadow:0 0 20px rgba(255,200,60,0.6)", "pointer-events:none",
-    "user-select:none", "z-index:20", "opacity:0", "transition:opacity 0.3s"
+    "transform:translate(-50%,-50%)", "font-family:" + FONT,
+    "font-size:" + (_mob ? "24px" : "32px"), "font-weight:bold", "color:" + T.cream,
+    "text-shadow:0 2px 4px rgba(0,0,0,0.6),0 0 20px rgba(212,164,74,0.4)",
+    "pointer-events:none", "user-select:none", "z-index:20",
+    "opacity:0", "transition:opacity 0.3s",
+    "padding:16px 32px", "border-radius:4px",
+    SCROLL_BG,
+    "border:2px solid " + T.borderGold,
+    "box-shadow:0 4px 20px rgba(0,0,0,0.5)",
+    "letter-spacing:2px"
   ].join(";");
   document.body.appendChild(banner);
 
@@ -231,24 +240,26 @@ export function createHUD() {
   overlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
     "display:none", "flex-direction:column", "align-items:center",
-    "justify-content:center", "background:rgba(5,5,15,0.85)",
-    "z-index:100", "font-family:monospace", "user-select:none"
+    "justify-content:center", "background:rgba(20,14,8,0.88)",
+    "z-index:100", "font-family:" + FONT, "user-select:none"
   ].join(";");
   overlayTitle = document.createElement("div");
-  overlayTitle.style.cssText = "font-size:" + (_mob ? "36px" : "48px") + ";font-weight:bold;color:" + C.red + ";margin-bottom:16px;";
+  overlayTitle.style.cssText = "font-size:" + (_mob ? "36px" : "48px") + ";font-weight:bold;color:" + C.red + ";margin-bottom:16px;text-shadow:0 2px 4px rgba(0,0,0,0.6);letter-spacing:4px;";
   overlay.appendChild(overlayTitle);
   overlaySubtext = document.createElement("div");
-  overlaySubtext.style.cssText = "font-size:20px;color:" + C.text + ";margin-bottom:32px;";
+  overlaySubtext.style.cssText = "font-size:20px;color:" + C.text + ";margin-bottom:32px;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
   overlay.appendChild(overlaySubtext);
   overlayBtn = document.createElement("button");
   overlayBtn.textContent = "RESTART";
   overlayBtn.style.cssText = [
-    "font-family:monospace", "font-size:" + (_mob ? "20px" : "18px"),
+    "font-family:" + FONT, "font-size:" + (_mob ? "20px" : "18px"),
     "padding:" + (_mob ? "14px 44px" : "12px 36px"),
-    "background:rgba(40,60,90,0.8)", "color:" + C.text,
-    "border:1px solid " + C.borderActive, "border-radius:6px",
+    T.bgLight.indexOf("rgba") >= 0 ? "background:" + T.bgLight : "",
+    "background:" + T.bgLight, "color:" + T.textLight,
+    "border:1px solid " + C.borderActive, "border-radius:4px",
     "cursor:pointer", "pointer-events:auto",
-    "min-height:44px"
+    "min-height:44px", "letter-spacing:2px",
+    "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   overlayBtn.addEventListener("click", function () {
     hideOverlay();
@@ -416,13 +427,13 @@ function fadePopup(el, timer, dt) {
 export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText, autofireOn, portInfo, abilityBarInfo) {
   if (!topLeftPanel) return;
 
-  // HP bar — no numbers unless damaged
+  // Hull Integrity bar — no numbers unless damaged
   if (hp !== undefined && hpBar) {
     var hpPct = Math.max(0, hp / maxHp) * 100;
     hpBar.style.width = hpPct + "%";
-    hpBar.style.background = hpPct > 50 ? C.green : hpPct > 25 ? "#aaaa44" : C.red;
+    hpBar.style.background = hpPct > 50 ? C.green : hpPct > 25 ? T.amber : C.red;
     if (hp < maxHp) {
-      hpLabel.textContent = Math.round(hp) + " / " + Math.round(maxHp);
+      hpLabel.textContent = "Hull " + Math.round(hp) + "/" + Math.round(maxHp);
       hpLabel.style.color = hpPct > 25 ? C.textDim : C.red;
     } else {
       hpLabel.textContent = "";
@@ -440,7 +451,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
   if (portLabel) {
     if (portInfo && portInfo.dist < 50) {
       portLabel.textContent = portInfo.available ? "PORT " + Math.round(portInfo.dist) + "m" : "PORT " + Math.ceil(portInfo.cooldown) + "s";
-      portLabel.style.color = portInfo.available ? C.portGreen : "#884422";
+      portLabel.style.color = portInfo.available ? C.portGreen : T.brownDark;
     } else { portLabel.textContent = ""; }
   }
 
@@ -457,9 +468,9 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
     ammoLabel.style.color = ammo <= 5 ? C.red : C.text;
   }
 
-  // Always-visible salvage counter
+  // Always-visible gold coin counter
   if (salvageLabel && salvage !== undefined) {
-    salvageLabel.textContent = "\u2726 " + salvage;
+    salvageLabel.textContent = "\uD83E\uDE99 " + salvage;
   }
 
   // Ammo popup — show on change, fade after 2.5s
@@ -473,7 +484,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
 
   // Salvage popup — show on change, fade after 2.5s
   if (salvage !== undefined && prevSalvage >= 0 && salvage !== prevSalvage) {
-    salvagePopup.textContent = "GOLD +" + (salvage - prevSalvage);
+    salvagePopup.textContent = "\uD83E\uDE99 +" + (salvage - prevSalvage) + " Gold";
     salvagePopup.style.color = C.yellow;
     salvagePopupTimer = 2.5;
   }

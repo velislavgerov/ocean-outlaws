@@ -1,6 +1,7 @@
 // lobbyScreen.js — multiplayer lobby UI: main menu button, create/join room, player list, ready state
 import { getClassOrder, getAllClasses } from "./shipClass.js";
 import { isMobile } from "./mobile.js";
+import { T, FONT, PARCHMENT_BG } from "./theme.js";
 
 var overlay = null;
 var mainMenuBtn = null;
@@ -27,24 +28,11 @@ var onClassChange = null;
 var onUsernameChange = null;
 var onBack = null;
 
-var C = {
-  bg: "rgba(5,10,20,0.92)",
-  panel: "rgba(15,25,45,0.9)",
-  border: "rgba(80,100,130,0.4)",
-  borderActive: "rgba(80,100,130,0.6)",
-  text: "#8899aa",
-  textDim: "#556677",
-  green: "#44dd66",
-  yellow: "#ffcc44",
-  red: "#cc4444",
-  blue: "#44aaff",
-  cyan: "#2288cc"
-};
-
 var BTN = [
-  "font-family:monospace", "font-size:14px", "padding:10px 24px",
+  "font-family:" + FONT, "font-size:14px", "padding:10px 24px",
   "border-radius:6px", "cursor:pointer", "pointer-events:auto",
-  "user-select:none", "text-align:center", "min-height:44px"
+  "user-select:none", "text-align:center", "min-height:44px",
+  "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
 ].join(";");
 
 // --- create the main menu multiplayer button (injected into ship select screen) ---
@@ -53,18 +41,18 @@ export function createMultiplayerButton(parentEl, callback) {
   mainMenuBtn.textContent = "MULTIPLAYER";
   mainMenuBtn.style.cssText = [
     BTN, "margin-top:16px",
-    "background:rgba(20,40,80,0.8)",
-    "color:" + C.blue,
-    "border:1px solid " + C.blue,
+    "background:rgba(45, 34, 20, 0.8)",
+    "color:" + T.blueBright,
+    "border:1px solid " + T.blueBright,
     "min-width:200px",
     "min-height:44px"
   ].join(";");
   // touch-friendly highlight
   mainMenuBtn.addEventListener("touchstart", function () {
-    mainMenuBtn.style.background = "rgba(30,60,120,0.9)";
+    mainMenuBtn.style.background = "rgba(60, 45, 28, 0.9)";
   });
   mainMenuBtn.addEventListener("touchend", function () {
-    mainMenuBtn.style.background = "rgba(20,40,80,0.8)";
+    mainMenuBtn.style.background = "rgba(45, 34, 20, 0.8)";
   });
   mainMenuBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -79,8 +67,8 @@ export function createLobbyScreen() {
   overlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
     "display:none", "flex-direction:column", "align-items:center",
-    "justify-content:center", "background:" + C.bg,
-    "z-index:250", "font-family:monospace", "user-select:none"
+    "justify-content:center", "background:" + T.bgOverlay,
+    "z-index:250", "font-family:" + FONT, "user-select:none"
   ].join(";");
 
   // === Initial choice: Create or Join ===
@@ -92,13 +80,13 @@ export function createLobbyScreen() {
 
   var title = document.createElement("div");
   title.textContent = "MULTIPLAYER";
-  title.style.cssText = "font-size:28px;font-weight:bold;color:" + C.text + ";margin-bottom:16px;";
+  title.style.cssText = "font-family:" + FONT + ";font-size:28px;font-weight:bold;color:" + T.gold + ";margin-bottom:16px;text-shadow:0 0 12px rgba(212,164,74,0.4),0 2px 4px rgba(0,0,0,0.5);";
   joinPanel.appendChild(title);
 
   // Username input
   var nameLabel = document.createElement("div");
   nameLabel.textContent = "YOUR NAME";
-  nameLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";";
+  nameLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";";
   joinPanel.appendChild(nameLabel);
 
   usernameInput = document.createElement("input");
@@ -106,17 +94,17 @@ export function createLobbyScreen() {
   usernameInput.placeholder = "Enter name...";
   usernameInput.maxLength = 20;
   usernameInput.style.cssText = [
-    "font-family:monospace", "font-size:16px", "padding:8px 12px",
-    "background:rgba(20,30,50,0.9)", "color:" + C.blue,
-    "border:1px solid " + C.border, "border-radius:4px",
+    "font-family:" + FONT, "font-size:16px", "padding:8px 12px",
+    "background:rgba(35, 26, 16, 0.9)", "color:" + T.goldBright,
+    "border:1px solid " + T.border, "border-radius:4px",
     "width:200px", "text-align:center",
     "pointer-events:auto", "outline:none", "margin-bottom:8px"
   ].join(";");
   usernameInput.addEventListener("focus", function () {
-    usernameInput.style.borderColor = C.blue;
+    usernameInput.style.borderColor = T.borderGold;
   });
   usernameInput.addEventListener("blur", function () {
-    usernameInput.style.borderColor = C.border;
+    usernameInput.style.borderColor = T.border;
     if (onUsernameChange && usernameInput.value.trim()) {
       onUsernameChange(usernameInput.value.trim());
     }
@@ -126,8 +114,8 @@ export function createLobbyScreen() {
   var createBtn = document.createElement("button");
   createBtn.textContent = "CREATE ROOM";
   createBtn.style.cssText = [
-    BTN, "background:rgba(20,50,40,0.8)", "color:" + C.green,
-    "border:1px solid " + C.green, "min-width:220px"
+    BTN, "background:rgba(35, 50, 30, 0.8)", "color:" + T.greenBright,
+    "border:1px solid " + T.greenBright, "min-width:220px"
   ].join(";");
   createBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -144,25 +132,25 @@ export function createLobbyScreen() {
   joinInput.placeholder = "OCEAN-XXXX";
   joinInput.maxLength = 10;
   joinInput.style.cssText = [
-    "font-family:monospace", "font-size:16px", "padding:8px 12px",
-    "background:rgba(20,30,50,0.9)", "color:" + C.yellow,
-    "border:1px solid " + C.border, "border-radius:4px",
+    "font-family:" + FONT, "font-size:16px", "padding:8px 12px",
+    "background:rgba(35, 26, 16, 0.9)", "color:" + T.gold,
+    "border:1px solid " + T.border, "border-radius:4px",
     "width:160px", "text-align:center", "text-transform:uppercase",
     "pointer-events:auto", "outline:none"
   ].join(";");
   joinInput.addEventListener("focus", function () {
-    joinInput.style.borderColor = C.yellow;
+    joinInput.style.borderColor = T.borderGold;
   });
   joinInput.addEventListener("blur", function () {
-    joinInput.style.borderColor = C.border;
+    joinInput.style.borderColor = T.border;
   });
   joinRow.appendChild(joinInput);
 
   joinBtn = document.createElement("button");
   joinBtn.textContent = "JOIN";
   joinBtn.style.cssText = [
-    BTN, "background:rgba(40,40,20,0.8)", "color:" + C.yellow,
-    "border:1px solid " + C.yellow, "padding:8px 20px"
+    BTN, "background:rgba(50, 40, 22, 0.8)", "color:" + T.gold,
+    "border:1px solid " + T.gold, "padding:8px 20px"
   ].join(";");
   joinBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -176,8 +164,8 @@ export function createLobbyScreen() {
   joinBackBtn = document.createElement("button");
   joinBackBtn.textContent = "BACK";
   joinBackBtn.style.cssText = [
-    BTN, "background:rgba(40,30,30,0.7)", "color:" + C.textDim,
-    "border:1px solid " + C.border, "margin-top:8px", "font-size:12px",
+    BTN, "background:rgba(50, 35, 25, 0.7)", "color:" + T.textDim,
+    "border:1px solid " + T.border, "margin-top:8px", "font-size:12px",
     "padding:6px 20px"
   ].join(";");
   joinBackBtn.addEventListener("click", function (e) {
@@ -192,42 +180,43 @@ export function createLobbyScreen() {
   lobbyPanel = document.createElement("div");
   lobbyPanel.style.cssText = [
     "display:none", "flex-direction:column", "align-items:center",
-    "gap:12px", "padding:32px", "background:" + C.panel,
-    "border:1px solid " + C.border, "border-radius:12px",
+    "gap:12px", "padding:32px", "background:" + T.bgLight,
+    "border:1px solid " + T.border, "border-radius:12px",
     "min-width:280px", "max-width:500px"
   ].join(";");
 
   var lobbyTitle = document.createElement("div");
   lobbyTitle.textContent = "LOBBY";
-  lobbyTitle.style.cssText = "font-size:22px;font-weight:bold;color:" + C.text + ";";
+  lobbyTitle.style.cssText = "font-family:" + FONT + ";font-size:22px;font-weight:bold;color:" + T.gold + ";text-shadow:0 0 10px rgba(212,164,74,0.3),0 2px 4px rgba(0,0,0,0.5);";
   lobbyPanel.appendChild(lobbyTitle);
 
   roomCodeDisplay = document.createElement("div");
   roomCodeDisplay.style.cssText = [
-    "font-size:28px", "font-weight:bold", "color:" + C.yellow,
+    "font-family:" + FONT, "font-size:28px", "font-weight:bold", "color:" + T.goldBright,
     "letter-spacing:4px", "padding:8px 16px",
-    "background:rgba(30,30,15,0.6)", "border:1px solid " + C.yellow,
-    "border-radius:6px", "cursor:pointer"
+    "background:rgba(50, 40, 22, 0.6)", "border:1px solid " + T.borderGold,
+    "border-radius:6px", "cursor:pointer",
+    "text-shadow:0 0 8px rgba(212,164,74,0.3)"
   ].join(";");
   roomCodeDisplay.title = "Click to copy";
   roomCodeDisplay.addEventListener("click", function () {
     if (roomCodeDisplay.textContent && navigator.clipboard) {
       navigator.clipboard.writeText(roomCodeDisplay.textContent);
-      roomCodeDisplay.style.color = C.green;
-      setTimeout(function () { roomCodeDisplay.style.color = C.yellow; }, 1000);
+      roomCodeDisplay.style.color = T.greenBright;
+      setTimeout(function () { roomCodeDisplay.style.color = T.goldBright; }, 1000);
     }
   });
   lobbyPanel.appendChild(roomCodeDisplay);
 
   statusLabel = document.createElement("div");
-  statusLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";";
+  statusLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";";
   statusLabel.textContent = "Share this code with friends";
   lobbyPanel.appendChild(statusLabel);
 
   // Ship class selector
   var classLabel = document.createElement("div");
   classLabel.textContent = "SHIP CLASS";
-  classLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";margin-top:8px;";
+  classLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";margin-top:8px;";
   lobbyPanel.appendChild(classLabel);
 
   classSelector = document.createElement("div");
@@ -241,8 +230,8 @@ export function createLobbyScreen() {
       btn.textContent = cls.name;
       btn.dataset.classKey = key;
       btn.style.cssText = [
-        "font-family:monospace", "font-size:12px", "padding:6px 12px",
-        "background:rgba(20,30,50,0.8)", "color:" + cls.color,
+        "font-family:" + FONT, "font-size:12px", "padding:6px 12px",
+        "background:rgba(35, 26, 16, 0.8)", "color:" + cls.color,
         "border:1px solid transparent", "border-radius:4px",
         "cursor:pointer", "pointer-events:auto"
       ].join(";");
@@ -259,7 +248,7 @@ export function createLobbyScreen() {
   // Player list
   var listLabel = document.createElement("div");
   listLabel.textContent = "PLAYERS";
-  listLabel.style.cssText = "font-size:12px;color:" + C.textDim + ";margin-top:12px;";
+  listLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";margin-top:12px;";
   lobbyPanel.appendChild(listLabel);
 
   playerListEl = document.createElement("div");
@@ -276,8 +265,8 @@ export function createLobbyScreen() {
   readyBtn = document.createElement("button");
   readyBtn.textContent = "READY";
   readyBtn.style.cssText = [
-    BTN, "background:rgba(20,50,30,0.8)", "color:" + C.green,
-    "border:1px solid " + C.green
+    BTN, "background:rgba(35, 50, 30, 0.8)", "color:" + T.greenBright,
+    "border:1px solid " + T.greenBright
   ].join(";");
   readyBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -288,8 +277,8 @@ export function createLobbyScreen() {
   startBtn = document.createElement("button");
   startBtn.textContent = "START GAME";
   startBtn.style.cssText = [
-    BTN, "background:rgba(40,40,20,0.8)", "color:" + C.yellow,
-    "border:1px solid " + C.yellow, "display:none"
+    BTN, "background:rgba(50, 40, 22, 0.8)", "color:" + T.gold,
+    "border:1px solid " + T.gold, "display:none"
   ].join(";");
   startBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -302,8 +291,8 @@ export function createLobbyScreen() {
   backBtn = document.createElement("button");
   backBtn.textContent = "LEAVE ROOM";
   backBtn.style.cssText = [
-    BTN, "background:rgba(40,20,20,0.7)", "color:" + C.red,
-    "border:1px solid " + C.red, "font-size:11px", "padding:6px 16px"
+    BTN, "background:rgba(50, 28, 22, 0.7)", "color:" + T.redBright,
+    "border:1px solid " + T.redBright, "font-size:11px", "padding:6px 16px"
   ].join(";");
   backBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -323,10 +312,10 @@ function selectClassButton(key) {
   for (var i = 0; i < btns.length; i++) {
     if (btns[i].dataset.classKey === key) {
       btns[i].style.borderColor = btns[i].style.color;
-      btns[i].style.background = "rgba(30,50,80,0.9)";
+      btns[i].style.background = "rgba(60, 45, 28, 0.9)";
     } else {
       btns[i].style.borderColor = "transparent";
-      btns[i].style.background = "rgba(20,30,50,0.8)";
+      btns[i].style.background = "rgba(35, 26, 16, 0.8)";
     }
   }
 }
@@ -378,19 +367,20 @@ export function updatePlayerList(players, localPlayerId) {
     var row = document.createElement("div");
     row.style.cssText = [
       "display:flex", "justify-content:space-between", "align-items:center",
-      "padding:6px 10px", "background:rgba(20,30,50,0.6)",
-      "border:1px solid " + C.border, "border-radius:4px"
+      "padding:6px 10px", "background:rgba(35, 26, 16, 0.6)",
+      "border:1px solid " + T.border, "border-radius:4px",
+      "font-family:" + FONT
     ].join(";");
 
     var nameSpan = document.createElement("span");
     nameSpan.textContent = (pid === localPlayerId ? "> " : "") + p.username;
-    nameSpan.style.cssText = "font-size:13px;color:" + (pid === localPlayerId ? C.blue : C.text) + ";";
+    nameSpan.style.cssText = "font-size:13px;color:" + (pid === localPlayerId ? T.blueBright : T.text) + ";";
     row.appendChild(nameSpan);
 
     var infoSpan = document.createElement("span");
     var classes = getAllClasses();
     var classCfg = classes[p.shipClass];
-    var classColor = classCfg ? classCfg.color : C.text;
+    var classColor = classCfg ? classCfg.color : T.text;
     var classLabel = classCfg ? classCfg.name : p.shipClass;
     infoSpan.style.cssText = "font-size:11px;display:flex;gap:8px;align-items:center;";
 
@@ -402,10 +392,10 @@ export function updatePlayerList(players, localPlayerId) {
     var readyEl = document.createElement("span");
     if (p.isHost) {
       readyEl.textContent = "HOST";
-      readyEl.style.color = C.yellow;
+      readyEl.style.color = T.gold;
     } else {
       readyEl.textContent = p.ready ? "READY" : "NOT READY";
-      readyEl.style.color = p.ready ? C.green : C.red;
+      readyEl.style.color = p.ready ? T.greenBright : T.redBright;
     }
     infoSpan.appendChild(readyEl);
 
@@ -418,8 +408,8 @@ export function updatePlayerList(players, localPlayerId) {
 export function updateReadyButton(isReady) {
   if (!readyBtn) return;
   readyBtn.textContent = isReady ? "NOT READY" : "READY";
-  readyBtn.style.color = isReady ? C.red : C.green;
-  readyBtn.style.borderColor = isReady ? C.red : C.green;
+  readyBtn.style.color = isReady ? T.redBright : T.greenBright;
+  readyBtn.style.borderColor = isReady ? T.redBright : T.greenBright;
 }
 
 // --- update start button state ---

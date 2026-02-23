@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0e1a">
+  <meta name="theme-color" content="#1a1408">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Ocean Outlaws — browser-based naval combat. Build your fleet, upgrade your ship, defeat the enemy fleets.">
@@ -12,16 +12,16 @@
   <link rel="apple-touch-icon" href="game/icons/icon-192.png">
   <link rel="manifest" href="game/manifest.json">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       min-height: 100vh;
       min-height: 100dvh;
-      background: #0a0e1a;
-      color: #c8d0e0;
-      font-family: 'Space Mono', monospace;
+      background: #1a1408;
+      color: #e8d5a8;
+      font-family: 'Cinzel', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
       overflow-x: hidden;
       -webkit-tap-highlight-color: transparent;
     }
@@ -32,7 +32,7 @@
       top: 0; left: 0;
       width: 100%; height: 100%;
       z-index: 0;
-      background: linear-gradient(180deg, #0a0e1a 0%, #0c1628 40%, #0f1f3a 70%, #112244 100%);
+      background: linear-gradient(180deg, #1a1408 0%, #1e1a10 40%, #14202a 70%, #0e1a2a 100%);
     }
 
     .wave {
@@ -45,7 +45,7 @@
     }
 
     .wave svg { width: 100%; height: 100%; }
-    .wave path { fill: #1a4a7a; }
+    .wave path { fill: #2a3a4a; }
 
     .wave:nth-child(2) {
       bottom: 8px;
@@ -85,13 +85,13 @@
       height: 120px;
       border-radius: 20px;
       margin-bottom: 24px;
-      box-shadow: 0 0 60px rgba(26, 74, 122, 0.4), 0 0 120px rgba(26, 74, 122, 0.15);
+      box-shadow: 0 0 60px rgba(212, 164, 74, 0.3), 0 0 120px rgba(212, 164, 74, 0.1);
       animation: glow 4s ease-in-out infinite alternate;
     }
 
     @keyframes glow {
-      from { box-shadow: 0 0 40px rgba(26, 74, 122, 0.4), 0 0 80px rgba(26, 74, 122, 0.15); }
-      to { box-shadow: 0 0 60px rgba(45, 100, 160, 0.5), 0 0 120px rgba(45, 100, 160, 0.2); }
+      from { box-shadow: 0 0 40px rgba(212, 164, 74, 0.3), 0 0 80px rgba(212, 164, 74, 0.1); }
+      to { box-shadow: 0 0 60px rgba(240, 200, 96, 0.4), 0 0 120px rgba(240, 200, 96, 0.15); }
     }
 
     h1 {
@@ -100,7 +100,7 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
       margin-bottom: 8px;
-      background: linear-gradient(135deg, #6899cc, #d4a44a);
+      background: linear-gradient(135deg, #d4a44a, #f0c860);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -109,7 +109,7 @@
 
     .tagline {
       font-size: clamp(0.75rem, 2vw, 1.1rem);
-      color: #5a6a80;
+      color: #8b7a5a;
       margin-bottom: 32px;
       letter-spacing: 0.08em;
       text-align: center;
@@ -129,17 +129,17 @@
       display: block;
       width: 100%;
       padding: 16px 32px;
-      font-family: 'Space Mono', monospace;
+      font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
       font-size: 1.1rem;
       font-weight: 700;
       letter-spacing: 0.2em;
       text-transform: uppercase;
       text-decoration: none;
       text-align: center;
-      color: #0a0e1a;
+      color: #1a1408;
       background: linear-gradient(135deg, #d4a44a, #c8923a);
       border: none;
-      border-radius: 8px;
+      border-radius: 4px;
       cursor: pointer;
       transition: all 0.2s ease;
       box-shadow: 0 4px 24px rgba(212, 164, 74, 0.3);
@@ -161,16 +161,16 @@
       display: none;
       width: 100%;
       padding: 14px 32px;
-      font-family: 'Space Mono', monospace;
+      font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
       font-size: 0.85rem;
       font-weight: 700;
       letter-spacing: 0.15em;
       text-transform: uppercase;
       text-align: center;
-      color: #8899bb;
-      background: rgba(26, 40, 70, 0.6);
-      border: 1px solid rgba(104, 153, 204, 0.2);
-      border-radius: 8px;
+      color: #c4a872;
+      background: rgba(60, 45, 28, 0.6);
+      border: 1px solid rgba(139, 109, 68, 0.3);
+      border-radius: 4px;
       cursor: pointer;
       transition: all 0.2s ease;
       -webkit-touch-callout: none;
@@ -178,9 +178,9 @@
     }
 
     .install-btn:hover {
-      background: rgba(26, 40, 70, 0.8);
-      border-color: rgba(104, 153, 204, 0.4);
-      color: #aabbdd;
+      background: rgba(60, 45, 28, 0.8);
+      border-color: rgba(139, 109, 68, 0.5);
+      color: #e8d5a8;
     }
 
     .install-btn.visible {
@@ -200,9 +200,9 @@
     .feature {
       text-align: center;
       padding: 16px 12px;
-      border: 1px solid rgba(104, 153, 204, 0.08);
-      border-radius: 8px;
-      background: rgba(15, 20, 35, 0.5);
+      border: 1px solid rgba(139, 109, 68, 0.15);
+      border-radius: 6px;
+      background: rgba(40, 30, 18, 0.5);
     }
 
     .feature-icon {
@@ -212,7 +212,7 @@
 
     .feature h3 {
       font-size: 0.7rem;
-      color: #8899aa;
+      color: #c4a872;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       margin-bottom: 4px;
@@ -220,7 +220,7 @@
 
     .feature p {
       font-size: 0.65rem;
-      color: #4a5a6a;
+      color: #8b7a5a;
       line-height: 1.4;
     }
 
@@ -235,7 +235,7 @@
 
     .badge {
       font-size: 0.65rem;
-      color: #3a5a7a;
+      color: #8b7a5a;
       letter-spacing: 0.05em;
       display: flex;
       align-items: center;
@@ -243,8 +243,8 @@
     }
 
     .badge::before {
-      content: '✓';
-      color: #4a7a5a;
+      content: '\2713';
+      color: #5a9a4a;
       font-size: 0.7rem;
     }
 
@@ -254,11 +254,11 @@
       text-align: center;
       padding: 20px;
       font-size: 0.65rem;
-      color: #2a3a4a;
+      color: #5a4a32;
       letter-spacing: 0.05em;
     }
 
-    footer a { color: #4a6a8a; text-decoration: none; }
+    footer a { color: #8b7a5a; text-decoration: none; }
 
     /* Desktop */
     @media (min-width: 768px) {
@@ -305,22 +305,22 @@
 
     <div class="features">
       <div class="feature">
-        <div class="feature-icon">⚓</div>
+        <div class="feature-icon">&#9875;</div>
         <h3>4 Ship Classes</h3>
         <p>Sloop, Brigantine, Galleon, Man-o'-War — each with unique abilities</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🌊</div>
+        <div class="feature-icon">&#127754;</div>
         <h3>Dynamic Ocean</h3>
         <p>Real-time waves, weather systems, day-night cycles</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">⚔️</div>
+        <div class="feature-icon">&#9876;&#65039;</div>
         <h3>Fleet Survival</h3>
         <p>Fight through enemy fleets, hunt bosses, collect gold</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🔧</div>
+        <div class="feature-icon">&#128295;</div>
         <h3>Upgrade & Progress</h3>
         <p>Tech tree, ship upgrades, persistent progression</p>
       </div>
@@ -368,11 +368,11 @@
 
     // iOS detection — show manual install hint
     if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.navigator.standalone) {
-      installBtn.textContent = 'Add to Home Screen ↗';
+      installBtn.textContent = 'Add to Home Screen \u2197';
       installBtn.classList.add('visible');
       installBtn.addEventListener('click', function () {
         if (!deferredPrompt) {
-          alert('Tap the Share button (↗) in Safari, then "Add to Home Screen"');
+          alert('Tap the Share button (\u2197) in Safari, then "Add to Home Screen"');
         }
       });
     }

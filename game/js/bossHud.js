@@ -1,4 +1,6 @@
 // bossHud.js — boss HP bar at top of screen, segmented by phases
+import { T, FONT } from "./theme.js";
+
 var container = null;
 var nameLabel = null;
 var barBg = null;
@@ -19,7 +21,7 @@ export function createBossHud() {
     "flex-direction: column",
     "align-items: center",
     "pointer-events: none",
-    "font-family: monospace",
+    "font-family: " + FONT,
     "z-index: 15",
     "user-select: none"
   ].join(";");
@@ -29,8 +31,8 @@ export function createBossHud() {
   nameLabel.style.cssText = [
     "font-size: 18px",
     "font-weight: bold",
-    "color: #cc4444",
-    "text-shadow: 0 0 10px rgba(200,60,60,0.5)",
+    "color: " + T.redBright,
+    "text-shadow: 0 0 10px rgba(170,51,51,0.5)",
     "margin-bottom: 6px"
   ].join(";");
   nameLabel.textContent = "BOSS";
@@ -42,8 +44,8 @@ export function createBossHud() {
     "width: 400px",
     "max-width: 80vw",
     "height: 16px",
-    "background: rgba(20, 10, 10, 0.8)",
-    "border: 1px solid rgba(200, 60, 60, 0.5)",
+    "background: rgba(40, 20, 14, 0.8)",
+    "border: 1px solid " + T.redBright + "88",
     "border-radius: 4px",
     "overflow: hidden",
     "position: relative"
@@ -65,7 +67,7 @@ export function createBossHud() {
   phaseLabel = document.createElement("div");
   phaseLabel.style.cssText = [
     "font-size: 12px",
-    "color: #aa6666",
+    "color: " + T.textDim,
     "margin-top: 4px"
   ].join(";");
   phaseLabel.textContent = "";
@@ -80,11 +82,11 @@ export function createBossHud() {
     "top: 15%",
     "left: 50%",
     "transform: translateX(-50%)",
-    "font-family: monospace",
+    "font-family: " + FONT,
     "font-size: 24px",
     "font-weight: bold",
-    "color: #ffcc44",
-    "text-shadow: 0 0 15px rgba(255,200,60,0.5)",
+    "color: " + T.gold,
+    "text-shadow: 0 0 15px rgba(212,164,74,0.5)",
     "pointer-events: none",
     "user-select: none",
     "z-index: 20",

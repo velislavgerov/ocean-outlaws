@@ -4,6 +4,7 @@ import {
   getNextIndex, getTechBonuses, loadTechState
 } from "./techTree.js";
 import { isMobile } from "./mobile.js";
+import { T, FONT, PARCHMENT_BG } from "./theme.js";
 
 var root = null;
 var currentState = null;
@@ -25,9 +26,9 @@ export function createTechScreen() {
     "flex-direction: column",
     "align-items: center",
     "justify-content: flex-start",
-    "background: rgba(5, 5, 15, 0.94)",
+    "background:" + T.bgOverlay,
     "z-index: 92",
-    "font-family: monospace",
+    "font-family:" + FONT,
     "user-select: none",
     "overflow-y: auto",
     "padding: " + (_mob ? "12px 0" : "20px 0")
@@ -39,22 +40,25 @@ export function createTechScreen() {
   title.style.cssText = [
     "font-size: " + (_mob ? "24px" : "36px"),
     "font-weight: bold",
-    "color: #ffcc44",
+    "color:" + T.gold,
+    "font-family:" + FONT,
     "margin-bottom: 4px",
-    "text-shadow: 0 0 15px rgba(255,200,60,0.4)"
+    "text-shadow: 0 0 15px rgba(212,164,74,0.4), 0 1px 3px rgba(0,0,0,0.5)"
   ].join(";");
   root.appendChild(title);
 
   var subtitle = document.createElement("div");
   subtitle.textContent = _mob ? "Permanent upgrades" : "Permanent upgrades — persists across runs";
-  subtitle.style.cssText = "font-size:13px;color:#667788;margin-bottom:8px";
+  subtitle.style.cssText = "font-size:13px;color:" + T.textDim + ";font-family:" + FONT + ";margin-bottom:8px";
   root.appendChild(subtitle);
 
   // salvage display
   salvageLabel = document.createElement("div");
   salvageLabel.style.cssText = [
     "font-size: " + (_mob ? "16px" : "18px"),
-    "color: #ffcc44",
+    "color:" + T.gold,
+    "font-family:" + FONT,
+    "text-shadow: 0 1px 3px rgba(0,0,0,0.4)",
     "margin-bottom: " + (_mob ? "10px" : "16px")
   ].join(";");
   root.appendChild(salvageLabel);
@@ -88,19 +92,19 @@ export function createTechScreen() {
   var btn = document.createElement("button");
   btn.textContent = "CONTINUE";
   btn.style.cssText = [
-    "font-family: monospace",
+    "font-family:" + FONT,
     "font-size: 20px",
     "padding: 14px 48px",
     "min-height: 44px",
     "margin-top: 10px",
     "margin-bottom: 20px",
-    "background: rgba(40, 80, 60, 0.8)",
-    "color: #44dd66",
-    "border: 1px solid rgba(60, 140, 90, 0.6)",
+    "background:" + T.bgLight,
+    "color:" + T.greenBright,
+    "border: 1px solid " + T.border,
     "border-radius: 6px",
     "cursor: pointer",
     "pointer-events: auto",
-    "text-shadow: 0 0 10px rgba(60,200,90,0.3)"
+    "text-shadow: 0 1px 3px rgba(0,0,0,0.4)"
   ].join(";");
   btn.addEventListener("click", function () {
     hideTechScreen();
@@ -116,7 +120,7 @@ function buildBranchPanel(branchKey, branch) {
   var _mob = isMobile();
   var el = document.createElement("div");
   el.style.cssText = [
-    "background: rgba(15, 20, 35, 0.8)",
+    PARCHMENT_BG,
     "border: 1px solid " + branch.color + "33",
     "border-radius: 10px",
     "padding: " + (_mob ? "12px" : "16px"),
@@ -132,10 +136,11 @@ function buildBranchPanel(branchKey, branch) {
   heading.style.cssText = [
     "font-size: 18px",
     "font-weight: bold",
+    "font-family:" + FONT,
     "color: " + branch.color,
     "margin-bottom: 12px",
     "text-align: center",
-    "text-shadow: 0 0 10px " + branch.color + "44"
+    "text-shadow: 0 0 10px " + branch.color + "44, 0 1px 2px rgba(0,0,0,0.5)"
   ].join(";");
   el.appendChild(heading);
 
@@ -187,7 +192,7 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
     "padding: " + (_mob ? "12px 14px" : "10px 12px"),
     "min-height: 44px",
     "border-radius: 8px",
-    "background: rgba(20, 25, 40, 0.7)",
+    "background: rgba(30, 22, 14, 0.6)",
     "border: 2px solid " + branch.color + "33",
     "cursor: pointer",
     "pointer-events: auto",
@@ -210,6 +215,7 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
     "align-items: center",
     "justify-content: center",
     "font-size: 14px",
+    "font-family:" + FONT,
     "color: " + branch.color,
     "font-weight: bold",
     "flex-shrink: 0"
@@ -218,7 +224,7 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
   topRow.appendChild(icon);
 
   var nameEl = document.createElement("div");
-  nameEl.style.cssText = "font-size:14px;font-weight:bold;color:#ccddee";
+  nameEl.style.cssText = "font-size:14px;font-weight:bold;color:" + T.textLight + ";font-family:" + FONT;
   nameEl.textContent = node.label;
   topRow.appendChild(nameEl);
 
@@ -226,7 +232,7 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
 
   // description
   var descEl = document.createElement("div");
-  descEl.style.cssText = "font-size:11px;color:#8899aa;margin-bottom:6px;margin-left:36px";
+  descEl.style.cssText = "font-size:11px;color:" + T.text + ";margin-bottom:6px;margin-left:36px;font-family:" + FONT;
   descEl.textContent = node.desc;
   el.appendChild(descEl);
 
@@ -235,11 +241,11 @@ function buildNodeEl(branchKey, nodeIndex, branch) {
   costRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-left:36px";
 
   var costLabel = document.createElement("span");
-  costLabel.style.cssText = "font-size:12px;color:#667788";
+  costLabel.style.cssText = "font-size:12px;color:" + T.textDim + ";font-family:" + FONT;
   costRow.appendChild(costLabel);
 
   var statusLabel = document.createElement("span");
-  statusLabel.style.cssText = "font-size:11px;font-weight:bold";
+  statusLabel.style.cssText = "font-size:11px;font-weight:bold;font-family:" + FONT;
   costRow.appendChild(statusLabel);
 
   el.appendChild(costRow);
@@ -323,28 +329,28 @@ function refreshUI() {
       } else if (isNext) {
         // next available
         nEl.el.style.borderColor = affordable ? bPanel.color + "aa" : bPanel.color + "44";
-        nEl.el.style.background = affordable ? "rgba(30, 40, 60, 0.8)" : "rgba(20, 25, 40, 0.7)";
+        nEl.el.style.background = affordable ? "rgba(45, 34, 20, 0.8)" : "rgba(30, 22, 14, 0.6)";
         nEl.icon.style.background = bPanel.color + "33";
         nEl.icon.style.borderColor = bPanel.color + "88";
         nEl.icon.style.color = bPanel.color;
-        nEl.nameEl.style.color = "#aabbcc";
+        nEl.nameEl.style.color = T.textLight;
         nEl.costLabel.textContent = node.cost + " gold";
-        nEl.costLabel.style.color = affordable ? "#aabbcc" : "#556677";
+        nEl.costLabel.style.color = affordable ? T.textLight : T.textDim;
         nEl.statusLabel.textContent = affordable ? "UNLOCK" : "LOCKED";
-        nEl.statusLabel.style.color = affordable ? "#44dd66" : "#556677";
+        nEl.statusLabel.style.color = affordable ? T.greenBright : T.textDim;
         nEl.el.style.cursor = affordable ? "pointer" : "default";
       } else {
         // locked (prerequisite not met)
-        nEl.el.style.borderColor = "#222233";
-        nEl.el.style.background = "rgba(15, 18, 30, 0.5)";
-        nEl.icon.style.background = "#1a1a2a";
-        nEl.icon.style.borderColor = "#333344";
-        nEl.icon.style.color = "#444455";
-        nEl.nameEl.style.color = "#445566";
+        nEl.el.style.borderColor = "#2a1e12";
+        nEl.el.style.background = "rgba(20, 14, 8, 0.5)";
+        nEl.icon.style.background = "#1e1408";
+        nEl.icon.style.borderColor = "#3a2a18";
+        nEl.icon.style.color = T.textDark;
+        nEl.nameEl.style.color = T.textDim;
         nEl.costLabel.textContent = node.cost + " gold";
-        nEl.costLabel.style.color = "#334455";
+        nEl.costLabel.style.color = T.textDark;
         nEl.statusLabel.textContent = "LOCKED";
-        nEl.statusLabel.style.color = "#334455";
+        nEl.statusLabel.style.color = T.textDark;
         nEl.el.style.cursor = "default";
       }
     }

@@ -1,14 +1,15 @@
 // uiEffects.js — damage indicators, floating damage numbers, kill feed, fade transitions
+import { T, FONT } from "./theme.js";
 
 var COLORS = {
-  bg: "rgba(5,10,20,0.7)",
-  border: "rgba(80,100,130,0.4)",
-  textMuted: "#667788",
-  textNormal: "#8899aa",
-  damage: "#ff4444",
-  heal: "#44dd66",
-  kill: "#ffcc44",
-  event: "#44aaff"
+  bg: T.bg,
+  border: T.border,
+  textMuted: T.textDim,
+  textNormal: T.text,
+  damage: T.redBright,
+  heal: T.greenBright,
+  kill: T.gold,
+  event: T.blueBright
 };
 
 // --- damage direction indicators ---
@@ -98,7 +99,7 @@ export function showFloatingNumber(screenX, screenY, text, color) {
   var el = document.createElement("div");
   el.textContent = text;
   el.style.cssText = [
-    "position:absolute", "font-family:monospace", "font-weight:bold",
+    "position:absolute", "font-family:" + FONT, "font-weight:bold",
     "font-size:16px", "color:" + (color || COLORS.damage),
     "text-shadow:0 0 6px " + (color || COLORS.damage),
     "pointer-events:none", "white-space:nowrap",
@@ -139,7 +140,7 @@ function ensureKillFeed() {
   killFeedContainer = document.createElement("div");
   killFeedContainer.style.cssText = [
     "position:fixed", "bottom:20px", "right:20px",
-    "font-family:monospace", "font-size:12px",
+    "font-family:" + FONT, "font-size:12px",
     "pointer-events:none", "z-index:10",
     "display:flex", "flex-direction:column-reverse", "gap:3px",
     "max-width:280px"
@@ -192,7 +193,7 @@ function ensureFadeOverlay() {
   fadeOverlay = document.createElement("div");
   fadeOverlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
-    "background:#0a0e1a", "pointer-events:none", "z-index:200",
+    "background:#1a1408", "pointer-events:none", "z-index:200",
     "opacity:0"
   ].join(";");
   document.body.appendChild(fadeOverlay);

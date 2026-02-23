@@ -2,6 +2,7 @@
 
 import { getZones, loadMapState, isZoneUnlocked, getZoneStars } from "./mapData.js";
 import { isMobile } from "./mobile.js";
+import { T, FONT } from "./theme.js";
 
 var overlay = null;
 var mapCanvas = null;
@@ -13,9 +14,9 @@ var tooltipEl = null;
 var zoneHitAreas = [];   // {id, cx, cy, r} for click detection
 
 var CONDITION_COLORS = {
-  calm: "#22aa66",
-  rough: "#ccaa22",
-  stormy: "#cc4455"
+  calm: T.greenBright,
+  rough: T.gold,
+  stormy: T.redBright
 };
 
 // --- create the map screen (call once) ---
@@ -32,9 +33,9 @@ export function createMapScreen() {
     "flex-direction: column",
     "align-items: center",
     _mob ? "justify-content: flex-start" : "justify-content: center",
-    "background: rgba(5, 5, 15, 0.95)",
+    "background:" + T.bgOverlay,
     "z-index: 150",
-    "font-family: monospace",
+    "font-family:" + FONT,
     "user-select: none",
     "overflow-y: auto",
     _mob ? "padding: 12px 0" : ""
@@ -42,13 +43,13 @@ export function createMapScreen() {
 
   // title
   var title = document.createElement("div");
-  title.textContent = "STRATEGIC MAP";
+  title.textContent = "NAUTICAL CHART";
   title.style.cssText = [
     "font-size: 28px",
     "font-weight: bold",
-    "color: #aa9966",
+    "color:" + T.gold,
     "margin-bottom: 12px",
-    "text-shadow: 0 0 15px rgba(170,150,100,0.3)",
+    "text-shadow: 0 2px 4px rgba(0,0,0,0.6)",
     "letter-spacing: 4px"
   ].join(";");
   overlay.appendChild(title);
@@ -58,7 +59,7 @@ export function createMapScreen() {
   subtitle.textContent = "Select a zone to deploy";
   subtitle.style.cssText = [
     "font-size: 13px",
-    "color: #667755",
+    "color:" + T.textDim,
     "margin-bottom: 16px"
   ].join(";");
   overlay.appendChild(subtitle);
@@ -79,7 +80,7 @@ export function createMapScreen() {
   mapCanvas.style.cssText = [
     "width: 100%",
     "height: 100%",
-    "border: 2px solid rgba(120, 110, 80, 0.4)",
+    "border: 2px solid " + T.borderGold,
     "border-radius: 6px",
     "cursor: pointer"
   ].join(";");
@@ -91,11 +92,12 @@ export function createMapScreen() {
   tooltipEl.style.cssText = [
     "position: absolute",
     "padding: 10px 14px",
-    "background: rgba(10, 15, 25, 0.95)",
-    "border: 1px solid rgba(120, 110, 80, 0.5)",
-    "border-radius: 6px",
+    "background:" + T.bgDark,
+    "border: 1px solid " + T.borderGold,
+    "border-radius: 4px",
     "font-size: 12px",
-    "color: #aabbaa",
+    "font-family:" + FONT,
+    "color:" + T.text,
     "pointer-events: none",
     "display: none",
     _mob ? "white-space: normal;max-width: 200px" : "white-space: nowrap",
@@ -110,14 +112,15 @@ export function createMapScreen() {
   legend.style.cssText = [
     "margin-top: 12px",
     "font-size: 11px",
-    "color: #667755",
+    "color:" + T.textDim,
     "display: flex",
-    "gap: 16px"
+    "gap: 16px",
+    "font-family:" + FONT
   ].join(";");
-  legend.innerHTML = '<span style="color:#22aa66">&#9679; Calm</span>' +
-    '<span style="color:#ccaa22">&#9679; Rough</span>' +
-    '<span style="color:#cc4455">&#9679; Stormy</span>' +
-    '<span style="color:#556666">&#9679; Locked</span>';
+  legend.innerHTML = '<span style="color:' + T.greenBright + '">&#9679; Calm</span>' +
+    '<span style="color:' + T.gold + '">&#9679; Rough</span>' +
+    '<span style="color:' + T.redBright + '">&#9679; Stormy</span>' +
+    '<span style="color:' + T.textDark + '">&#9679; Locked</span>';
   overlay.appendChild(legend);
 
   // event listeners
@@ -205,15 +208,15 @@ function showTooltipForZone(zoneId, touch) {
   var starStr = stars > 0 ? " " + starString(stars) : "";
 
   tooltipEl.innerHTML = '<div style="font-size:14px;font-weight:bold;color:' +
-    (unlocked ? "#ccccaa" : "#556666") + ';margin-bottom:4px">' +
+    (unlocked ? T.textLight : T.textDark) + ';margin-bottom:4px">' +
     zone.name + starStr + '</div>' +
-    '<div style="color:#889988">Difficulty: ' + zone.difficulty + '/6</div>' +
+    '<div style="color:' + T.text + '">Difficulty: ' + zone.difficulty + '/6</div>' +
     '<div style="color:' + CONDITION_COLORS[zone.condition] + '">Seas: ' +
     zone.condition.charAt(0).toUpperCase() + zone.condition.slice(1) + '</div>' +
-    '<div style="color:#778877">' + zone.waves + ' waves</div>' +
-    '<div style="color:#778877;margin-top:4px;font-style:italic">' + zone.description + '</div>' +
-    (unlocked ? '<div style="color:#aacc88;margin-top:6px">Tap again to deploy</div>' :
-      '<div style="color:#665555;margin-top:6px">Complete adjacent zone to unlock</div>');
+    '<div style="color:' + T.textDim + '">' + zone.waves + ' waves</div>' +
+    '<div style="color:' + T.textDim + ';margin-top:4px;font-style:italic">' + zone.description + '</div>' +
+    (unlocked ? '<div style="color:' + T.greenBright + ';margin-top:6px">Tap again to deploy</div>' :
+      '<div style="color:' + T.brownDark + ';margin-top:6px">Complete adjacent zone to unlock</div>');
 
   var rect = mapCanvas.getBoundingClientRect();
   var tx = touch.clientX - rect.left + 16;
@@ -252,15 +255,15 @@ function onMouseMove(e) {
       var starStr = stars > 0 ? " " + starString(stars) : "";
 
       tooltipEl.innerHTML = '<div style="font-size:14px;font-weight:bold;color:' +
-        (unlocked ? "#ccccaa" : "#556666") + ';margin-bottom:4px">' +
+        (unlocked ? T.textLight : T.textDark) + ';margin-bottom:4px">' +
         zone.name + starStr + '</div>' +
-        '<div style="color:#889988">Difficulty: ' + zone.difficulty + '/6</div>' +
+        '<div style="color:' + T.text + '">Difficulty: ' + zone.difficulty + '/6</div>' +
         '<div style="color:' + CONDITION_COLORS[zone.condition] + '">Seas: ' +
         zone.condition.charAt(0).toUpperCase() + zone.condition.slice(1) + '</div>' +
-        '<div style="color:#778877">' + zone.waves + ' waves</div>' +
-        '<div style="color:#778877;margin-top:4px;font-style:italic">' + zone.description + '</div>' +
-        (unlocked ? '<div style="color:#aacc88;margin-top:6px">Click to deploy</div>' :
-          '<div style="color:#665555;margin-top:6px">Complete adjacent zone to unlock</div>');
+        '<div style="color:' + T.textDim + '">' + zone.waves + ' waves</div>' +
+        '<div style="color:' + T.textDim + ';margin-top:4px;font-style:italic">' + zone.description + '</div>' +
+        (unlocked ? '<div style="color:' + T.greenBright + ';margin-top:6px">Click to deploy</div>' :
+          '<div style="color:' + T.brownDark + ';margin-top:6px">Complete adjacent zone to unlock</div>');
 
       // position tooltip near mouse
       var rect = mapCanvas.getBoundingClientRect();
@@ -310,16 +313,16 @@ function drawMap() {
   // clear
   ctx.clearRect(0, 0, W, H);
 
-  // background — dark ocean with parchment tint
+  // background — aged parchment
   var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, "#0a0f18");
-  bgGrad.addColorStop(0.5, "#0d1420");
-  bgGrad.addColorStop(1, "#08101a");
+  bgGrad.addColorStop(0, "#2a1e12");
+  bgGrad.addColorStop(0.5, "#241a10");
+  bgGrad.addColorStop(1, "#1e150c");
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
   // grid lines (nautical chart)
-  ctx.strokeStyle = "rgba(80, 90, 70, 0.12)";
+  ctx.strokeStyle = "rgba(139, 109, 68, 0.12)";
   ctx.lineWidth = 1;
   for (var gx = 0; gx < W; gx += 40) {
     ctx.beginPath();
@@ -357,7 +360,7 @@ function drawMap() {
 
       var bothUnlocked = isZoneUnlocked(currentState, z.id) &&
                           isZoneUnlocked(currentState, other.id);
-      ctx.strokeStyle = bothUnlocked ? "rgba(120, 110, 80, 0.4)" : "rgba(60, 60, 60, 0.2)";
+      ctx.strokeStyle = bothUnlocked ? "rgba(212, 164, 74, 0.4)" : "rgba(80, 60, 35, 0.2)";
       ctx.setLineDash(bothUnlocked ? [] : [6, 4]);
       ctx.beginPath();
       ctx.moveTo(cx1, cy1);
@@ -390,15 +393,15 @@ function drawMap() {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     if (unlocked) {
-      ctx.fillStyle = "rgba(15, 20, 30, 0.9)";
+      ctx.fillStyle = "rgba(40, 30, 18, 0.9)";
       ctx.fill();
       ctx.strokeStyle = CONDITION_COLORS[z.condition] || "#888888";
       ctx.lineWidth = isHovered ? 3 : 2;
       ctx.stroke();
     } else {
-      ctx.fillStyle = "rgba(15, 15, 20, 0.7)";
+      ctx.fillStyle = "rgba(25, 18, 10, 0.7)";
       ctx.fill();
-      ctx.strokeStyle = "rgba(60, 60, 60, 0.4)";
+      ctx.strokeStyle = "rgba(80, 60, 35, 0.3)";
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -407,21 +410,21 @@ function drawMap() {
     ctx.shadowBlur = 0;
 
     // difficulty number
-    ctx.fillStyle = unlocked ? "#ccccaa" : "#444444";
-    ctx.font = "bold 16px monospace";
+    ctx.fillStyle = unlocked ? T.cream : "#4a3a22";
+    ctx.font = "bold 16px serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(String(z.difficulty), cx, cy);
 
     // zone name below
-    ctx.fillStyle = unlocked ? "rgba(170, 160, 120, 0.8)" : "rgba(60, 60, 60, 0.5)";
-    ctx.font = "10px monospace";
+    ctx.fillStyle = unlocked ? "rgba(196, 168, 114, 0.8)" : "rgba(80, 60, 35, 0.5)";
+    ctx.font = "10px serif";
     ctx.fillText(z.name, cx, cy + r + 14);
 
     // star rating below name
     if (stars > 0) {
-      ctx.fillStyle = "#ccaa44";
-      ctx.font = "12px monospace";
+      ctx.fillStyle = T.gold;
+      ctx.font = "12px serif";
       ctx.fillText(starString(stars), cx, cy + r + 28);
     }
   }
@@ -430,8 +433,8 @@ function drawMap() {
 // --- compass rose decoration ---
 function drawCompassRose(ctx, cx, cy, r) {
   ctx.save();
-  ctx.strokeStyle = "rgba(120, 110, 80, 0.3)";
-  ctx.fillStyle = "rgba(120, 110, 80, 0.2)";
+  ctx.strokeStyle = "rgba(212, 164, 74, 0.3)";
+  ctx.fillStyle = "rgba(212, 164, 74, 0.2)";
   ctx.lineWidth = 1;
 
   // outer circle
@@ -446,10 +449,10 @@ function drawCompassRose(ctx, cx, cy, r) {
     { label: "E", angle: 0 },
     { label: "W", angle: Math.PI }
   ];
-  ctx.font = "bold 10px monospace";
+  ctx.font = "bold 10px serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(120, 110, 80, 0.5)";
+  ctx.fillStyle = "rgba(212, 164, 74, 0.5)";
 
   for (var d = 0; d < dirs.length; d++) {
     var a = dirs[d].angle;

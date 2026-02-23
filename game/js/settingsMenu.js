@@ -3,31 +3,21 @@
 
 import { exportSave, importSave, deleteSave, hasSave } from "./save.js";
 import { getQuality, setQuality, isMobile } from "./mobile.js";
-
-var C = {
-  bg: "rgba(5,10,20,0.85)",
-  bgLight: "rgba(20,30,50,0.8)",
-  border: "rgba(80,100,130,0.4)",
-  text: "#8899aa",
-  textDim: "#667788",
-  yellow: "#ffcc44",
-  red: "#cc4444",
-  green: "#44aa66",
-  blueBright: "#2288cc",
-  orange: "#cc8822"
-};
+import { T, FONT, PARCHMENT_BG } from "./theme.js";
 
 var BTN = [
-  "font-family:monospace", "font-size:14px", "padding:10px 20px",
+  "font-family:" + FONT, "font-size:14px", "padding:10px 20px",
   "border-radius:4px", "cursor:pointer", "pointer-events:auto",
   "user-select:none", "text-align:center", "min-width:200px",
-  "border:1px solid " + C.border, "background:" + C.bgLight,
-  "color:" + C.text, "margin:6px 0"
+  "border:1px solid " + T.border, "background:" + T.bgLight,
+  "color:" + T.text, "margin:6px 0",
+  "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
 ].join(";");
 
 var INFO_ROW = [
-  "font-family:monospace", "font-size:13px", "color:" + C.text,
-  "padding:3px 0", "text-align:left"
+  "font-family:" + FONT, "font-size:13px", "color:" + T.text,
+  "padding:3px 0", "text-align:left",
+  "text-shadow:0 1px 2px rgba(0,0,0,0.3)"
 ].join(";");
 
 var gearBtn = null;
@@ -79,11 +69,12 @@ export function createSettingsMenu(callbacks) {
   var gearSize = _mob ? "min-width:44px;min-height:44px;font-size:28px;padding:8px;display:flex;align-items:center;justify-content:center;" : "font-size:24px;padding:4px;";
   gearBtn.style.cssText = [
     "position:fixed", "top:16px", "right:" + gearRight + "px",
-    "color:" + C.text, "cursor:pointer",
+    "color:" + T.text, "cursor:pointer",
     "pointer-events:auto", "user-select:none", "z-index:15",
-    "font-family:monospace", "line-height:1",
-    "border-radius:4px", "background:" + C.bgLight,
-    "border:1px solid " + C.border
+    "font-family:" + FONT, "line-height:1",
+    "border-radius:4px", "background:" + T.bgLight,
+    "border:1px solid " + T.border,
+    "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
   ].join(";") + ";" + gearSize;
   gearBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -96,23 +87,24 @@ export function createSettingsMenu(callbacks) {
   menuPanel.style.cssText = [
     "position:fixed", "top:50%", "left:50%",
     "transform:translate(-50%,-50%)",
-    "background:" + C.bg, "border:1px solid " + C.border,
-    "border-radius:8px", "padding:24px 32px",
-    "font-family:monospace", "color:" + C.text,
+    PARCHMENT_BG, "border:1px solid " + T.border,
+    "border-radius:6px", "padding:24px 32px",
+    "font-family:" + FONT, "color:" + T.text,
     "z-index:200", "display:none", "text-align:center",
     "min-width:280px", "max-height:80vh", "overflow-y:auto",
-    "pointer-events:auto"
+    "pointer-events:auto",
+    "box-shadow:inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)"
   ].join(";");
 
   var title = document.createElement("div");
-  title.textContent = "SETTINGS";
-  title.style.cssText = "font-size:20px;font-weight:bold;color:" + C.yellow + ";margin-bottom:16px;";
+  title.textContent = "CAPTAIN\u2019S LOG";
+  title.style.cssText = "font-size:20px;font-weight:bold;color:" + T.gold + ";margin-bottom:16px;text-shadow:0 1px 3px rgba(0,0,0,0.5);";
   menuPanel.appendChild(title);
 
   // === GAME INFO SECTION (moved from HUD) ===
   infoSection = document.createElement("div");
   infoSection.style.cssText = [
-    "background:" + C.bgLight, "border:1px solid " + C.border,
+    "background:" + T.bgLight, "border:1px solid " + T.border,
     "border-radius:6px", "padding:10px 14px", "margin-bottom:12px",
     "text-align:left"
   ].join(";");
@@ -138,7 +130,7 @@ export function createSettingsMenu(callbacks) {
   infoSection.appendChild(partsInfo);
 
   salvageInfo = document.createElement("div");
-  salvageInfo.style.cssText = INFO_ROW + ";color:" + C.yellow;
+  salvageInfo.style.cssText = INFO_ROW + ";color:" + T.gold;
   salvageInfo.textContent = "GOLD: 0";
   infoSection.appendChild(salvageInfo);
 
@@ -160,7 +152,7 @@ export function createSettingsMenu(callbacks) {
   menuPanel.appendChild(infoSection);
 
   // === AUTOFIRE TOGGLE ===
-  autofireBtn = makeButton("AUTOFIRE: OFF [F]", C.textDim, function () {
+  autofireBtn = makeButton("AUTOFIRE: OFF [F]", T.textDim, function () {
     if (onAutofireToggleCallback) onAutofireToggleCallback();
   });
   menuPanel.appendChild(autofireBtn);
@@ -172,7 +164,7 @@ export function createSettingsMenu(callbacks) {
   ].join(";");
   muteBtn = document.createElement("span");
   muteBtn.textContent = "\u266A";
-  muteBtn.style.cssText = "cursor:pointer;font-size:18px;color:" + C.text + ";min-width:28px;text-align:center;";
+  muteBtn.style.cssText = "cursor:pointer;font-size:18px;color:" + T.text + ";min-width:28px;text-align:center;";
   muteBtn.addEventListener("click", function (e) {
     e.stopPropagation();
     if (onMuteCallback) onMuteCallback();
@@ -180,14 +172,14 @@ export function createSettingsMenu(callbacks) {
   soundRow.appendChild(muteBtn);
   var volLabel = document.createElement("span");
   volLabel.textContent = "VOL";
-  volLabel.style.cssText = "font-size:12px;color:" + C.textDim;
+  volLabel.style.cssText = "font-size:12px;color:" + T.textDim;
   soundRow.appendChild(volLabel);
   volumeSlider = document.createElement("input");
   volumeSlider.type = "range";
   volumeSlider.min = "0";
   volumeSlider.max = "100";
   volumeSlider.value = "50";
-  volumeSlider.style.cssText = "width:100px;cursor:pointer;pointer-events:auto;accent-color:#4477aa;";
+  volumeSlider.style.cssText = "width:100px;cursor:pointer;pointer-events:auto;accent-color:" + T.amber + ";";
   volumeSlider.addEventListener("input", function (e) {
     e.stopPropagation();
     if (onVolumeCallback) onVolumeCallback(parseFloat(volumeSlider.value) / 100);
@@ -202,7 +194,7 @@ export function createSettingsMenu(callbacks) {
   ].join(";");
   var qualityLabel = document.createElement("span");
   qualityLabel.textContent = "QUALITY:";
-  qualityLabel.style.color = C.text;
+  qualityLabel.style.color = T.text;
   qualityRow.appendChild(qualityLabel);
 
   var qualityOptions = ["LOW", "MEDIUM", "HIGH"];
@@ -232,12 +224,12 @@ export function createSettingsMenu(callbacks) {
     var cur = getQuality();
     for (var qb = 0; qb < qualityBtns.length; qb++) {
       if (qualityKeys[qb] === cur) {
-        qualityBtns[qb].style.background = "rgba(60,120,80,0.6)";
-        qualityBtns[qb].style.color = C.yellow;
+        qualityBtns[qb].style.background = "rgba(90, 154, 74, 0.5)";
+        qualityBtns[qb].style.color = T.gold;
         qualityBtns[qb].style.fontWeight = "bold";
       } else {
-        qualityBtns[qb].style.background = "rgba(30,40,60,0.5)";
-        qualityBtns[qb].style.color = C.text;
+        qualityBtns[qb].style.background = "rgba(60, 45, 28, 0.5)";
+        qualityBtns[qb].style.color = T.text;
         qualityBtns[qb].style.fontWeight = "normal";
       }
     }
@@ -245,7 +237,7 @@ export function createSettingsMenu(callbacks) {
   updateQualityBtns();
 
   // === SAVE MANAGEMENT ===
-  var newGameBtn = makeButton("NEW GAME", C.red, function () {
+  var newGameBtn = makeButton("NEW GAME", T.red, function () {
     showConfirm("Start a new game? This will erase your current save.", function () {
       deleteSave();
       closeMenu();
@@ -254,7 +246,7 @@ export function createSettingsMenu(callbacks) {
   });
   menuPanel.appendChild(newGameBtn);
 
-  var exportBtn = makeButton("EXPORT SAVE", C.text, function () {
+  var exportBtn = makeButton("EXPORT SAVE", T.text, function () {
     var data = exportSave();
     if (!data) {
       showNotice("No save data to export.");
@@ -276,7 +268,7 @@ export function createSettingsMenu(callbacks) {
   });
   menuPanel.appendChild(exportBtn);
 
-  var importBtn = makeButton("IMPORT SAVE", C.text, function () {
+  var importBtn = makeButton("IMPORT SAVE", T.text, function () {
     var input = document.createElement("input");
     input.type = "file";
     input.accept = ".json,application/json";
@@ -302,7 +294,7 @@ export function createSettingsMenu(callbacks) {
   menuPanel.appendChild(importBtn);
 
   // Install App button (PWA)
-  installBtn = makeButton("INSTALL APP", C.green, function () {
+  installBtn = makeButton("INSTALL APP", T.green, function () {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(function () {
@@ -315,7 +307,7 @@ export function createSettingsMenu(callbacks) {
   menuPanel.appendChild(installBtn);
 
   // Close button
-  var closeBtn = makeButton("CLOSE", C.text, function () {
+  var closeBtn = makeButton("CLOSE", T.text, function () {
     closeMenu();
   });
   closeBtn.style.marginTop = "16px";
@@ -327,9 +319,9 @@ export function createSettingsMenu(callbacks) {
   confirmOverlay = document.createElement("div");
   confirmOverlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
-    "background:rgba(0,0,0,0.7)", "display:none",
+    "background:rgba(10,6,2,0.7)", "display:none",
     "flex-direction:column", "align-items:center", "justify-content:center",
-    "z-index:300", "font-family:monospace"
+    "z-index:300", "font-family:" + FONT
   ].join(";");
   document.body.appendChild(confirmOverlay);
 }
@@ -345,29 +337,29 @@ function refreshInfoLabels() {
   if (!_gameData || !infoSection) return;
   var d = _gameData;
   if (d.wave !== undefined && waveInfo) {
-    if (d.waveState === "WAITING") { waveInfo.textContent = "REPAIRING..."; waveInfo.style.color = C.green; }
-    else if (d.waveState === "WAVE_COMPLETE") { waveInfo.textContent = "FLEET " + d.wave + " CLEAR"; waveInfo.style.color = C.green; }
-    else { waveInfo.textContent = "FLEET " + d.wave; waveInfo.style.color = C.text; }
+    if (d.waveState === "WAITING") { waveInfo.textContent = "REPAIRING..."; waveInfo.style.color = T.green; }
+    else if (d.waveState === "WAVE_COMPLETE") { waveInfo.textContent = "FLEET " + d.wave + " CLEAR"; waveInfo.style.color = T.green; }
+    else { waveInfo.textContent = "FLEET " + d.wave; waveInfo.style.color = T.text; }
   }
   if (d.fuel !== undefined && fuelInfo) {
     var fuelPct = Math.max(0, d.fuel / d.maxFuel) * 100;
     fuelInfo.textContent = "FUEL: " + Math.round(d.fuel) + "%";
-    fuelInfo.style.color = fuelPct > 30 ? C.blueBright : fuelPct > 15 ? C.orange : C.red;
+    fuelInfo.style.color = fuelPct > 30 ? T.blueBright : fuelPct > 15 ? T.amber : T.red;
   }
   if (d.ammo !== undefined && ammoInfo) {
     ammoInfo.textContent = "AMMO: " + d.ammo + " / " + d.maxAmmo;
-    ammoInfo.style.color = d.ammo <= 5 ? C.red : C.text;
+    ammoInfo.style.color = d.ammo <= 5 ? T.red : T.text;
   }
   if (d.parts !== undefined && partsInfo) {
     partsInfo.textContent = "PARTS: " + d.parts;
-    partsInfo.style.color = d.parts > 0 ? C.green : C.text;
+    partsInfo.style.color = d.parts > 0 ? T.green : T.text;
   }
   if (d.salvage !== undefined && salvageInfo) {
     salvageInfo.textContent = "GOLD: " + d.salvage;
   }
   if (d.weatherText && weatherInfo) {
     weatherInfo.textContent = "WEATHER: " + d.weatherText;
-    weatherInfo.style.color = ({ CALM: C.green, ROUGH: C.yellow, STORM: C.red })[d.weatherText] || C.textDim;
+    weatherInfo.style.color = ({ CALM: T.green, ROUGH: T.gold, STORM: T.red })[d.weatherText] || T.textDim;
   }
   if (d.displaySpeed !== undefined && speedInfo) {
     speedInfo.textContent = "SPEED: " + d.displaySpeed.toFixed(1) + " kn";
@@ -379,14 +371,14 @@ function refreshInfoLabels() {
   }
   if (autofireBtn && d.autofireOn !== undefined) {
     autofireBtn.textContent = d.autofireOn ? "AUTOFIRE: ON [F]" : "AUTOFIRE: OFF [F]";
-    autofireBtn.style.color = d.autofireOn ? C.green : C.textDim;
+    autofireBtn.style.color = d.autofireOn ? T.green : T.textDim;
   }
 }
 
 export function updateMuteButton(m) {
   if (!muteBtn) return;
   muteBtn.textContent = m ? "\u266A\u2715" : "\u266A";
-  muteBtn.style.color = m ? C.red : C.text;
+  muteBtn.style.color = m ? T.red : T.text;
 }
 
 export function updateVolumeSlider(v) {
@@ -431,27 +423,28 @@ function showConfirm(message, onYes) {
 
   var box = document.createElement("div");
   box.style.cssText = [
-    "background:" + C.bg, "border:1px solid " + C.border,
-    "border-radius:8px", "padding:24px 32px", "text-align:center",
-    "color:" + C.text, "max-width:320px"
+    PARCHMENT_BG, "border:1px solid " + T.border,
+    "border-radius:6px", "padding:24px 32px", "text-align:center",
+    "color:" + T.text, "max-width:320px", "font-family:" + FONT,
+    "box-shadow:inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)"
   ].join(";");
 
   var msg = document.createElement("div");
   msg.textContent = message;
-  msg.style.cssText = "font-size:14px;margin-bottom:20px;line-height:1.4;";
+  msg.style.cssText = "font-size:14px;margin-bottom:20px;line-height:1.4;text-shadow:0 1px 2px rgba(0,0,0,0.3);";
   box.appendChild(msg);
 
   var row = document.createElement("div");
   row.style.cssText = "display:flex;gap:12px;justify-content:center;";
 
-  var yesBtn = makeButton("YES", C.red, function () {
+  var yesBtn = makeButton("YES", T.red, function () {
     confirmOverlay.style.display = "none";
     onYes();
   });
   yesBtn.style.minWidth = "100px";
   row.appendChild(yesBtn);
 
-  var noBtn = makeButton("NO", C.text, function () {
+  var noBtn = makeButton("NO", T.text, function () {
     confirmOverlay.style.display = "none";
   });
   noBtn.style.minWidth = "100px";
@@ -467,9 +460,11 @@ function showNotice(text) {
 
   var box = document.createElement("div");
   box.style.cssText = [
-    "background:" + C.bg, "border:1px solid " + C.border,
-    "border-radius:8px", "padding:24px 32px", "text-align:center",
-    "color:" + C.yellow, "font-size:16px"
+    PARCHMENT_BG, "border:1px solid " + T.border,
+    "border-radius:6px", "padding:24px 32px", "text-align:center",
+    "color:" + T.gold, "font-size:16px", "font-family:" + FONT,
+    "text-shadow:0 1px 3px rgba(0,0,0,0.5)",
+    "box-shadow:inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)"
   ].join(";");
   box.textContent = text;
   confirmOverlay.appendChild(box);
