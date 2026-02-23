@@ -9,64 +9,56 @@ import {
   consumeSpawn,
   createWaveManager,
   updateWaveState,
-  WAVE_STATE_ACTIVE,
+  WAVE_STATE_GAME_OVER,
   WAVE_STATE_SPAWNING,
-  WAVE_STATE_WAITING
+  WAVE_STATE_VICTORY
 } from '../logic/waveManager';
+import {
+  createCombatState,
+  firePlayerProjectile,
+  setBoost,
+  setInputVector,
+  spawnEnemy,
+  stepCombat
+} from '../logic/combatSimulator';
 
-export var useGameState = create(function (set, get) {
+function createInitialState() {
   var selectedClass = 'destroyer';
-  var abilityState = createAbilityState(selectedClass);
-  var waveManager = createWaveManager();
 
   return {
     selectedClass: selectedClass,
     classConfig: getShipClass(selectedClass),
-    abilityState: abilityState,
-    waveManager: waveManager,
+    abilityState: createAbilityState(selectedClass),
+    waveManager: createWaveManager(),
+    combat: createCombatState(),
     health: 100,
     ammo: 24,
     boosts: 2,
-    enemyCount: 0,
+    totalKills: 0,
+    pendingFire: false,
+    waveBanner: 'Prepare for battle',
+    isPaused: false
+  };
+}
+
+export var useGameState = create(function (set, get) {
+  return {
+    ...createInitialState(),
+
+    setSteering: function (x, y) {
+      set(function (state) {
+        var combat = { ...state.combat, input: { ...state.combat.input } };
+        setInputVector(combat, x, y);
+        return { combat: combat };
+      });
+    },
 
     fire: function () {
-      set(function (state) {
-        if (state.ammo <= 0) {
-          return state;
-        }
-
-        return { ammo: state.ammo - 1 };
-      });
+      set({ pendingFire: true });
     },
 
     reload: function () {
       set({ ammo: 24 });
-    },
-
-    takeDamage: function (amount) {
-      set(function (state) {
-        return { health: Math.max(0, state.health - amount) };
-      });
-    },
-
-    spawnEnemy: function () {
-      set(function (state) {
-        if (!consumeSpawn(state.waveManager)) {
-          return state;
-        }
-
-        return {
-          enemyCount: state.enemyCount + 1
-        };
-      });
-    },
-
-    clearEnemy: function () {
-      set(function (state) {
-        return {
-          enemyCount: Math.max(0, state.enemyCount - 1)
-        };
-      });
     },
 
     useBoost: function () {
@@ -75,7 +67,21 @@ export var useGameState = create(function (set, get) {
           return state;
         }
 
-        return { boosts: state.boosts - 1 };
+        var combat = { ...state.combat, input: { ...state.combat.input } };
+        setBoost(combat, true);
+
+        return {
+          boosts: state.boosts - 1,
+          combat: combat
+        };
+      });
+    },
+
+    endBoost: function () {
+      set(function (state) {
+        var combat = { ...state.combat, input: { ...state.combat.input } };
+        setBoost(combat, false);
+        return { combat: combat };
       });
     },
 
@@ -86,55 +92,86 @@ export var useGameState = create(function (set, get) {
           return state;
         }
 
-        return { abilityState: nextAbility };
+        return {
+          abilityState: nextAbility,
+          waveBanner: state.classConfig.ability.name + ' activated'
+        };
       });
+    },
+
+    restartRun: function () {
+      set(createInitialState());
     },
 
     tick: function (dt) {
       var state = get();
+      if (state.isPaused) {
+        return null;
+      }
+
       var nextAbility = { ...state.abilityState };
       var nextWave = { ...state.waveManager };
+      var nextCombat = {
+        ...state.combat,
+        input: { ...state.combat.input },
+        player: { ...state.combat.player },
+        enemies: state.combat.enemies.map(function (e) { return { ...e }; }),
+        projectiles: state.combat.projectiles.map(function (p) { return { ...p }; })
+      };
 
       updateAbility(nextAbility, dt);
-      var event = updateWaveState(nextWave, state.enemyCount, state.health, dt);
+
+      if (nextWave.state === WAVE_STATE_SPAWNING && nextWave.enemiesToSpawn > 0) {
+        nextCombat.spawnCooldown -= dt;
+        if (nextCombat.spawnCooldown <= 0) {
+          if (consumeSpawn(nextWave)) {
+            spawnEnemy(nextCombat, nextWave.currentConfig.hpMult);
+            nextCombat.spawnCooldown = 0.75;
+          }
+        }
+      }
+
+      if (state.pendingFire) {
+        var damage = nextAbility.active ? 20 : 12;
+        var didFire = firePlayerProjectile(nextCombat, damage, state.ammo > 0);
+        if (didFire) {
+          set({ ammo: Math.max(0, state.ammo - 1) });
+        }
+      }
+
+      var combatResult = stepCombat(nextCombat, dt);
+
+      var nextHealth = Math.max(0, state.health - combatResult.pendingPlayerDamage);
+      var event = updateWaveState(nextWave, combatResult.enemyCount, nextHealth, dt);
 
       var patch = {
         abilityState: nextAbility,
-        waveManager: nextWave
+        waveManager: nextWave,
+        combat: nextCombat,
+        pendingFire: false,
+        health: nextHealth,
+        totalKills: state.totalKills + combatResult.kills
       };
 
       if (event === 'wave_start') {
-        patch.enemyCount = 0;
+        patch.waveBanner = 'Wave ' + nextWave.wave + ' incoming';
+        nextCombat.spawnCooldown = 0.25;
+      } else if (event === 'wave_complete') {
+        patch.boosts = state.boosts + 1;
+        patch.ammo = 24;
+        patch.waveBanner = 'Wave clear';
+      } else if (event === 'game_over') {
+        patch.waveBanner = 'Your ship was sunk';
+      } else if (event === 'victory') {
+        patch.waveBanner = 'Victory! All waves cleared';
       }
 
-      if (event === 'wave_complete') {
-        patch.ammo = 24;
-        patch.boosts = state.boosts + 1;
+      if (nextWave.state === WAVE_STATE_GAME_OVER || nextWave.state === WAVE_STATE_VICTORY) {
+        patch.isPaused = true;
       }
 
       set(patch);
       return event;
-    },
-
-    debugAdvance: function () {
-      var state = get();
-      if (state.waveManager.state === WAVE_STATE_WAITING) {
-        return get().tick(4);
-      }
-
-      if (state.waveManager.state === WAVE_STATE_SPAWNING) {
-        while (consumeSpawn(state.waveManager)) {
-          // consume all pending spawns for quick prototype flow
-        }
-        set({ waveManager: { ...state.waveManager } });
-      }
-
-      if (state.waveManager.state === WAVE_STATE_ACTIVE) {
-        set({ enemyCount: 0 });
-        return get().tick(0.016);
-      }
-
-      return get().tick(0.016);
     }
   };
 });

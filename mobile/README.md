@@ -5,9 +5,9 @@ This folder contains the initial iOS-first mobile workspace using Expo SDK 54 + 
 ## Included in this bootstrap
 
 - Expo entrypoint and app config
-- R3F native `Canvas` scene with a placeholder ocean and ship
-- React Native HUD overlay layer
-- Zustand game state for combat, ability cooldowns, and wave state transitions
+- R3F native `Canvas` scene with animated shader ocean, player ship, enemies, and projectiles
+- React Native HUD overlay layer with joystick + combat actions + run result modal
+- Zustand game state for combat simulation, ability cooldowns, and wave state transitions
 - Shared ship class + wave manager logic extracted for mobile reuse
 
 ## Run locally
