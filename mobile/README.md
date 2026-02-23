@@ -1,6 +1,6 @@
 # Ocean Outlaws Mobile (Bootstrap)
 
-This folder contains the initial iOS-first mobile workspace using Expo + React Native + React Three Fiber.
+This folder contains the initial iOS-first mobile workspace using Expo SDK 54 + React Native + React Three Fiber.
 
 ## Included in this bootstrap
 
