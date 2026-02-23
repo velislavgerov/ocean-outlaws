@@ -5,6 +5,7 @@ import { nextRandom } from "./rng.js";
 import { collideWithTerrain, isLand } from "./terrain.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
+import { placeTurretsFromBounds } from "./ship.js";
 
 // --- boss definitions ---
 var BOSS_DEFS = {
@@ -76,9 +77,23 @@ function applyBossOverrideAsync(mesh, bossType) {
   var path = getOverridePath(slot);
   if (!path) return;
   var fit = getOverrideSize(slot) || (bossType === "carrier" ? 18 : 16);
+  var turrets = mesh.userData.turrets || [];
+  var tentacles = mesh.userData.tentacles || [];
   loadFbxVisual(path, fit, true).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
+    // re-attach turrets positioned on the new model
+    if (turrets.length) {
+      placeTurretsFromBounds(mesh, turrets);
+      for (var i = 0; i < turrets.length; i++) {
+        mesh.add(turrets[i]);
+      }
+      mesh.userData.turrets = turrets;
+    }
+    // re-attach tentacles (kraken)
+    for (var i = 0; i < tentacles.length; i++) {
+      mesh.add(tentacles[i]);
+    }
   }).catch(function () {
     // keep procedural fallback on failure
   });

@@ -97,16 +97,20 @@ function buildShipMesh() {
 }
 
 // --- reposition turrets onto the bounding box of an FBX model ---
-function placeTurretsFromBounds(mesh, turrets) {
+export function placeTurretsFromBounds(mesh, turrets) {
   if (!turrets || turrets.length === 0) return;
   var box = new THREE.Box3().setFromObject(mesh);
+  var center = new THREE.Vector3();
   var size = new THREE.Vector3();
+  box.getCenter(center);
   box.getSize(size);
-  var topY = size.y * 0.85;
+  // convert world-space center to mesh-local space
+  mesh.worldToLocal(center);
+  var topY = center.y + size.y * 0.35;
   var step = size.z / (turrets.length + 1);
-  var startZ = size.z * 0.5;
+  var startZ = center.z + size.z * 0.5;
   for (var i = 0; i < turrets.length; i++) {
-    turrets[i].position.set(0, topY, startZ - step * (i + 1));
+    turrets[i].position.set(center.x, topY, startZ - step * (i + 1));
   }
 }
 
@@ -117,10 +121,26 @@ function applyShipOverrideAsync(mesh, classKey) {
   var fitSize = getOverrideSize(classKey) || 8;
   var turrets = mesh.userData.turrets || [];
   loadFbxVisual(path, fitSize, true).then(function (visual) {
+    // snapshot children to preserve (turrets handled separately; keep lights like lantern)
+    var keep = [];
+    for (var i = 0; i < mesh.children.length; i++) {
+      var child = mesh.children[i];
+      if (turrets.indexOf(child) === -1 && child.isLight) {
+        keep.push(child);
+      }
+    }
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
     placeTurretsFromBounds(mesh, turrets);
+    // re-attach turrets so they move with the ship
+    for (var i = 0; i < turrets.length; i++) {
+      mesh.add(turrets[i]);
+    }
     mesh.userData.turrets = turrets;
+    // re-attach other children (lantern, etc.)
+    for (var i = 0; i < keep.length; i++) {
+      mesh.add(keep[i]);
+    }
   }).catch(function () {
     // keep procedural fallback on failure
   });
