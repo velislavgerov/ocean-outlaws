@@ -32,7 +32,7 @@ import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewB
 import { createCrewScreen, showCrewScreen, hideCrewScreen } from "./crewScreen.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
-import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor } from "./terrain.js";
+import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor, getTerrainMinimapMarkers } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
@@ -639,7 +639,8 @@ function animate() {
     mults.windX = wp.windX;
     mults.windZ = wp.windZ;
     var waveAmp = wp.waveAmplitude;
-    var weatherWaveHeight = function (wx, wz, wt) { return getWaveHeight(wx, wz, wt, waveAmp); };
+    var waveSteps = wp.waveSteps !== undefined ? wp.waveSteps : 0;
+    var weatherWaveHeight = function (wx, wz, wt) { return getWaveHeight(wx, wz, wt, waveAmp, waveSteps); };
     // day/night cycle
     updateDayNight(dayNight, dt);
     var wDim = getWeatherDim(weather);
@@ -652,7 +653,7 @@ function animate() {
     }
     updateStars(stars, dayNight.timeOfDay);
     // ocean must update before ships so wave height is current-frame
-    updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, wp.waterTint, dayNight, cam.camera, wDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
+    updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, waveSteps, wp.waterTint, dayNight, cam.camera, wDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
     updateWeather(weather, dt, scene, ship.posX, ship.posZ);
     maybeChangeWeather(weather);
     updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults, activeTerrain);
@@ -868,7 +869,8 @@ function animate() {
     var allPickups = pickupList.concat(crateList);
     // multiplayer: pass remote players to minimap
     var mpRemoteShips = isMultiplayerActive(mpState) ? getRemoteShipsForMinimap() : [];
-    updateMinimap(ship.posX, ship.posZ, ship.heading, enemyMgr.enemies, allPickups, portPositions, mpRemoteShips);
+    var terrainMarkers = getTerrainMinimapMarkers(activeTerrain);
+    updateMinimap(ship.posX, ship.posZ, ship.heading, enemyMgr.enemies, allPickups, portPositions, terrainMarkers, mpRemoteShips);
 
     // multiplayer: send ship state and update remote ships
     if (isMultiplayerActive(mpState)) {
@@ -918,7 +920,7 @@ function animate() {
     var idleDim = getWeatherDim(weather);
     applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, idleDim);
     updateStars(stars, dayNight.timeOfDay);
-    updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waterTint, dayNight, cam.camera, idleDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
+    updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waveSteps !== undefined ? wpIdle.waveSteps : 0, wpIdle.waterTint, dayNight, cam.camera, idleDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
     updateWeather(weather, dt, scene, ship ? ship.posX : 0, ship ? ship.posZ : 0);
     if (ship) {
       updateCamera(cam, dt, ship.posX, ship.posZ);

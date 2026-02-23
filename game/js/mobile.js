@@ -66,7 +66,9 @@ export function getQualityConfig() {
       terrainOctaves: 2,
       pixelRatioCap: 1,
       antialias: false,
-      shaderDetail: 0 // 0 = minimal
+      shaderDetail: 0, // 0 = minimal
+      maxTriangles: 3000,
+      maxCompositeInstances: 3
     };
   }
   if (_quality === "medium") {
@@ -77,7 +79,9 @@ export function getQualityConfig() {
       terrainOctaves: 3,
       pixelRatioCap: 1.5,
       antialias: false,
-      shaderDetail: 1 // 1 = reduced
+      shaderDetail: 1, // 1 = reduced
+      maxTriangles: 5000,
+      maxCompositeInstances: 5
     };
   }
   // high
@@ -88,7 +92,9 @@ export function getQualityConfig() {
     terrainOctaves: 4,
     pixelRatioCap: 2,
     antialias: true,
-    shaderDetail: 2 // 2 = full
+    shaderDetail: 2, // 2 = full
+    maxTriangles: 0, // 0 = unlimited
+    maxCompositeInstances: 7
   };
 }
 

@@ -21,7 +21,32 @@ export function createMinimap(parentEl) {
   parentEl.appendChild(minimapCanvas);
 }
 
-export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups, ports, remotePlayers) {
+function drawMarker(ctx, x, y, type, sizePx) {
+  var s = Math.max(1.4, Math.min(4.8, sizePx || 2.2));
+  if (type === "port") {
+    ctx.fillStyle = "#4aa3ff";
+    ctx.fillRect(x - s, y - s, s * 2, s * 2);
+    return;
+  }
+  if (type === "tree") {
+    ctx.fillStyle = "#5ac878";
+    ctx.beginPath();
+    ctx.moveTo(x, y - s);
+    ctx.lineTo(x - s * 0.9, y + s * 0.9);
+    ctx.lineTo(x + s * 0.9, y + s * 0.9);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+  if (type === "island_big") ctx.fillStyle = "#d2c08f";
+  else if (type === "island_mid") ctx.fillStyle = "#c8b27a";
+  else ctx.fillStyle = "#b6a16a";
+  ctx.beginPath();
+  ctx.arc(x, y, s, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups, ports, terrainMarkers, remotePlayers) {
   if (!minimapCtx) return;
   var ctx = minimapCtx;
   var cx = MINIMAP_SIZE / 2;
@@ -84,6 +109,17 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
   ctx.stroke();
 
   var scale = radius / MINIMAP_RANGE;
+
+  // terrain markers — islands, trees, ports from composition system
+  if (terrainMarkers) {
+    for (var ti = 0; ti < terrainMarkers.length; ti++) {
+      var tm = terrainMarkers[ti];
+      var tdx = (tm.x - playerX) * scale;
+      var tdz = (tm.z - playerZ) * scale;
+      if (tdx * tdx + tdz * tdz >= radius * radius) continue;
+      drawMarker(ctx, cx + tdx, cy + tdz, tm.type, (tm.size || 1) * 2.0);
+    }
+  }
 
   // ports — golden squares
   if (ports) {

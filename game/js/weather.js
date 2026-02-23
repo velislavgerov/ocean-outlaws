@@ -6,26 +6,32 @@ import { nextRandom } from "./rng.js";
 var PRESETS = {
   calm: {
     waveAmplitude: 1.0,
-    fogDensity: 0.006,
+    waveSteps: 18,
+    fogDensity: 0.005,
     fogColor: 0x0a0e1a,
     waterTint: [0.0, 0.0, 0.0],
     windX: 0,
     windZ: 0,
     rainDensity: 0,
+    ambientInt: 0.8,
+    sunInt: 1.0,
     lightningChance: 0,
-    dimFactor: 1.0,          // 1.0 = full brightness
-    foamIntensity: 0.3,      // base foam
-    cloudShadow: 0.0,        // no cloud shadows
+    dimFactor: 1.0,
+    foamIntensity: 0.3,
+    cloudShadow: 0.0,
     visLabel: "CALM"
   },
   rough: {
-    waveAmplitude: 1.3,
-    fogDensity: 0.008,
+    waveAmplitude: 2.38,
+    waveSteps: 0,
+    fogDensity: 0.009,
     fogColor: 0x0c1020,
     waterTint: [0.01, 0.02, 0.04],
     windX: 1.0,
     windZ: 0.7,
-    rainDensity: 0.3,
+    rainDensity: 0.25,
+    ambientInt: 0.65,
+    sunInt: 0.9,
     lightningChance: 0,
     dimFactor: 0.85,
     foamIntensity: 0.6,
@@ -33,13 +39,16 @@ var PRESETS = {
     visLabel: "ROUGH"
   },
   storm: {
-    waveAmplitude: 1.6,
+    waveAmplitude: 2.87,
+    waveSteps: 0,
     fogDensity: 0.013,
     fogColor: 0x080a14,
     waterTint: [0.02, 0.03, 0.06],
     windX: 2.0,
     windZ: 1.5,
     rainDensity: 1.0,
+    ambientInt: 0.55,
+    sunInt: 0.55,
     lightningChance: 0.008,
     dimFactor: 0.55,
     foamIntensity: 1.0,
@@ -261,8 +270,11 @@ export function updateWeather(state, dt, scene, shipX, shipZ) {
 
   // lerp preset values toward target
   p.waveAmplitude += (t.waveAmplitude - p.waveAmplitude) * s;
+  p.waveSteps     += (t.waveSteps - p.waveSteps) * s;
   p.fogDensity    += (t.fogDensity - p.fogDensity) * s;
   p.rainDensity   += (t.rainDensity - p.rainDensity) * s;
+  p.ambientInt    += (t.ambientInt - p.ambientInt) * s;
+  p.sunInt        += (t.sunInt - p.sunInt) * s;
   p.windX         += (t.windX - p.windX) * s;
   p.windZ         += (t.windZ - p.windZ) * s;
   p.lightningChance += (t.lightningChance - p.lightningChance) * s;
@@ -279,6 +291,12 @@ export function updateWeather(state, dt, scene, shipX, shipZ) {
   // update scene fog density (color handled by daynight)
   if (state.fogRef) {
     state.fogRef.density = p.fogDensity;
+  }
+  if (state.ambientRef && p.ambientInt !== undefined) {
+    state.ambientRef.intensity = p.ambientInt;
+  }
+  if (state.sunRef && p.sunInt !== undefined) {
+    state.sunRef.intensity = p.sunInt;
   }
 
   // rain

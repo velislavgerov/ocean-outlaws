@@ -1,0 +1,1364 @@
+{
+  "composites": [
+    {
+      "name": "trade-ring-harbor",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-trade-port.fbx",
+          "x": 0,
+          "y": -0.41,
+          "z": 0,
+          "scale": 0.98,
+          "rotYDeg": -10
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain.fbx",
+          "x": -14.7,
+          "y": -0.9,
+          "z": 9.6,
+          "scale": 1.1,
+          "rotYDeg": -20
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 15.4,
+          "y": -0.78,
+          "z": -9.3,
+          "scale": 1.06,
+          "rotYDeg": 12
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large.fbx",
+          "x": -4.2,
+          "y": -1.6,
+          "z": -13.2,
+          "scale": 0.92,
+          "rotYDeg": 40
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": 9.4,
+          "y": -0.62,
+          "z": 10.6,
+          "scale": 0.86,
+          "rotYDeg": 22
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -10.8,
+          "y": -0.72,
+          "z": 12.2,
+          "scale": 1.04,
+          "rotYDeg": 18
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 11.1,
+          "y": -0.69,
+          "z": -9.5,
+          "scale": 1.02,
+          "rotYDeg": 166
+        }
+      ]
+    },
+    {
+      "name": "pirate-basin-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-pirate-seaport.fbx",
+          "x": 0,
+          "y": -0.38,
+          "z": 0,
+          "scale": 1.06,
+          "rotYDeg": 7
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": -13.6,
+          "y": -1.08,
+          "z": 8.9,
+          "scale": 1.32,
+          "rotYDeg": 9
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": 14.4,
+          "y": -0.98,
+          "z": -8.4,
+          "scale": 1.22,
+          "rotYDeg": -17
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-4.fbx",
+          "x": -3.4,
+          "y": -1.8,
+          "z": -13.7,
+          "scale": 1.06,
+          "rotYDeg": 57
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 8.5,
+          "y": -0.79,
+          "z": 11.2,
+          "scale": 0.96,
+          "rotYDeg": 51
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -10.3,
+          "y": -0.72,
+          "z": 11.8,
+          "scale": 1.04,
+          "rotYDeg": 47
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 10.6,
+          "y": -0.69,
+          "z": -9.8,
+          "scale": 1.02,
+          "rotYDeg": 137
+        }
+      ]
+    },
+    {
+      "name": "mystic-breakwater",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-mysterious-place.fbx",
+          "x": 0,
+          "y": -0.35,
+          "z": 0,
+          "scale": 1.14,
+          "rotYDeg": 24
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone.fbx",
+          "x": -12.5,
+          "y": -1.26,
+          "z": 8.2,
+          "scale": 1.54,
+          "rotYDeg": 38
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large.fbx",
+          "x": 13.4,
+          "y": -0.78,
+          "z": -7.5,
+          "scale": 1.38,
+          "rotYDeg": -46
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -2.6,
+          "y": -2,
+          "z": -14.2,
+          "scale": 1.2,
+          "rotYDeg": 74
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": 7.6,
+          "y": -0.96,
+          "z": 11.8,
+          "scale": 1.06,
+          "rotYDeg": 80
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -9.8,
+          "y": -0.72,
+          "z": 11.4,
+          "scale": 1.04,
+          "rotYDeg": 76
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 10.1,
+          "y": -0.69,
+          "z": -10.1,
+          "scale": 1.02,
+          "rotYDeg": 108
+        }
+      ]
+    },
+    {
+      "name": "secret-channel-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-secret-island.fbx",
+          "x": 0,
+          "y": -0.32,
+          "z": 0,
+          "scale": 1.22,
+          "rotYDeg": 41
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -11.4,
+          "y": -0.9,
+          "z": 7.5,
+          "scale": 1.1,
+          "rotYDeg": 67
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-4.fbx",
+          "x": 12.4,
+          "y": -0.98,
+          "z": -6.6,
+          "scale": 1.54,
+          "rotYDeg": -75
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": -1.8,
+          "y": -2.2,
+          "z": -14.7,
+          "scale": 0.92,
+          "rotYDeg": 91
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": 6.7,
+          "y": -0.62,
+          "z": 12.4,
+          "scale": 1.16,
+          "rotYDeg": 109
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -9.3,
+          "y": -0.72,
+          "z": 11,
+          "scale": 1.04,
+          "rotYDeg": 105
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 9.6,
+          "y": -0.69,
+          "z": -10.4,
+          "scale": 1.02,
+          "rotYDeg": 79
+        }
+      ]
+    },
+    {
+      "name": "shipyard-crescent",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-ship-island.fbx",
+          "x": 0,
+          "y": -0.29,
+          "z": 0,
+          "scale": 0.98,
+          "rotYDeg": 58
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": -10.3,
+          "y": -1.08,
+          "z": 6.8,
+          "scale": 1.32,
+          "rotYDeg": 96
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": 11.4,
+          "y": -0.78,
+          "z": -5.7,
+          "scale": 1.06,
+          "rotYDeg": -104
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain.fbx",
+          "x": -1,
+          "y": -1.6,
+          "z": -15.2,
+          "scale": 1.06,
+          "rotYDeg": 108
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": 5.8,
+          "y": -0.79,
+          "z": 13,
+          "scale": 1.26,
+          "rotYDeg": 138
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -8.8,
+          "y": -0.72,
+          "z": 10.6,
+          "scale": 1.04,
+          "rotYDeg": 134
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 9.1,
+          "y": -0.69,
+          "z": -10.7,
+          "scale": 1.02,
+          "rotYDeg": 50
+        }
+      ]
+    },
+    {
+      "name": "monster-bay-docks",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-sea-monster-attack.fbx",
+          "x": 0,
+          "y": -0.41,
+          "z": 0,
+          "scale": 1.06,
+          "rotYDeg": 75
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-5.fbx",
+          "x": -14.7,
+          "y": -1.26,
+          "z": 9.6,
+          "scale": 1.54,
+          "rotYDeg": 125
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 15.4,
+          "y": -0.98,
+          "z": -9.3,
+          "scale": 1.22,
+          "rotYDeg": -133
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": -4.2,
+          "y": -1.8,
+          "z": -13.2,
+          "scale": 1.2,
+          "rotYDeg": 125
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": 9.4,
+          "y": -0.96,
+          "z": 10.6,
+          "scale": 0.86,
+          "rotYDeg": 167
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -10.8,
+          "y": -0.72,
+          "z": 12.2,
+          "scale": 1.04,
+          "rotYDeg": 163
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 11.1,
+          "y": -0.69,
+          "z": -9.5,
+          "scale": 1.02,
+          "rotYDeg": 21
+        }
+      ]
+    },
+    {
+      "name": "lighthouse-split-harbor",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-lighthouse-pier.fbx",
+          "x": 0,
+          "y": -0.38,
+          "z": 0,
+          "scale": 1.14,
+          "rotYDeg": 92
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-5.fbx",
+          "x": -13.6,
+          "y": -0.9,
+          "z": 8.9,
+          "scale": 1.1,
+          "rotYDeg": 154
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain.fbx",
+          "x": 14.4,
+          "y": -0.78,
+          "z": -8.4,
+          "scale": 1.38,
+          "rotYDeg": -162
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone.fbx",
+          "x": -3.4,
+          "y": -2,
+          "z": -13.7,
+          "scale": 0.92,
+          "rotYDeg": 142
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 8.5,
+          "y": -0.62,
+          "z": 11.2,
+          "scale": 0.96,
+          "rotYDeg": 196
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -10.3,
+          "y": -0.72,
+          "z": 11.8,
+          "scale": 1.04,
+          "rotYDeg": 192
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 10.6,
+          "y": -0.69,
+          "z": -9.8,
+          "scale": 1.02,
+          "rotYDeg": -8
+        }
+      ]
+    },
+    {
+      "name": "archway-merchant-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch.fbx",
+          "x": 0,
+          "y": -0.35,
+          "z": 0,
+          "scale": 1.22,
+          "rotYDeg": 109
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": -12.5,
+          "y": -1.08,
+          "z": 8.2,
+          "scale": 1.32,
+          "rotYDeg": 183
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": 13.4,
+          "y": -0.98,
+          "z": -7.5,
+          "scale": 1.54,
+          "rotYDeg": -191
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -2.6,
+          "y": -2.2,
+          "z": -14.2,
+          "scale": 1.06,
+          "rotYDeg": 159
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": 7.6,
+          "y": -0.79,
+          "z": 11.8,
+          "scale": 1.06,
+          "rotYDeg": 225
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -9.8,
+          "y": -0.72,
+          "z": 11.4,
+          "scale": 1.04,
+          "rotYDeg": 221
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 10.1,
+          "y": -0.69,
+          "z": -10.1,
+          "scale": 1.02,
+          "rotYDeg": -37
+        }
+      ]
+    },
+    {
+      "name": "double-arch-anchorage",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch-2.fbx",
+          "x": 0,
+          "y": -0.32,
+          "z": 0,
+          "scale": 0.98,
+          "rotYDeg": 126
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -11.4,
+          "y": -1.26,
+          "z": 7.5,
+          "scale": 1.54,
+          "rotYDeg": 212
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone.fbx",
+          "x": 12.4,
+          "y": -0.78,
+          "z": -6.6,
+          "scale": 1.06,
+          "rotYDeg": -220
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": -1.8,
+          "y": -1.6,
+          "z": -14.7,
+          "scale": 1.2,
+          "rotYDeg": 176
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": 6.7,
+          "y": -0.96,
+          "z": 12.4,
+          "scale": 1.16,
+          "rotYDeg": 254
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -9.3,
+          "y": -0.72,
+          "z": 11,
+          "scale": 1.04,
+          "rotYDeg": 250
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 9.6,
+          "y": -0.69,
+          "z": -10.4,
+          "scale": 1.02,
+          "rotYDeg": -66
+        }
+      ]
+    },
+    {
+      "name": "reefline-port-cluster",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch-3.fbx",
+          "x": 0,
+          "y": -0.29,
+          "z": 0,
+          "scale": 1.06,
+          "rotYDeg": 143
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": -10.3,
+          "y": -0.9,
+          "z": 6.8,
+          "scale": 1.1,
+          "rotYDeg": 241
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": 11.4,
+          "y": -0.98,
+          "z": -5.7,
+          "scale": 1.22,
+          "rotYDeg": -249
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-5.fbx",
+          "x": -1,
+          "y": -1.8,
+          "z": -15.2,
+          "scale": 0.92,
+          "rotYDeg": 193
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": 5.8,
+          "y": -0.62,
+          "z": 13,
+          "scale": 1.26,
+          "rotYDeg": 283
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -8.8,
+          "y": -0.72,
+          "z": 10.6,
+          "scale": 1.04,
+          "rotYDeg": 279
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 9.1,
+          "y": -0.69,
+          "z": -10.7,
+          "scale": 1.02,
+          "rotYDeg": -95
+        }
+      ]
+    },
+    {
+      "name": "emerald-stone-harbor",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-trade-port.fbx",
+          "x": 0,
+          "y": -0.41,
+          "z": 0,
+          "scale": 1.14,
+          "rotYDeg": 160
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": -14.7,
+          "y": -1.08,
+          "z": 9.6,
+          "scale": 1.32,
+          "rotYDeg": 270
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 15.4,
+          "y": -0.78,
+          "z": -9.3,
+          "scale": 1.38,
+          "rotYDeg": -278
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-5.fbx",
+          "x": -4.2,
+          "y": -2,
+          "z": -13.2,
+          "scale": 1.06,
+          "rotYDeg": 210
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": 9.4,
+          "y": -0.79,
+          "z": 10.6,
+          "scale": 0.86,
+          "rotYDeg": 312
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -10.8,
+          "y": -0.72,
+          "z": 12.2,
+          "scale": 1.04,
+          "rotYDeg": 308
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 11.1,
+          "y": -0.69,
+          "z": -9.5,
+          "scale": 1.02,
+          "rotYDeg": -124
+        }
+      ]
+    },
+    {
+      "name": "ancient-teeth-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-pirate-seaport.fbx",
+          "x": 0,
+          "y": -0.38,
+          "z": 0,
+          "scale": 1.22,
+          "rotYDeg": 177
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large.fbx",
+          "x": -13.6,
+          "y": -1.26,
+          "z": 8.9,
+          "scale": 1.54,
+          "rotYDeg": 299
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-5.fbx",
+          "x": 14.4,
+          "y": -0.98,
+          "z": -8.4,
+          "scale": 1.54,
+          "rotYDeg": -307
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": -3.4,
+          "y": -2.2,
+          "z": -13.7,
+          "scale": 1.2,
+          "rotYDeg": 227
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 8.5,
+          "y": -0.96,
+          "z": 11.2,
+          "scale": 0.96,
+          "rotYDeg": 341
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -10.3,
+          "y": -0.72,
+          "z": 11.8,
+          "scale": 1.04,
+          "rotYDeg": 337
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 10.6,
+          "y": -0.69,
+          "z": -9.8,
+          "scale": 1.02,
+          "rotYDeg": -153
+        }
+      ]
+    },
+    {
+      "name": "stormwall-pierfield",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-mysterious-place.fbx",
+          "x": 0,
+          "y": -0.35,
+          "z": 0,
+          "scale": 0.98,
+          "rotYDeg": 194
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-4.fbx",
+          "x": -12.5,
+          "y": -0.9,
+          "z": 8.2,
+          "scale": 1.1,
+          "rotYDeg": 328
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-5.fbx",
+          "x": 13.4,
+          "y": -0.78,
+          "z": -7.5,
+          "scale": 1.06,
+          "rotYDeg": -336
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -2.6,
+          "y": -1.6,
+          "z": -14.2,
+          "scale": 0.92,
+          "rotYDeg": 244
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": 7.6,
+          "y": -0.62,
+          "z": 11.8,
+          "scale": 1.06,
+          "rotYDeg": 370
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -9.8,
+          "y": -0.72,
+          "z": 11.4,
+          "scale": 1.04,
+          "rotYDeg": 366
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 10.1,
+          "y": -0.69,
+          "z": -10.1,
+          "scale": 1.02,
+          "rotYDeg": -182
+        }
+      ]
+    },
+    {
+      "name": "eastern-gate-docks",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-secret-island.fbx",
+          "x": 0,
+          "y": -0.32,
+          "z": 0,
+          "scale": 1.06,
+          "rotYDeg": 211
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -11.4,
+          "y": -1.08,
+          "z": 7.5,
+          "scale": 1.32,
+          "rotYDeg": -3
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": 12.4,
+          "y": -0.98,
+          "z": -6.6,
+          "scale": 1.22,
+          "rotYDeg": -5
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": -1.8,
+          "y": -1.8,
+          "z": -14.7,
+          "scale": 1.06,
+          "rotYDeg": 261
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": 6.7,
+          "y": -0.79,
+          "z": 12.4,
+          "scale": 1.16,
+          "rotYDeg": 39
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -9.3,
+          "y": -0.72,
+          "z": 11,
+          "scale": 1.04,
+          "rotYDeg": 35
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 9.6,
+          "y": -0.69,
+          "z": -10.4,
+          "scale": 1.02,
+          "rotYDeg": 149
+        }
+      ]
+    },
+    {
+      "name": "western-reef-outpost",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-ship-island.fbx",
+          "x": 0,
+          "y": -0.29,
+          "z": 0,
+          "scale": 1.14,
+          "rotYDeg": 228
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": -10.3,
+          "y": -1.26,
+          "z": 6.8,
+          "scale": 1.54,
+          "rotYDeg": 26
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": 11.4,
+          "y": -0.78,
+          "z": -5.7,
+          "scale": 1.38,
+          "rotYDeg": -34
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": -1,
+          "y": -2,
+          "z": -15.2,
+          "scale": 1.2,
+          "rotYDeg": 278
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": 5.8,
+          "y": -0.96,
+          "z": 13,
+          "scale": 1.26,
+          "rotYDeg": 68
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -8.8,
+          "y": -0.72,
+          "z": 10.6,
+          "scale": 1.04,
+          "rotYDeg": 64
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 9.1,
+          "y": -0.69,
+          "z": -10.7,
+          "scale": 1.02,
+          "rotYDeg": 120
+        }
+      ]
+    },
+    {
+      "name": "northern-arch-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-sea-monster-attack.fbx",
+          "x": 0,
+          "y": -0.41,
+          "z": 0,
+          "scale": 1.22,
+          "rotYDeg": 245
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain.fbx",
+          "x": -14.7,
+          "y": -0.9,
+          "z": 9.6,
+          "scale": 1.1,
+          "rotYDeg": 55
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 15.4,
+          "y": -0.98,
+          "z": -9.3,
+          "scale": 1.54,
+          "rotYDeg": -63
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large.fbx",
+          "x": -4.2,
+          "y": -2.2,
+          "z": -13.2,
+          "scale": 0.92,
+          "rotYDeg": 295
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": 9.4,
+          "y": -0.62,
+          "z": 10.6,
+          "scale": 0.86,
+          "rotYDeg": 97
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -10.8,
+          "y": -0.72,
+          "z": 12.2,
+          "scale": 1.04,
+          "rotYDeg": 93
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 11.1,
+          "y": -0.69,
+          "z": -9.5,
+          "scale": 1.02,
+          "rotYDeg": 91
+        }
+      ]
+    },
+    {
+      "name": "southern-basin-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-lighthouse-pier.fbx",
+          "x": 0,
+          "y": -0.38,
+          "z": 0,
+          "scale": 0.98,
+          "rotYDeg": 262
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": -13.6,
+          "y": -1.08,
+          "z": 8.9,
+          "scale": 1.32,
+          "rotYDeg": 84
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-3.fbx",
+          "x": 14.4,
+          "y": -0.78,
+          "z": -8.4,
+          "scale": 1.06,
+          "rotYDeg": -92
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-4.fbx",
+          "x": -3.4,
+          "y": -1.6,
+          "z": -13.7,
+          "scale": 1.06,
+          "rotYDeg": 312
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 8.5,
+          "y": -0.79,
+          "z": 11.2,
+          "scale": 0.96,
+          "rotYDeg": 126
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -10.3,
+          "y": -0.72,
+          "z": 11.8,
+          "scale": 1.04,
+          "rotYDeg": 122
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 10.6,
+          "y": -0.69,
+          "z": -9.8,
+          "scale": 1.02,
+          "rotYDeg": 62
+        }
+      ]
+    },
+    {
+      "name": "tri-reef-anchorage",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch.fbx",
+          "x": 0,
+          "y": -0.35,
+          "z": 0,
+          "scale": 1.06,
+          "rotYDeg": 279
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone.fbx",
+          "x": -12.5,
+          "y": -1.26,
+          "z": 8.2,
+          "scale": 1.54,
+          "rotYDeg": 113
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large.fbx",
+          "x": 13.4,
+          "y": -0.98,
+          "z": -7.5,
+          "scale": 1.22,
+          "rotYDeg": -121
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -2.6,
+          "y": -1.8,
+          "z": -14.2,
+          "scale": 1.2,
+          "rotYDeg": 329
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": 7.6,
+          "y": -0.96,
+          "z": 11.8,
+          "scale": 1.06,
+          "rotYDeg": 155
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -9.8,
+          "y": -0.72,
+          "z": 11.4,
+          "scale": 1.04,
+          "rotYDeg": 151
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 10.1,
+          "y": -0.69,
+          "z": -10.1,
+          "scale": 1.02,
+          "rotYDeg": 33
+        }
+      ]
+    },
+    {
+      "name": "caldera-trade-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch-2.fbx",
+          "x": 0,
+          "y": -0.32,
+          "z": 0,
+          "scale": 1.14,
+          "rotYDeg": 296
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": -11.4,
+          "y": -0.9,
+          "z": 7.5,
+          "scale": 1.1,
+          "rotYDeg": 142
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-4.fbx",
+          "x": 12.4,
+          "y": -0.78,
+          "z": -6.6,
+          "scale": 1.38,
+          "rotYDeg": -150
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": -1.8,
+          "y": -2,
+          "z": -14.7,
+          "scale": 0.92,
+          "rotYDeg": 346
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": 6.7,
+          "y": -0.62,
+          "z": 12.4,
+          "scale": 1.16,
+          "rotYDeg": 184
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": -9.3,
+          "y": -0.72,
+          "z": 11,
+          "scale": 1.04,
+          "rotYDeg": 180
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 9.6,
+          "y": -0.69,
+          "z": -10.4,
+          "scale": 1.02,
+          "rotYDeg": 4
+        }
+      ]
+    },
+    {
+      "name": "shattered-seaport",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch-3.fbx",
+          "x": 0,
+          "y": -0.29,
+          "z": 0,
+          "scale": 1.22,
+          "rotYDeg": 313
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": -10.3,
+          "y": -1.08,
+          "z": 6.8,
+          "scale": 1.32,
+          "rotYDeg": 171
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone.fbx",
+          "x": 11.4,
+          "y": -0.98,
+          "z": -5.7,
+          "scale": 1.54,
+          "rotYDeg": -179
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain.fbx",
+          "x": -1,
+          "y": -2.2,
+          "z": -15.2,
+          "scale": 1.06,
+          "rotYDeg": 363
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": 5.8,
+          "y": -0.79,
+          "z": 13,
+          "scale": 1.26,
+          "rotYDeg": 213
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -8.8,
+          "y": -0.72,
+          "z": 10.6,
+          "scale": 1.04,
+          "rotYDeg": 209
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": 9.1,
+          "y": -0.69,
+          "z": -10.7,
+          "scale": 1.02,
+          "rotYDeg": -25
+        }
+      ]
+    }
+  ]
+}

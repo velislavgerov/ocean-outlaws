@@ -1,6 +1,7 @@
 // terrain.js — procedural island generation, 3D mesh, collision queries
 import * as THREE from "three";
 import { nextRandom } from "./rng.js";
+import { addCompositeFieldVisual, addTieredIslandFieldVisual, pointInVisualLand, resolveVisualCollision, getTerrainAvoidance as _getTerrainAvoidance } from "./terrainComposite.js";
 
 // --- tuning ---
 var MAP_SIZE = 400;           // world units, matches ocean plane
@@ -16,6 +17,8 @@ var LACUNARITY = 2.0;
 var SPAWN_CLEAR_RADIUS = 40;  // keep center clear for player spawn
 var COLLISION_RADIUS = 1.5;   // ship collision sampling radius
 var BOUNCE_STRENGTH = 8;      // push-back force on collision
+var TERRAIN_VISUAL_Y_OFFSET = 4.0;
+var VISUAL_COLLIDER_PAD = 0.35;
 
 // --- map boundary ---
 var EDGE_FOG_START = 160;     // distance from center where fog begins
@@ -204,12 +207,14 @@ function sampleHeight(terrain, worldX, worldZ) {
 // --- public: check if a world position is on land ---
 export function isLand(terrain, worldX, worldZ) {
   if (!terrain) return false;
+  if (terrain.useVisualCollision && pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS)) return true;
   return sampleHeight(terrain, worldX, worldZ) > SEA_LEVEL;
 }
 
 // --- public: get terrain height at world position ---
 export function getTerrainHeight(terrain, worldX, worldZ) {
   if (!terrain) return -1;
+  if (terrain.useVisualCollision && pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS)) return 1;
   return sampleHeight(terrain, worldX, worldZ);
 }
 
@@ -217,6 +222,11 @@ export function getTerrainHeight(terrain, worldX, worldZ) {
 // Returns { collided, newX, newZ } — pushes entity out of land
 export function collideWithTerrain(terrain, posX, posZ, prevX, prevZ) {
   if (!terrain) return { collided: false, newX: posX, newZ: posZ };
+  if (terrain.useVisualCollision) {
+    var vcol = resolveVisualCollision(terrain, posX, posZ, prevX, prevZ);
+    if (vcol) return vcol;
+    return { collided: false, newX: posX, newZ: posZ };
+  }
 
   var h = sampleHeight(terrain, posX, posZ);
   if (h <= SEA_LEVEL) return { collided: false, newX: posX, newZ: posZ };
@@ -255,6 +265,20 @@ export function collideWithTerrain(terrain, posX, posZ, prevX, prevZ) {
 // Returns true if terrain blocks the line
 export function terrainBlocksLine(terrain, x1, z1, x2, z2) {
   if (!terrain) return false;
+  if (terrain.useVisualCollision) {
+    var vdx = x2 - x1;
+    var vdz = z2 - z1;
+    var vdist = Math.sqrt(vdx * vdx + vdz * vdz);
+    var vsteps = Math.ceil(vdist / 2.0);
+    if (vsteps < 2) vsteps = 2;
+    for (var vi = 1; vi < vsteps; vi++) {
+      var vt = vi / vsteps;
+      var vx = x1 + vdx * vt;
+      var vz = z1 + vdz * vt;
+      if (pointInVisualLand(terrain, vx, vz, VISUAL_COLLIDER_PAD)) return true;
+    }
+    return false;
+  }
   var dx = x2 - x1;
   var dz = z2 - z1;
   var dist = Math.sqrt(dx * dx + dz * dz);
@@ -451,24 +475,59 @@ export function createTerrain(seed, difficulty) {
   var heightmap = generateHeightmap(seed, difficulty);
   ensureNavigable(heightmap);
 
-  var mesh = buildTerrainMesh(heightmap);
+  var baseMesh = buildTerrainMesh(heightmap);
+  var mesh = new THREE.Group();
+  mesh.add(baseMesh);
 
-  return {
+  var terrain = {
     mesh: mesh,
+    baseMesh: baseMesh,
     heightmap: heightmap,
     seed: seed,
-    difficulty: difficulty
+    difficulty: difficulty,
+    visualMode: "composite-field",
+    compositePlacedCount: 0,
+    compositeInstanceCount: 0,
+    placedModelCount: 0,
+    visualColliders: [],
+    useVisualCollision: false,
+    minimapMarkers: []
   };
+
+  addCompositeFieldVisual(mesh, terrain, seed + difficulty * 101).then(function (res) {
+    terrain.compositePlacedCount = res ? (res.itemsPlaced || 0) : 0;
+    terrain.compositeInstanceCount = res ? (res.instancesPlaced || 0) : 0;
+    terrain.placedModelCount = terrain.compositePlacedCount;
+
+    if (terrain.placedModelCount <= 0) {
+      terrain.visualMode = "composite-fallback-tiered";
+      addTieredIslandFieldVisual(mesh, terrain, heightmap, seed).then(function (placed) {
+        terrain.placedModelCount = placed;
+        terrain.useVisualCollision = placed > 0;
+        baseMesh.visible = placed <= 0;
+      });
+      return;
+    }
+    terrain.useVisualCollision = true;
+    baseMesh.visible = false;
+  });
+
+  return terrain;
 }
 
 // --- public: remove terrain from scene ---
 export function removeTerrain(terrain, scene) {
-  if (!terrain) return;
-  if (terrain.mesh) {
-    scene.remove(terrain.mesh);
-    if (terrain.mesh.geometry) terrain.mesh.geometry.dispose();
-    if (terrain.mesh.material) terrain.mesh.material.dispose();
-  }
+  if (!terrain || !terrain.mesh) return;
+  scene.remove(terrain.mesh);
+  terrain.mesh.traverse(function (o) {
+    if (o.geometry) o.geometry.dispose();
+    if (!o.material) return;
+    if (Array.isArray(o.material)) {
+      for (var i = 0; i < o.material.length; i++) if (o.material[i] && o.material[i].dispose) o.material[i].dispose();
+    } else if (o.material.dispose) {
+      o.material.dispose();
+    }
+  });
 }
 
 // --- public: find a valid (water) spawn position near a point ---
@@ -524,3 +583,10 @@ export function applyEdgeBoundary(posX, posZ) {
 
   return { posX: newX, posZ: newZ, pushed: true };
 }
+
+export function getTerrainMinimapMarkers(terrain) {
+  if (!terrain || !terrain.minimapMarkers) return [];
+  return terrain.minimapMarkers;
+}
+
+export { _getTerrainAvoidance as getTerrainAvoidance };

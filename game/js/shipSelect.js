@@ -1,8 +1,11 @@
 // shipSelect.js — ship class selection screen before game start
+import * as THREE from "three";
 import { getClassOrder, getAllClasses } from "./shipClass.js";
 import { getTotalSpent, respecUpgrades } from "./upgrade.js";
 import { isMobile } from "./mobile.js";
 import { T, FONT, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
+import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
+import { loadFbxVisual } from "./fbxVisual.js";
 
 var overlay = null;
 export function getShipSelectOverlay() { return overlay; }
@@ -10,6 +13,77 @@ var onSelectCallback = null;
 var resetBtn = null;
 var confirmDialog = null;
 var currentUpgradeState = null;
+var previewRenderer = null;
+var previewCards = [];
+var previewAnimId = null;
+
+function ensurePreviewRenderer() {
+  if (previewRenderer) return previewRenderer;
+  previewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  return previewRenderer;
+}
+
+function renderPreview(entry) {
+  if (!entry.model || !entry.canvas) return;
+  var renderer = ensurePreviewRenderer();
+  var w = entry.canvas.clientWidth;
+  var h = entry.canvas.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h, false);
+  entry.camera.aspect = w / h;
+  entry.camera.updateProjectionMatrix();
+  entry.model.rotation.y += 0.01;
+  renderer.render(entry.scene, entry.camera);
+  var ctx = entry.canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(renderer.domElement, 0, 0, w, h);
+}
+
+function animatePreviewLoop() {
+  previewAnimId = requestAnimationFrame(animatePreviewLoop);
+  for (var i = 0; i < previewCards.length; i++) {
+    renderPreview(previewCards[i]);
+  }
+}
+
+function startPreviewAnimation() {
+  if (previewAnimId) return;
+  animatePreviewLoop();
+}
+
+function stopPreviewAnimation() {
+  if (previewAnimId) {
+    cancelAnimationFrame(previewAnimId);
+    previewAnimId = null;
+  }
+}
+
+function createPreviewEntry(classKey, canvas) {
+  var scene = new THREE.Scene();
+  var hemi = new THREE.HemisphereLight(0xffeedd, 0x444422, 1.2);
+  scene.add(hemi);
+  var dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(2, 4, 3);
+  scene.add(dir);
+  var camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+  camera.position.set(0, 4, 8);
+  camera.lookAt(0, 1, 0);
+  var entry = { canvas: canvas, scene: scene, camera: camera, model: null };
+  previewCards.push(entry);
+
+  ensureManifest().then(function () {
+    var path = getOverridePath(classKey);
+    var size = getOverrideSize(classKey) || 6;
+    if (!path) return;
+    loadFbxVisual(path, size, true).then(function (visual) {
+      entry.model = visual;
+      scene.add(visual);
+    }).catch(function () {});
+  });
+
+  return entry;
+}
 
 export function createShipSelectScreen() {
   overlay = document.createElement("div");
@@ -189,6 +263,7 @@ export function createShipSelectScreen() {
   document.body.appendChild(confirmDialog);
 
   document.body.appendChild(overlay);
+  startPreviewAnimation();
 }
 
 function showResetConfirm() {
@@ -243,6 +318,20 @@ function buildCard(cls) {
   card.addEventListener("mouseleave", function () {
     card.style.borderColor = T.border;
   });
+
+  // 3D model preview canvas
+  var previewCanvas = document.createElement("canvas");
+  var _previewH = _mob ? 100 : 90;
+  previewCanvas.width = _mob ? 300 : 150;
+  previewCanvas.height = _previewH;
+  previewCanvas.style.cssText = [
+    "width: 100%",
+    "height: " + _previewH + "px",
+    "margin-bottom: 8px",
+    "border-radius: 4px"
+  ].join(";");
+  card.appendChild(previewCanvas);
+  createPreviewEntry(cls.key, previewCanvas);
 
   var name = document.createElement("div");
   name.textContent = cls.name;
@@ -331,11 +420,13 @@ export function showShipSelectScreen(callback, upgradeState) {
   currentUpgradeState = upgradeState || null;
   updateResetButton();
   if (overlay) overlay.style.display = "flex";
+  startPreviewAnimation();
 }
 
 export function hideShipSelectScreen() {
   if (overlay) overlay.style.display = "none";
   hideResetConfirm();
+  stopPreviewAnimation();
 }
 
 export function isShipSelectVisible() {

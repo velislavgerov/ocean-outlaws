@@ -1,0 +1,308 @@
+{
+  "composites": [
+    {
+      "name": "trade-hub-atoll",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-trade-port.fbx",
+          "x": 0,
+          "y": -0.3,
+          "z": 0,
+          "scale": 1.08,
+          "rotYDeg": -12
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch-2.fbx",
+          "x": 10.4,
+          "y": -0.55,
+          "z": -8.8,
+          "scale": 0.95,
+          "rotYDeg": 34
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-4.fbx",
+          "x": -9.7,
+          "y": -0.85,
+          "z": 8.2,
+          "scale": 1.2,
+          "rotYDeg": 20
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-large.fbx",
+          "x": -12.842,
+          "y": 0.8,
+          "z": 2.362,
+          "scale": 1,
+          "rotYDeg": 0
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-bent-2.fbx",
+          "x": 6.325,
+          "y": 0.86,
+          "z": 7.522,
+          "scale": 0.94,
+          "rotYDeg": -18
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/tree-5.fbx",
+          "x": 16.921,
+          "y": 1.26,
+          "z": -11.611,
+          "scale": 0.88,
+          "rotYDeg": 40
+        }
+      ]
+    },
+    {
+      "name": "pirate-cove-fort",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-pirate-seaport.fbx",
+          "x": 0,
+          "y": -0.25,
+          "z": 0,
+          "scale": 1.02,
+          "rotYDeg": 9
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch.fbx",
+          "x": -14.1,
+          "y": -1.25,
+          "z": 4.8,
+          "scale": 1.36,
+          "rotYDeg": -28
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-8.fbx",
+          "x": 13.3,
+          "y": -0.55,
+          "z": -9.6,
+          "scale": 1.45,
+          "rotYDeg": 12
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-tilted.fbx",
+          "x": -5.979,
+          "y": 0.92,
+          "z": -7.1,
+          "scale": 1,
+          "rotYDeg": 30
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-large-3.fbx",
+          "x": 8.242,
+          "y": 1.02,
+          "z": 4.268,
+          "scale": 0.97,
+          "rotYDeg": -11
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/tree-3.fbx",
+          "x": -13.543,
+          "y": 0.92,
+          "z": 14.065,
+          "scale": 0.84,
+          "rotYDeg": 47
+        }
+      ]
+    },
+    {
+      "name": "twin-arches-harbor",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch.fbx",
+          "x": -9.4,
+          "y": -0.42,
+          "z": -1.8,
+          "scale": 1.22,
+          "rotYDeg": 4
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-mountain-arch-3.fbx",
+          "x": 9.7,
+          "y": -0.36,
+          "z": 2.4,
+          "scale": 1.08,
+          "rotYDeg": -10
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-2.fbx",
+          "x": 0.2,
+          "y": -0.95,
+          "z": 10.7,
+          "scale": 1.35,
+          "rotYDeg": 20
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-bent-3.fbx",
+          "x": -2.585,
+          "y": 1,
+          "z": 17.619,
+          "scale": 0.95,
+          "rotYDeg": -35
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-small-2.fbx",
+          "x": 6.709,
+          "y": 0.92,
+          "z": -5.098,
+          "scale": 1.07,
+          "rotYDeg": 22
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/fir/fir-tree-medium.fbx",
+          "x": 13.903,
+          "y": 0.94,
+          "z": 9.293,
+          "scale": 0.86,
+          "rotYDeg": 0
+        }
+      ]
+    },
+    {
+      "name": "lighthouse-channel-outpost",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/islands/island-lighthouse-pier.fbx",
+          "x": 0,
+          "y": -0.32,
+          "z": 0,
+          "scale": 1.05,
+          "rotYDeg": -6
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-arch-2.fbx",
+          "x": -16.4,
+          "y": -1.3,
+          "z": -6.2,
+          "scale": 1.22,
+          "rotYDeg": -24
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/green/green-stone-6.fbx",
+          "x": 13.5,
+          "y": -0.74,
+          "z": 8.6,
+          "scale": 1.5,
+          "rotYDeg": 30
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-large-2.fbx",
+          "x": 6.824,
+          "y": 1.02,
+          "z": 13.51,
+          "scale": 0.95,
+          "rotYDeg": 0
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-tilted-2.fbx",
+          "x": -0.778,
+          "y": 0.94,
+          "z": -7.81,
+          "scale": 1.06,
+          "rotYDeg": -28
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/tree-4.fbx",
+          "x": 14.019,
+          "y": 1.08,
+          "z": 0.329,
+          "scale": 0.82,
+          "rotYDeg": 40
+        }
+      ]
+    },
+    {
+      "name": "shattered-reef-port",
+      "items": [
+        {
+          "type": "island",
+          "modelPath": "assets/models/lands/land-mysterious-place.fbx",
+          "x": 0,
+          "y": -0.26,
+          "z": 0,
+          "scale": 1.12,
+          "rotYDeg": -7
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/ancient/ancient-stone-12.fbx",
+          "x": -16.8,
+          "y": -1.1,
+          "z": 6.1,
+          "scale": 1.52,
+          "rotYDeg": -18
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/stones/large/stone-large-5.fbx",
+          "x": 14.4,
+          "y": -0.9,
+          "z": -8.5,
+          "scale": 1.36,
+          "rotYDeg": 14
+        },
+        {
+          "type": "island",
+          "modelPath": "assets/models/mountains/mountain-2.fbx",
+          "x": -2.8,
+          "y": -2.1,
+          "z": -14.8,
+          "scale": 0.96,
+          "rotYDeg": 0
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-small-3.fbx",
+          "x": -17.609,
+          "y": 1.03,
+          "z": -2.259,
+          "scale": 1.08,
+          "rotYDeg": 0
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/palm/palm-tree-bent.fbx",
+          "x": 7.07,
+          "y": 0.94,
+          "z": 7.342,
+          "scale": 0.92,
+          "rotYDeg": 36
+        },
+        {
+          "type": "tree",
+          "modelPath": "assets/models/trees/fir/fir-tree-small.fbx",
+          "x": 21.912,
+          "y": 0.98,
+          "z": -8.689,
+          "scale": 0.9,
+          "rotYDeg": -12
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0f1d">
+  <title>Ocean Outlaws - Compositions Viewer</title>
+  <base href="/ocean-outlaws/game/">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0f1d; color: #d6e1f0; font-family: "Space Mono", monospace; }
+    #app { width: 100%; height: 100%; position: relative; }
+    #panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: min(420px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px);
+      overflow-y: auto;
+      background: rgba(8, 16, 30, 0.86);
+      border: 1px solid rgba(125, 164, 204, 0.38);
+      border-radius: 12px;
+      padding: 12px;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+    }
+    .title { font-size: 17px; color: #9bd8ff; margin: 0 0 8px; }
+    .sub { font-size: 11px; color: #8ea8c2; margin-bottom: 10px; }
+    .row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: center; margin: 7px 0; }
+    .row label { color: #c6d6ea; font-size: 12px; }
+    .row select, .row input[type="text"], .row input[type="number"] {
+      width: 100%;
+      background: rgba(20, 32, 48, 0.95);
+      color: #e0ebf8;
+      border: 1px solid rgba(105, 138, 172, 0.55);
+      border-radius: 7px;
+      padding: 6px 8px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    button {
+      background: rgba(33, 74, 56, 0.95);
+      color: #aef7cf;
+      border: 1px solid rgba(120, 216, 167, 0.6);
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: rgba(38, 47, 66, 0.95);
+      color: #ccdbeb;
+      border-color: rgba(112, 131, 163, 0.62);
+    }
+    .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; font-size: 12px; color: #c6d6ea; }
+    .checks label { display: flex; align-items: center; gap: 6px; }
+    .stats {
+      margin-top: 10px;
+      border: 1px solid rgba(107, 135, 170, 0.35);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(16, 26, 40, 0.6);
+      font-size: 11px;
+      line-height: 1.45;
+      color: #b7cade;
+      white-space: pre-line;
+    }
+    #status { margin-top: 8px; font-size: 11px; color: #87aac8; min-height: 16px; }
+    #hint {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      z-index: 10;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(112, 143, 176, 0.35);
+      background: rgba(8, 14, 25, 0.7);
+      color: #9fb7d1;
+      font-size: 11px;
+    }
+    canvas { display: block; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div id="panel">
+      <h1 class="title">Compositions Viewer</h1>
+      <div class="sub">Clean preview page for Palmov island/port composites</div>
+
+      <div class="row">
+        <label for="presetFile">Preset File</label>
+        <select id="presetFile">
+          <option value="data/compositePresetsPalmov30.json">Palmov 30 (new)</option>
+          <option value="data/compositePresetsPortsIslands20.json">Ports & Islands 20</option>
+          <option value="data/compositePresetsPortsIslands.json">Ports & Islands 5</option>
+        </select>
+      </div>
+      <div class="btns">
+        <button id="reloadBtn">Reload Presets</button>
+        <button id="randomBtn" class="secondary">Random</button>
+      </div>
+
+      <div class="row">
+        <label for="compositeSelect">Composite</label>
+        <select id="compositeSelect"></select>
+      </div>
+      <div class="btns">
+        <button id="prevBtn" class="secondary">Prev</button>
+        <button id="nextBtn" class="secondary">Next</button>
+        <button id="fitBtn">Fit Camera</button>
+      </div>
+
+      <div class="checks">
+        <label><input type="checkbox" id="showIsland" checked> Islands</label>
+        <label><input type="checkbox" id="showPort" checked> Ports/Props</label>
+        <label><input type="checkbox" id="showTree" checked> Trees/Plants</label>
+        <label><input type="checkbox" id="autoRotate" checked> Auto Rotate</label>
+      </div>
+
+      <div class="stats" id="stats"></div>
+      <div id="status"></div>
+    </div>
+    <div id="hint">Mouse: orbit | Wheel: zoom | Right-drag: pan</div>
+  </div>
+  <script type="module" src="js/compositionsViewer.js"></script>
+</body>
+</html>

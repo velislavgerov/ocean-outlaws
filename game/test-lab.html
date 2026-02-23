@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0e1a">
+  <title>Ocean Outlaws - Test Lab</title>
+  <base href="/ocean-outlaws/game/">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0e1a; font-family: monospace; color: #c8d6e4; }
+    #app { width: 100%; height: 100%; position: relative; }
+    #ui {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: min(360px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px);
+      overflow-y: auto;
+      background: rgba(5, 12, 24, 0.88);
+      border: 1px solid rgba(120, 150, 180, 0.35);
+      border-radius: 10px;
+      padding: 12px;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+    h1 { margin: 0 0 10px; font-size: 17px; color: #8dd0ff; }
+    h2 { margin: 12px 0 8px; font-size: 13px; color: #ffd27a; }
+    .row { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 8px; margin: 6px 0; }
+    .row input[type="range"] { width: 100%; }
+    .row input[type="number"], .row select, .row input[type="text"] {
+      width: 100%;
+      background: rgba(20, 30, 45, 0.95);
+      color: #d4e4f2;
+      border: 1px solid rgba(100, 130, 160, 0.4);
+      border-radius: 6px;
+      padding: 5px 7px;
+      font-family: monospace;
+    }
+    .btns { display: flex; gap: 8px; margin-top: 10px; }
+    button {
+      background: rgba(30, 70, 52, 0.95);
+      color: #9dffcb;
+      border: 1px solid rgba(108, 214, 163, 0.6);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-family: monospace;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: rgba(45, 45, 68, 0.95);
+      color: #c3d0de;
+      border-color: rgba(110, 120, 150, 0.7);
+    }
+    #status { margin-top: 8px; font-size: 11px; color: #7fa2bf; }
+    canvas { display: block; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div id="ui">
+      <h1>Ocean Outlaws Test Lab</h1>
+
+      <h2>Ship</h2>
+      <div class="row"><label for="shipModel">Ship Model</label><select id="shipModel"></select></div>
+      <div class="row"><label for="shipScale">Ship Scale</label><input id="shipScale" type="range" min="0.2" max="3" step="0.01"></div>
+      <div class="row"><label for="shipRotY">Ship Rotation Y</label><input id="shipRotY" type="range" min="-180" max="180" step="1"></div>
+      <div class="row"><label for="shipOverrideClass">Game Ship Slot</label><select id="shipOverrideClass"></select></div>
+      <div class="row"><label for="shipOverrideModel">Override Model</label><select id="shipOverrideModel"></select></div>
+      <div class="btns"><button id="saveShipOverrideBtn" class="secondary">Set Ship Override</button></div>
+
+      <h2>Weather</h2>
+      <div class="row"><label for="weatherPreset">Preset</label><select id="weatherPreset"></select></div>
+      <div class="row"><label for="fogDensity">Fog Density</label><input id="fogDensity" type="range" min="0" max="0.04" step="0.0002"></div>
+      <div class="row"><label for="ambientInt">Ambient Int</label><input id="ambientInt" type="range" min="0" max="2" step="0.01"></div>
+      <div class="row"><label for="sunInt">Sun Int</label><input id="sunInt" type="range" min="0" max="3" step="0.01"></div>
+      <div class="row"><label for="rainDensity">Rain Density</label><input id="rainDensity" type="range" min="0" max="1" step="0.01"></div>
+
+      <h2>Water</h2>
+      <div class="row"><label for="waterModel">Water Model</label><select id="waterModel"></select></div>
+      <div class="row"><label for="waterModelScale">Model Scale</label><input id="waterModelScale" type="range" min="0.1" max="4" step="0.01"></div>
+      <div class="row"><label for="waterModelY">Model Y</label><input id="waterModelY" type="range" min="-20" max="20" step="0.1"></div>
+      <div class="row"><label for="waterSize">Plane Size</label><input id="waterSize" type="range" min="120" max="900" step="10"></div>
+      <div class="row"><label for="waterSegments">Plane Segments</label><input id="waterSegments" type="range" min="8" max="140" step="1"></div>
+      <div class="row"><label for="waterWaveAmp">Wave Amplitude</label><input id="waterWaveAmp" type="range" min="0" max="3" step="0.01"></div>
+      <div class="row"><label for="waterWaveSteps">LowPoly Steps</label><input id="waterWaveSteps" type="range" min="1" max="24" step="1"></div>
+      <div class="row"><label for="waterWaveWeight1">Wave1 Weight</label><input id="waterWaveWeight1" type="range" min="0" max="2" step="0.01"></div>
+      <div class="row"><label for="waterWaveFreqX1">Wave1 Freq X</label><input id="waterWaveFreqX1" type="range" min="0" max="1.2" step="0.01"></div>
+      <div class="row"><label for="waterWaveSpeed1">Wave1 Speed</label><input id="waterWaveSpeed1" type="range" min="0" max="4" step="0.01"></div>
+      <div class="row"><label for="waterWaveWeight2">Wave2 Weight</label><input id="waterWaveWeight2" type="range" min="0" max="2" step="0.01"></div>
+      <div class="row"><label for="waterWaveFreqZ2">Wave2 Freq Z</label><input id="waterWaveFreqZ2" type="range" min="0" max="1.2" step="0.01"></div>
+      <div class="row"><label for="waterWaveSpeed2">Wave2 Speed</label><input id="waterWaveSpeed2" type="range" min="0" max="4" step="0.01"></div>
+      <div class="row"><label for="waterWaveWeight3">Wave3 Weight</label><input id="waterWaveWeight3" type="range" min="0" max="2" step="0.01"></div>
+      <div class="row"><label for="waterWaveFreqX3">Wave3 Freq X</label><input id="waterWaveFreqX3" type="range" min="0" max="1.6" step="0.01"></div>
+      <div class="row"><label for="waterWaveFreqZ3">Wave3 Freq Z</label><input id="waterWaveFreqZ3" type="range" min="0" max="1.6" step="0.01"></div>
+      <div class="row"><label for="waterWaveSpeed3">Wave3 Speed</label><input id="waterWaveSpeed3" type="range" min="0" max="4" step="0.01"></div>
+      <div class="row"><label for="waterColorDeep">Deep Color</label><input id="waterColorDeep" type="color"></div>
+      <div class="row"><label for="waterColorShallow">Shallow Color</label><input id="waterColorShallow" type="color"></div>
+
+      <h2>Scene Objects</h2>
+      <div class="row"><label for="newType">Type</label><select id="newType"></select></div>
+      <div class="row"><label for="newModel">Model</label><select id="newModel"></select></div>
+      <div class="btns"><button id="addObjectBtn">Add Object</button></div>
+
+      <h2>Composite Builder</h2>
+      <div class="row"><label for="compositeName">Name</label><input id="compositeName" type="text" placeholder="island_cluster_a"></div>
+      <div class="btns"><button id="createCompositeBtn">Create From Current Objects</button></div>
+      <div class="row"><label for="compositeList">Composites</label><select id="compositeList"></select></div>
+      <div class="btns">
+        <button id="spawnCompositeBtn" class="secondary">Spawn Composite</button>
+        <button id="exportCompositeBtn" class="secondary">Export Composite</button>
+        <button id="deleteCompositeBtn" class="secondary">Delete Composite</button>
+      </div>
+
+      <div class="row"><label for="objectList">Selected</label><select id="objectList"></select></div>
+      <div class="btns">
+        <button id="gizmoTranslateBtn">Gizmo Move</button>
+        <button id="gizmoRotateBtn" class="secondary">Gizmo Rotate</button>
+        <button id="gizmoScaleBtn" class="secondary">Gizmo Scale</button>
+      </div>
+      <div class="row"><label for="objectModel">Model</label><select id="objectModel"></select></div>
+      <div class="row"><label for="objX">X</label><input id="objX" type="number" step="0.1"></div>
+      <div class="row"><label for="objY">Y</label><input id="objY" type="number" step="0.1"></div>
+      <div class="row"><label for="objZ">Z</label><input id="objZ" type="number" step="0.1"></div>
+      <div class="row"><label for="objScale">Scale</label><input id="objScale" type="range" min="0.1" max="4" step="0.01"></div>
+      <div class="row"><label for="objRotY">Rotation Y</label><input id="objRotY" type="range" min="-180" max="180" step="1"></div>
+      <div class="btns">
+        <button id="deleteObjectBtn" class="secondary">Delete Selected</button>
+      </div>
+
+      <div class="btns">
+        <button id="saveBtn">Save Settings</button>
+        <button id="resetBtn" class="secondary">Reset Settings</button>
+      </div>
+      <h2>Preset JSON</h2>
+      <div class="row" style="grid-template-columns:1fr">
+        <textarea id="presetJson" rows="8" style="width:100%;background:rgba(20,30,45,0.95);color:#d4e4f2;border:1px solid rgba(100,130,160,0.4);border-radius:6px;padding:6px 7px;font-family:monospace;"></textarea>
+      </div>
+      <div class="btns">
+        <button id="exportJsonBtn">Export JSON</button>
+        <button id="exportObjectsBtn" class="secondary">Export Objects</button>
+        <button id="exportWaterBtn" class="secondary">Export Water</button>
+        <button id="exportWeatherBtn" class="secondary">Export Weather</button>
+        <button id="exportShipOverridesBtn" class="secondary">Export Ship Map</button>
+        <button id="importJsonBtn" class="secondary">Import JSON</button>
+        <button id="applyToGameBtn">Export Full Game JSON</button>
+      </div>
+      <div id="status"></div>
+    </div>
+  </div>
+  <script type="module" src="js/testLab.js"></script>
+</body>
+</html>

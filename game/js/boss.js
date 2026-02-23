@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { buildBossMesh } from "./bossModels.js";
 import { nextRandom } from "./rng.js";
 import { collideWithTerrain, isLand } from "./terrain.js";
+import { getOverridePath, getOverrideSize } from "./artOverrides.js";
+import { loadFbxVisual } from "./fbxVisual.js";
 
 // --- boss definitions ---
 var BOSS_DEFS = {
@@ -62,6 +64,26 @@ function ensureGeo() {
   projMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
 }
 
+function bossSlotForType(type) {
+  if (type === "battleship") return "boss_battleship";
+  if (type === "carrier") return "boss_carrier";
+  return null;
+}
+
+function applyBossOverrideAsync(mesh, bossType) {
+  var slot = bossSlotForType(bossType);
+  if (!slot) return;
+  var path = getOverridePath(slot);
+  if (!path) return;
+  var fit = getOverrideSize(slot) || (bossType === "carrier" ? 18 : 16);
+  loadFbxVisual(path, fit, true).then(function (visual) {
+    while (mesh.children.length) mesh.remove(mesh.children[0]);
+    mesh.add(visual);
+  }).catch(function () {
+    // keep procedural fallback on failure
+  });
+}
+
 // --- get boss definition ---
 export function getBossDef(bossType) {
   return BOSS_DEFS[bossType] || null;
@@ -74,6 +96,7 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
   if (!def) return null;
 
   var mesh = buildBossMesh(bossType);
+  applyBossOverrideAsync(mesh, bossType);
   var spawnDist = 80;
   var angle = nextRandom() * Math.PI * 2;
   var x = playerX + Math.sin(angle) * spawnDist;

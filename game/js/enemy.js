@@ -1,6 +1,8 @@
 // enemy.js — enemy patrol boats: spawn, chase AI, firing, health, destruction
 import * as THREE from "three";
 import { isLand, collideWithTerrain, terrainBlocksLine } from "./terrain.js";
+import { getOverridePath, getOverrideSize } from "./artOverrides.js";
+import { loadFbxVisual } from "./fbxVisual.js";
 import { nextRandom } from "./rng.js";
 
 // --- tuning ---
@@ -157,6 +159,34 @@ function buildEnemyMesh() {
   return group;
 }
 
+function placeEnemyTurretFromBounds(mesh, turret) {
+  if (!turret) return;
+  var box = new THREE.Box3().setFromObject(mesh);
+  var size = new THREE.Vector3();
+  box.getSize(size);
+  var y = box.min.y + Math.max(0.2, size.y * 0.4);
+  var z = box.max.z - Math.max(0.4, size.z * 0.18);
+  turret.position.set(0, y, z);
+  turret.rotation.set(0, 0, 0);
+  turret.visible = false;
+  if (!turret.parent) mesh.add(turret);
+}
+
+function applyEnemyOverrideAsync(mesh) {
+  var path = getOverridePath("enemy_patrol");
+  if (!path) return;
+  var fitSize = getOverrideSize("enemy_patrol") || 6;
+  var turret = mesh.userData.turret || null;
+  loadFbxVisual(path, fitSize, true).then(function (visual) {
+    while (mesh.children.length) mesh.remove(mesh.children[0]);
+    mesh.add(visual);
+    placeEnemyTurretFromBounds(mesh, turret);
+    mesh.userData.turret = turret;
+  }).catch(function () {
+    // keep procedural fallback on failure
+  });
+}
+
 // --- normalize angle to [-PI, PI] ---
 function normalizeAngle(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -238,6 +268,7 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
   } while (terrain && isLand(terrain, x, z) && attempts < 30);
 
   var mesh = buildEnemyMesh();
+  applyEnemyOverrideAsync(mesh);
   mesh.position.set(x, 0.3, z);
 
   var heading = Math.atan2(playerX - x, playerZ - z);
