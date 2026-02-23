@@ -14,7 +14,7 @@ var UPGRADE_TREE = {
     ]
   },
   propulsion: {
-    label: "Propulsion",
+    label: "Sails",
     color: "#22aaff",
     upgrades: [
       { key: "maxSpeed",   label: "+Max Speed",       stat: "maxSpeed",       perTier: [0.15, 0.20, 0.30], costs: [140, 330, 580] },

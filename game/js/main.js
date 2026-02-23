@@ -34,6 +34,7 @@ import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
 import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor, getTerrainMinimapMarkers } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
+import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
 import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendAbilityEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels } from "./netSync.js";
@@ -45,6 +46,7 @@ import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
+var lastZoneResult = null; // "victory" or "game_over"
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -98,6 +100,7 @@ var gameStarted = false;
 var activeBoss = null;
 var crewScreenOpen = false;
 var techScreenOpen = false;
+var portScreenOpen = false;
 var mapState = loadMapState();
 var activeZoneId = null;
 var activeTerrain = null;
@@ -115,6 +118,7 @@ var crew = createCrewState();
 createCrewScreen();
 var techState = loadTechState();
 createTechScreen();
+createPortScreen();
 
 setOnDeathCallback(enemyMgr, function (x, y, z) {
   spawnPickup(pickupMgr, x, y, z, scene);
@@ -210,10 +214,10 @@ createSettingsMenu({
     clearCrates(crateMgr, scene);
     if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
     if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
-    upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
+    upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
     setAutofire(true);
     setWeather(weather, "calm");
-    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay(); hideVoyageChart();
+    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
     clearVoyageState();
@@ -562,17 +566,37 @@ setRestartCallback(function () {
     ship.speed = 0; ship.heading = 0; ship.navTarget = null;
   }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
-  upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
+  upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
   setAutofire(true);
   setWeather(weather, "calm");
-  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay(); hideVoyageChart();
+  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart();
   clearVoyageState();
   activeChart = null; activeVoyageState = null;
   if (isMultiplayerActive(mpState)) {
     leaveRoom(mpState);
     mpReady = false;
   }
-  openTechThenMap();
+  // after victory, show port screen for repair/upgrades before continuing
+  if (lastZoneResult === "victory") {
+    lastZoneResult = null;
+    var hpNow = getPlayerHp(enemyMgr);
+    var portHpInfo = { hp: hpNow.hp, maxHp: hpNow.maxHp };
+    portScreenOpen = true;
+    showPortScreen({
+      upgrades: upgrades,
+      hpInfo: portHpInfo,
+      classKey: selectedClass
+    }, function () {
+      portScreenOpen = false;
+      // apply repair: sync port screen HP back to game state
+      setPlayerHp(enemyMgr, portHpInfo.hp);
+      performAutoSave();
+      openTechThenMap();
+    });
+  } else {
+    lastZoneResult = null;
+    openTechThenMap();
+  }
 });
 
 window.addEventListener("resize", function () {
@@ -588,7 +612,7 @@ function animate() {
   var input = getInput();
   var mouse = getMouse();
 
-  if (!gameFrozen && !upgradeScreenOpen && !crewScreenOpen && !techScreenOpen && !isSettingsOpen() && gameStarted) {
+  if (!gameFrozen && !upgradeScreenOpen && !crewScreenOpen && !techScreenOpen && !portScreenOpen && !isSettingsOpen() && gameStarted) {
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
 
     // process keyboard actions (QWER ability bar)
@@ -788,6 +812,7 @@ function animate() {
           });
         }
       } else if (event === "game_over") {
+        lastZoneResult = "game_over";
         gameFrozen = true;
         upgrades.gold = 0;
         hideBossHud();
@@ -796,6 +821,7 @@ function animate() {
           fadeIn(0.4);
         });
       } else if (event === "victory") {
+        lastZoneResult = "victory";
         handleZoneVictory();
         performAutoSave();
         gameFrozen = true;

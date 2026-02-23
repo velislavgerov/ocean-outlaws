@@ -116,7 +116,7 @@ export function createSettingsMenu(callbacks) {
 
   fuelInfo = document.createElement("div");
   fuelInfo.style.cssText = INFO_ROW;
-  fuelInfo.textContent = "FUEL: 100%";
+  fuelInfo.textContent = "WIND: 100%";
   infoSection.appendChild(fuelInfo);
 
   ammoInfo = document.createElement("div");
@@ -343,7 +343,7 @@ function refreshInfoLabels() {
   }
   if (d.fuel !== undefined && fuelInfo) {
     var fuelPct = Math.max(0, d.fuel / d.maxFuel) * 100;
-    fuelInfo.textContent = "FUEL: " + Math.round(d.fuel) + "%";
+    fuelInfo.textContent = "WIND: " + Math.round(d.fuel) + "%";
     fuelInfo.style.color = fuelPct > 30 ? T.blueBright : fuelPct > 15 ? T.amber : T.red;
   }
   if (d.ammo !== undefined && ammoInfo) {
