@@ -14,9 +14,9 @@ var FIRE_RANGE = 30;
 var FIRE_COOLDOWN = 1.5;       // seconds between enemy shots
 var ENEMY_PROJ_SPEED = 30;
 var ENEMY_PROJ_GRAVITY = 9.8;
-var FLOAT_OFFSET = 1.0;
-var BUOYANCY_LERP = 8;
-var TILT_LERP = 6;
+var FLOAT_OFFSET = 1.4;
+var BUOYANCY_LERP = 12;
+var TILT_LERP = 8;
 var TILT_DAMPING = 0.3;        // gentle tilt, not wild rotation
 
 // spawn tuning
@@ -291,10 +291,11 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     // destruction state
     sinking: false,
     sinkTimer: 0,
-    // smoothed buoyancy state
+    // smoothed buoyancy state (initialized on first update frame)
     _smoothY: 0.3,
     _smoothPitch: 0,
-    _smoothRoll: 0
+    _smoothRoll: 0,
+    _buoyancyInit: false
   };
 
   manager.enemies.push(enemy);
@@ -413,6 +414,14 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
       var targetPitch = Math.atan2(waveFore - waveAft, sampleDist * 2) * TILT_DAMPING;
       var targetRoll  = Math.atan2(wavePort - waveStbd, sampleDist * 2) * TILT_DAMPING;
+
+      // snap to surface on first frame so enemy never starts underwater
+      if (!e._buoyancyInit) {
+        e._buoyancyInit = true;
+        e._smoothY = targetY;
+        e._smoothPitch = targetPitch;
+        e._smoothRoll = targetRoll;
+      }
 
       var lerpFactor = 1 - Math.exp(-BUOYANCY_LERP * dt);
       var tiltFactor = 1 - Math.exp(-TILT_LERP * dt);

@@ -51,9 +51,9 @@ var BOSS_DEFS = {
 };
 
 // --- shared geometry ---
-var BOSS_FLOAT_OFFSET = 1.5;
-var BUOYANCY_LERP = 8;
-var TILT_LERP = 6;
+var BOSS_FLOAT_OFFSET = 2.0;
+var BUOYANCY_LERP = 12;
+var TILT_LERP = 8;
 var TILT_DAMPING = 0.2;        // bosses are big, less tilt
 
 var projGeo = null;
@@ -141,10 +141,11 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
     sinking: false,
     sinkTimer: 0,
     defeated: false,
-    // smoothed buoyancy state
+    // smoothed buoyancy state (initialized on first update frame)
     _smoothY: 0.5,
     _smoothPitch: 0,
-    _smoothRoll: 0
+    _smoothRoll: 0,
+    _buoyancyInit: false
   };
 }
 
@@ -377,6 +378,14 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
 
     var targetPitch = Math.atan2(waveFore - waveAft, sampleDist * 2) * TILT_DAMPING;
     var targetRoll  = Math.atan2(wavePort - waveStbd, sampleDist * 2) * TILT_DAMPING;
+
+    // snap to surface on first frame so boss never starts underwater
+    if (!boss._buoyancyInit) {
+      boss._buoyancyInit = true;
+      boss._smoothY = targetY;
+      boss._smoothPitch = targetPitch;
+      boss._smoothRoll = targetRoll;
+    }
 
     var lerpFactor = 1 - Math.exp(-BUOYANCY_LERP * dt);
     var tiltFactor = 1 - Math.exp(-TILT_LERP * dt);

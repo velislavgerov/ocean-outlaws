@@ -12,9 +12,10 @@ var DEFAULT_TURN_RATE = 2.2;
 var REVERSE_ACCEL_RATIO = 0.5;  // reverse accel as fraction of forward accel
 var DRAG = 4;
 var TURN_SPEED_HIGH_RATIO = 0.36; // turn rate at max speed as ratio of base turn rate
-var FLOAT_OFFSET = 1.2;
-var BUOYANCY_LERP = 8;        // Y position smoothing speed (higher = tighter tracking)
-var TILT_LERP = 6;            // pitch/roll smoothing speed
+var FLOAT_OFFSET = 1.6;
+var BUOYANCY_LERP = 12;       // Y position smoothing speed (higher = tighter tracking)
+var TILT_LERP = 8;            // pitch/roll smoothing speed
+var TILT_DAMPING = 0.3;       // tilt scaling — gentle, not extreme
 
 // --- auto-nav tuning ---
 var NAV_ARRIVE_RADIUS = 3;
@@ -181,10 +182,11 @@ export function createShip(classConfig) {
     baseMaxSpeed: stats ? stats.maxSpeed : DEFAULT_MAX_SPEED,
     baseAccel: stats ? stats.accel : DEFAULT_ACCEL,
     baseTurnRate: stats ? stats.turnRate : DEFAULT_TURN_RATE,
-    // smoothed buoyancy state
+    // smoothed buoyancy state (initialized on first update frame)
     _smoothY: 0,
     _smoothPitch: 0,
-    _smoothRoll: 0
+    _smoothRoll: 0,
+    _buoyancyInit: false
   };
 
   return state;
@@ -338,8 +340,16 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
     var wavePort = getWaveHeight(ship.posX + Math.cos(ship.heading) * sampleDist, ship.posZ - Math.sin(ship.heading) * sampleDist, elapsed);
     var waveStbd = getWaveHeight(ship.posX - Math.cos(ship.heading) * sampleDist, ship.posZ + Math.sin(ship.heading) * sampleDist, elapsed);
 
-    var targetPitch = Math.atan2(waveFore - waveAft, sampleDist * 2) * 0.3;
-    var targetRoll  = Math.atan2(wavePort - waveStbd, sampleDist * 2) * 0.3;
+    var targetPitch = Math.atan2(waveFore - waveAft, sampleDist * 2) * TILT_DAMPING;
+    var targetRoll  = Math.atan2(wavePort - waveStbd, sampleDist * 2) * TILT_DAMPING;
+
+    // snap to surface on first frame so ship never starts underwater
+    if (!ship._buoyancyInit) {
+      ship._buoyancyInit = true;
+      ship._smoothY = targetY;
+      ship._smoothPitch = targetPitch;
+      ship._smoothRoll = targetRoll;
+    }
 
     // smooth interpolation to prevent jitter and snapping
     var lerpFactor = 1 - Math.exp(-BUOYANCY_LERP * dt);
