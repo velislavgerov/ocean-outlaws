@@ -204,7 +204,7 @@ function buildCarrierMesh() {
   group.add(deck);
 
   // runway markings
-  var stripeMat = new THREE.MeshStandardMaterial({ color: 0xccccaa, roughness: 0.8, metalness: 0 });
+  var stripeMat = new THREE.MeshToonMaterial({ color: 0xddddbb });
   var stripeGeo = new THREE.PlaneGeometry(0.06, 3.8);
   var stripe = new THREE.Mesh(stripeGeo, stripeMat);
   stripe.rotation.x = -Math.PI / 2;
@@ -318,7 +318,7 @@ function buildSubmarineMesh() {
 
   // dive planes (horizontal fins)
   var finGeo = new THREE.BoxGeometry(0.6, 0.03, 0.15);
-  var finMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.5, metalness: 0.4 });
+  var finMat = new THREE.MeshToonMaterial({ color: 0x4a5a6a });
   var finFwd = new THREE.Mesh(finGeo, finMat);
   finFwd.position.set(0, 0.15, 1.5);
   group.add(finFwd);

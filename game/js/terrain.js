@@ -328,10 +328,10 @@ function buildTerrainMesh(heightmap) {
   var positions = [];
   var colors = [];
 
-  var colorLand = new THREE.Color(0x4a7a35);
-  var colorDirt = new THREE.Color(0x8b6914);
-  var colorBeach = new THREE.Color(0xe8d5a0);
-  var colorPeak = new THREE.Color(0x5a5a5a);
+  var colorLand = new THREE.Color(0x55aa3a);
+  var colorDirt = new THREE.Color(0xaa7a18);
+  var colorBeach = new THREE.Color(0xf0dda8);
+  var colorPeak = new THREE.Color(0x6a6a6a);
 
   for (var iy = 0; iy < size - 1; iy++) {
     for (var ix = 0; ix < size - 1; ix++) {

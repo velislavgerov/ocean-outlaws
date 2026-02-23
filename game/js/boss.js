@@ -503,7 +503,7 @@ function updateTentacleAttacks(boss, ship, dt, scene, enemyMgr) {
       ta.delay -= dt;
       if (ta.delay <= 0) {
         ta.active = true;
-        var tentMat = new THREE.MeshLambertMaterial({ color: 0x664488, transparent: true, opacity: 0.8 });
+        var tentMat = new THREE.MeshToonMaterial({ color: 0x7755aa, transparent: true, opacity: 0.8 });
         var tentGeo = new THREE.CylinderGeometry(0.4, 0.8, 6, 8);
         ta.mesh = new THREE.Mesh(tentGeo, tentMat);
         ta.mesh.position.set(ta.x, 3, ta.z);

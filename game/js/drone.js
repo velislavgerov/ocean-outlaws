@@ -22,7 +22,7 @@ function ensureGeo() {
   if (droneGeo) return;
   // small quadcopter-like shape
   droneGeo = new THREE.BoxGeometry(0.6, 0.15, 0.6);
-  droneMat = new THREE.MeshLambertMaterial({ color: 0x44dd66 });
+  droneMat = new THREE.MeshToonMaterial({ color: 0x44ee77 });
   droneProjGeo = new THREE.SphereGeometry(0.08, 4, 3);
   droneProjMat = new THREE.MeshBasicMaterial({ color: 0x66ffaa });
 }
@@ -37,7 +37,7 @@ function buildDroneMesh() {
 
   // rotor arms
   var armGeo = new THREE.BoxGeometry(1.0, 0.05, 0.08);
-  var armMat = new THREE.MeshLambertMaterial({ color: 0x338844 });
+  var armMat = new THREE.MeshToonMaterial({ color: 0x339955 });
   var arm1 = new THREE.Mesh(armGeo, armMat);
   arm1.rotation.y = Math.PI / 4;
   arm1.position.y = 0.05;

@@ -57,7 +57,7 @@ function buildPickupMesh(type) {
   var group = new THREE.Group();
 
   var color = TYPE_COLORS[type] || 0xffffff;
-  var mat = new THREE.MeshLambertMaterial({ color: color });
+  var mat = new THREE.MeshToonMaterial({ color: color });
 
   var mesh;
   if (type === "fuel") {

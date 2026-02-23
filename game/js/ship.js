@@ -43,14 +43,14 @@ function buildShipMesh() {
 
   var extrudeSettings = { depth: 0.5, bevelEnabled: false };
   var hullGeo = new THREE.ExtrudeGeometry(hullShape, extrudeSettings);
-  var hullMat = new THREE.MeshLambertMaterial({ color: 0x556677 });
+  var hullMat = new THREE.MeshToonMaterial({ color: 0x5a7088 });
   var hull = new THREE.Mesh(hullGeo, hullMat);
   hull.rotation.x = -Math.PI / 2;
   hull.position.y = -0.1;
   group.add(hull);
 
   var deckGeo = new THREE.PlaneGeometry(1.2, 3.6);
-  var deckMat = new THREE.MeshLambertMaterial({ color: 0x667788 });
+  var deckMat = new THREE.MeshToonMaterial({ color: 0x708899 });
   var deck = new THREE.Mesh(deckGeo, deckMat);
   deck.rotation.x = -Math.PI / 2;
   deck.position.y = 0.4;
@@ -58,15 +58,15 @@ function buildShipMesh() {
   group.add(deck);
 
   var bridgeGeo = new THREE.BoxGeometry(0.7, 0.6, 0.8);
-  var bridgeMat = new THREE.MeshLambertMaterial({ color: 0x778899 });
+  var bridgeMat = new THREE.MeshToonMaterial({ color: 0x8899aa });
   var bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
   bridge.position.set(0, 0.7, -0.6);
   group.add(bridge);
 
   var turretGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.3, 6);
-  var turretMat = new THREE.MeshLambertMaterial({ color: 0x445566 });
+  var turretMat = new THREE.MeshToonMaterial({ color: 0x4a6077 });
   var barrelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.7, 4);
-  var barrelMat = new THREE.MeshLambertMaterial({ color: 0x334455 });
+  var barrelMat = new THREE.MeshToonMaterial({ color: 0x3a5066 });
 
   var fwdTurret = new THREE.Group();
   fwdTurret.position.set(0, 0.55, 0.8);
@@ -89,7 +89,7 @@ function buildShipMesh() {
   group.userData.turrets = [fwdTurret, rearTurret];
 
   var mastGeo = new THREE.CylinderGeometry(0.02, 0.03, 1.0, 4);
-  var mastMat = new THREE.MeshLambertMaterial({ color: 0x556677 });
+  var mastMat = new THREE.MeshToonMaterial({ color: 0x5a7088 });
   var mast = new THREE.Mesh(mastGeo, mastMat);
   mast.position.set(0, 1.3, -0.6);
   group.add(mast);

@@ -9,24 +9,24 @@ import { nextRandom } from "./rng.js";
 var FACTIONS = {
   pirate: {
     label: "Pirate",
-    hullColor: 0x8a2020, deckColor: 0x6a2828, bridgeColor: 0x7a3030,
-    turretColor: 0x6a1818, barrelColor: 0x5a1010, glassColor: 0x3a1010,
+    hullColor: 0xaa2828, deckColor: 0x882020, bridgeColor: 0x993030,
+    turretColor: 0x881818, barrelColor: 0x771010, glassColor: 0x4a1818,
     speed: 18, turnSpeed: 2.2, engageDist: 12, fireRange: 25, fireCooldown: 1.2,
     hp: 2, goldMult: 1.0, groupSize: [3, 5],
     announce: "Pirate Fleet Approaching!"
   },
   navy: {
     label: "Royal Navy",
-    hullColor: 0x2a3a6a, deckColor: 0x3a4a7a, bridgeColor: 0x4a5a8a,
-    turretColor: 0x2a3a5a, barrelColor: 0x1a2a4a, glassColor: 0x1a2a4a,
+    hullColor: 0x2a4a88, deckColor: 0x3a5a99, bridgeColor: 0x4a6aaa,
+    turretColor: 0x2a4a77, barrelColor: 0x1a3a66, glassColor: 0x1a3a66,
     speed: 12, turnSpeed: 1.4, engageDist: 30, fireRange: 38, fireCooldown: 1.0,
     hp: 5, goldMult: 2.0, groupSize: [2, 4],
     announce: "Royal Navy Patrol!"
   },
   merchant: {
     label: "Merchant",
-    hullColor: 0x6a5030, deckColor: 0x7a6040, bridgeColor: 0x8a7050,
-    turretColor: 0x5a4020, barrelColor: 0x4a3018, glassColor: 0x3a2818,
+    hullColor: 0x886838, deckColor: 0x997848, bridgeColor: 0xaa8858,
+    turretColor: 0x775828, barrelColor: 0x664820, glassColor: 0x4a3820,
     speed: 10, turnSpeed: 1.6, engageDist: 50, fireRange: 20, fireCooldown: 2.5,
     hp: 3, goldMult: 3.0, groupSize: [1, 3],
     announce: "Merchant Convoy Spotted!"
@@ -97,15 +97,12 @@ function getFactionMats(faction) {
   if (factionMats[faction]) return factionMats[faction];
   var f = FACTIONS[faction] || FACTIONS.pirate;
   factionMats[faction] = {
-    hull: new THREE.MeshStandardMaterial({ color: f.hullColor, roughness: 0.65, metalness: 0.15 }),
-    deck: new THREE.MeshStandardMaterial({ color: f.deckColor, roughness: 0.5, metalness: 0.05 }),
-    bridge: new THREE.MeshStandardMaterial({ color: f.bridgeColor, roughness: 0.45, metalness: 0.2 }),
-    turret: new THREE.MeshStandardMaterial({ color: f.turretColor, roughness: 0.35, metalness: 0.7 }),
-    barrel: new THREE.MeshStandardMaterial({ color: f.barrelColor, roughness: 0.3, metalness: 0.8 }),
-    glass: new THREE.MeshStandardMaterial({
-      color: f.glassColor, roughness: 0.1, metalness: 0.5,
-      emissive: f.glassColor, emissiveIntensity: 0
-    })
+    hull: new THREE.MeshToonMaterial({ color: f.hullColor }),
+    deck: new THREE.MeshToonMaterial({ color: f.deckColor }),
+    bridge: new THREE.MeshToonMaterial({ color: f.bridgeColor }),
+    turret: new THREE.MeshToonMaterial({ color: f.turretColor }),
+    barrel: new THREE.MeshToonMaterial({ color: f.barrelColor }),
+    glass: new THREE.MeshToonMaterial({ color: f.glassColor })
   };
   return factionMats[faction];
 }
@@ -141,7 +138,7 @@ function buildEnemyMesh(faction) {
   group.add(hull);
 
   var wlGeo = new THREE.PlaneGeometry(1.1, 3.2);
-  var wlMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, roughness: 0.9, metalness: 0 });
+  var wlMat = new THREE.MeshToonMaterial({ color: 0x1a0a0a });
   var wl = new THREE.Mesh(wlGeo, wlMat);
   wl.rotation.x = -Math.PI / 2;
   wl.position.set(0, 0.01, 0.1);

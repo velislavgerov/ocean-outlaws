@@ -101,14 +101,14 @@ function buildPortMesh() {
 
   // pier platform
   var pierGeo = new THREE.BoxGeometry(3, 0.4, 6);
-  var pierMat = new THREE.MeshLambertMaterial({ color: 0x8b6914 });
+  var pierMat = new THREE.MeshToonMaterial({ color: 0xa07a18 });
   var pier = new THREE.Mesh(pierGeo, pierMat);
   pier.position.set(0, 1.5, 0);
   group.add(pier);
 
   // pilings (4 corner posts)
   var pilingGeo = new THREE.CylinderGeometry(0.15, 0.15, 3, 6);
-  var pilingMat = new THREE.MeshLambertMaterial({ color: 0x5a4010 });
+  var pilingMat = new THREE.MeshToonMaterial({ color: 0x6a4a14 });
   var offsets = [[-1.2, -2.5], [1.2, -2.5], [-1.2, 2.5], [1.2, 2.5]];
   for (var i = 0; i < offsets.length; i++) {
     var piling = new THREE.Mesh(pilingGeo, pilingMat);
@@ -118,14 +118,14 @@ function buildPortMesh() {
 
   // supply crate on pier
   var crateGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-  var crateMat = new THREE.MeshLambertMaterial({ color: 0x44aa66 });
+  var crateMat = new THREE.MeshToonMaterial({ color: 0x44cc77 });
   var crate = new THREE.Mesh(crateGeo, crateMat);
   crate.position.set(0.5, 2.1, 1.0);
   group.add(crate);
 
   // barrel on pier
   var barrelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.7, 8);
-  var barrelMat = new THREE.MeshLambertMaterial({ color: 0x2288cc });
+  var barrelMat = new THREE.MeshToonMaterial({ color: 0x2299ee });
   var barrel = new THREE.Mesh(barrelGeo, barrelMat);
   barrel.position.set(-0.6, 2.05, -0.8);
   group.add(barrel);
@@ -137,7 +137,7 @@ function buildPortMesh() {
 
   // beacon post
   var postGeo = new THREE.CylinderGeometry(0.08, 0.08, 2, 6);
-  var postMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+  var postMat = new THREE.MeshToonMaterial({ color: 0x999999 });
   var post = new THREE.Mesh(postGeo, postMat);
   post.position.set(1.2, 2.5, -2.5);
   group.add(post);

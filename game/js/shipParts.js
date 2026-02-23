@@ -15,22 +15,11 @@ var anchorMat = null;
 
 export function ensureMaterials() {
   if (glassMat) return;
-  glassMat = new THREE.MeshStandardMaterial({
-    color: 0x1a2a3a, roughness: 0.1, metalness: 0.5,
-    emissive: 0x1a2a3a, emissiveIntensity: 0
-  });
-  metalMat = new THREE.MeshStandardMaterial({
-    color: 0x888899, roughness: 0.3, metalness: 0.8
-  });
-  radarMat = new THREE.MeshStandardMaterial({
-    color: 0x667777, roughness: 0.4, metalness: 0.7
-  });
-  flagMat = new THREE.MeshStandardMaterial({
-    color: 0xeeeeee, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide
-  });
-  anchorMat = new THREE.MeshStandardMaterial({
-    color: 0x444444, roughness: 0.4, metalness: 0.9
-  });
+  glassMat = new THREE.MeshToonMaterial({ color: 0x2a4a6a });
+  metalMat = new THREE.MeshToonMaterial({ color: 0x9999aa });
+  radarMat = new THREE.MeshToonMaterial({ color: 0x7799aa });
+  flagMat = new THREE.MeshToonMaterial({ color: 0xeeeeee, side: THREE.DoubleSide });
+  anchorMat = new THREE.MeshToonMaterial({ color: 0x555555 });
 }
 
 export function getMetalMat() { ensureMaterials(); return metalMat; }
@@ -38,7 +27,7 @@ export function getMetalMat() { ensureMaterials(); return metalMat; }
 export function getHullMat(color) {
   var key = color.toString(16);
   if (!hullMats[key]) {
-    hullMats[key] = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.1 });
+    hullMats[key] = new THREE.MeshToonMaterial({ color: color });
   }
   return hullMats[key];
 }
@@ -46,7 +35,7 @@ export function getHullMat(color) {
 export function getDeckMat(color) {
   var key = color.toString(16);
   if (!deckMats[key]) {
-    deckMats[key] = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5, metalness: 0.05 });
+    deckMats[key] = new THREE.MeshToonMaterial({ color: color });
   }
   return deckMats[key];
 }
@@ -54,7 +43,7 @@ export function getDeckMat(color) {
 export function getBridgeMat(color) {
   var key = color.toString(16);
   if (!bridgeMats[key]) {
-    bridgeMats[key] = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5, metalness: 0.2 });
+    bridgeMats[key] = new THREE.MeshToonMaterial({ color: color });
   }
   return bridgeMats[key];
 }
@@ -62,7 +51,7 @@ export function getBridgeMat(color) {
 export function getTurretMat(color) {
   var key = color.toString(16);
   if (!turretMats[key]) {
-    turretMats[key] = new THREE.MeshStandardMaterial({ color: color, roughness: 0.35, metalness: 0.7 });
+    turretMats[key] = new THREE.MeshToonMaterial({ color: color });
   }
   return turretMats[key];
 }
@@ -70,7 +59,7 @@ export function getTurretMat(color) {
 export function getBarrelMat(color) {
   var key = color.toString(16);
   if (!barrelMats[key]) {
-    barrelMats[key] = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.8 });
+    barrelMats[key] = new THREE.MeshToonMaterial({ color: color });
   }
   return barrelMats[key];
 }
@@ -78,7 +67,7 @@ export function getBarrelMat(color) {
 // --- waterline stripe (dark band at hull base) ---
 export function addWaterline(group, halfWidth, length, zOffset) {
   var wlGeo = new THREE.PlaneGeometry(halfWidth * 2, length);
-  var wlMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, roughness: 0.9, metalness: 0 });
+  var wlMat = new THREE.MeshToonMaterial({ color: 0x1a0a0a });
   var wl = new THREE.Mesh(wlGeo, wlMat);
   wl.rotation.x = -Math.PI / 2;
   wl.position.set(0, 0.01, zOffset || 0);
@@ -155,12 +144,12 @@ export function addBridgeWindows(group, bx, by, bz, width, height) {
 // --- smokestack ---
 export function addSmokestack(group, x, y, z, radius, height) {
   var stackGeo = new THREE.CylinderGeometry(radius * 0.8, radius, height, 8);
-  var stackMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, metalness: 0.3 });
+  var stackMat = new THREE.MeshToonMaterial({ color: 0x444444 });
   var stack = new THREE.Mesh(stackGeo, stackMat);
   stack.position.set(x, y + height / 2, z);
   group.add(stack);
   var rimGeo = new THREE.TorusGeometry(radius * 0.8, 0.02, 4, 8);
-  var rimMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8, metalness: 0.2 });
+  var rimMat = new THREE.MeshToonMaterial({ color: 0x222222 });
   var rim = new THREE.Mesh(rimGeo, rimMat);
   rim.rotation.x = Math.PI / 2;
   rim.position.set(x, y + height, z);

@@ -63,7 +63,7 @@ function buildCrateMesh(type) {
   var group = new THREE.Group();
 
   var color = TYPE_COLORS[type] || 0xffffff;
-  var mat = new THREE.MeshLambertMaterial({ color: color });
+  var mat = new THREE.MeshToonMaterial({ color: color });
 
   var mesh;
   if (type === "fuel") {
@@ -75,7 +75,7 @@ function buildCrateMesh(type) {
 
   // stripe to distinguish from enemy drops (white band)
   var stripeGeo = new THREE.BoxGeometry(0.72, 0.1, 0.72);
-  var stripeMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  var stripeMat = new THREE.MeshToonMaterial({ color: 0xffffff });
   var stripe = new THREE.Mesh(stripeGeo, stripeMat);
   stripe.position.y = 0.15;
   group.add(stripe);

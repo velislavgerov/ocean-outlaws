@@ -7,11 +7,8 @@ var glassMat = null;
 
 function ensureBossMats() {
   if (metalMat) return;
-  metalMat = new THREE.MeshStandardMaterial({ color: 0x888899, roughness: 0.3, metalness: 0.8 });
-  glassMat = new THREE.MeshStandardMaterial({
-    color: 0x1a2a3a, roughness: 0.1, metalness: 0.5,
-    emissive: 0x1a2a3a, emissiveIntensity: 0
-  });
+  metalMat = new THREE.MeshToonMaterial({ color: 0x9999aa });
+  glassMat = new THREE.MeshToonMaterial({ color: 0x2a4a6a });
 }
 
 function addBossNavLights(group, x, y, z) {
@@ -75,7 +72,7 @@ function buildBattleshipMesh() {
   var hullGeo = new THREE.ExtrudeGeometry(hullShape, {
     depth: 1.1, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.05, bevelSegments: 2
   });
-  var hullMat = new THREE.MeshStandardMaterial({ color: 0x5a3a28, roughness: 0.65, metalness: 0.15 });
+  var hullMat = new THREE.MeshToonMaterial({ color: 0x6a4430 });
   var hull = new THREE.Mesh(hullGeo, hullMat);
   hull.rotation.x = -Math.PI / 2;
   hull.position.y = -0.2;
@@ -83,7 +80,7 @@ function buildBattleshipMesh() {
 
   // waterline
   var wlGeo = new THREE.PlaneGeometry(3.0, 9.5);
-  var wlMat = new THREE.MeshStandardMaterial({ color: 0x1a0808, roughness: 0.9, metalness: 0 });
+  var wlMat = new THREE.MeshToonMaterial({ color: 0x1a0808 });
   var wl = new THREE.Mesh(wlGeo, wlMat);
   wl.rotation.x = -Math.PI / 2;
   wl.position.set(0, 0.01, 0);
@@ -91,7 +88,7 @@ function buildBattleshipMesh() {
 
   // deck
   var deckGeo = new THREE.PlaneGeometry(2.8, 8.5);
-  var deckMat = new THREE.MeshStandardMaterial({ color: 0x6a4a38, roughness: 0.5, metalness: 0.05 });
+  var deckMat = new THREE.MeshToonMaterial({ color: 0x7a5a40 });
   var deck = new THREE.Mesh(deckGeo, deckMat);
   deck.rotation.x = -Math.PI / 2;
   deck.position.y = 0.9;
@@ -99,7 +96,7 @@ function buildBattleshipMesh() {
 
   // massive bridge — two tiers
   var bridgeGeo = new THREE.BoxGeometry(1.4, 1.2, 1.6);
-  var bridgeMat = new THREE.MeshStandardMaterial({ color: 0x7a5a48, roughness: 0.45, metalness: 0.2 });
+  var bridgeMat = new THREE.MeshToonMaterial({ color: 0x8a6a50 });
   var bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
   bridge.position.set(0, 1.5, -1.5);
   group.add(bridge);
@@ -110,7 +107,7 @@ function buildBattleshipMesh() {
   addBossWindows(group, 0, 1.5, -1.5, 1.4, 1.2);
 
   // smokestacks (twin)
-  var stackMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, metalness: 0.3 });
+  var stackMat = new THREE.MeshToonMaterial({ color: 0x444444 });
   for (var si = 0; si < 2; si++) {
     var stackGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.8, 8);
     var stack = new THREE.Mesh(stackGeo, stackMat);
@@ -127,9 +124,9 @@ function buildBattleshipMesh() {
 
   // broadside turrets (4 total) — larger, more imposing
   var turretGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.4, 8);
-  var turretMat = new THREE.MeshStandardMaterial({ color: 0x4a2a1a, roughness: 0.35, metalness: 0.7 });
+  var turretMat = new THREE.MeshToonMaterial({ color: 0x5a3420 });
   var barrelGeo = new THREE.CylinderGeometry(0.06, 0.07, 1.1, 6);
-  var barrelMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.3, metalness: 0.8 });
+  var barrelMat = new THREE.MeshToonMaterial({ color: 0x4a2818 });
 
   var turrets = [];
   var turretPositions = [
@@ -151,7 +148,7 @@ function buildBattleshipMesh() {
   }
 
   // armor plating (decorative strips along sides)
-  var plateMat = new THREE.MeshStandardMaterial({ color: 0x4a3828, roughness: 0.5, metalness: 0.4 });
+  var plateMat = new THREE.MeshToonMaterial({ color: 0x5a4830 });
   for (var side = -1; side <= 1; side += 2) {
     for (var pi = 0; pi < 4; pi++) {
       var plate = new THREE.Mesh(
@@ -190,7 +187,7 @@ function buildCarrierBossMesh() {
   var hullGeo = new THREE.ExtrudeGeometry(hullShape, {
     depth: 1.1, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.05, bevelSegments: 2
   });
-  var hullMat = new THREE.MeshStandardMaterial({ color: 0x2a4a2a, roughness: 0.65, metalness: 0.15 });
+  var hullMat = new THREE.MeshToonMaterial({ color: 0x3a6a3a });
   var hull = new THREE.Mesh(hullGeo, hullMat);
   hull.rotation.x = -Math.PI / 2;
   hull.position.y = -0.2;
@@ -198,7 +195,7 @@ function buildCarrierBossMesh() {
 
   // waterline
   var wlGeo = new THREE.PlaneGeometry(3.8, 10.5);
-  var wlMat = new THREE.MeshStandardMaterial({ color: 0x0a1a0a, roughness: 0.9, metalness: 0 });
+  var wlMat = new THREE.MeshToonMaterial({ color: 0x0a1a0a });
   var wl = new THREE.Mesh(wlGeo, wlMat);
   wl.rotation.x = -Math.PI / 2;
   wl.position.set(0, 0.01, 0);
@@ -206,14 +203,14 @@ function buildCarrierBossMesh() {
 
   // flight deck
   var deckGeo = new THREE.PlaneGeometry(3.6, 10.0);
-  var deckMat = new THREE.MeshStandardMaterial({ color: 0x3a5a3a, roughness: 0.5, metalness: 0.05 });
+  var deckMat = new THREE.MeshToonMaterial({ color: 0x4a7a4a });
   var deck = new THREE.Mesh(deckGeo, deckMat);
   deck.rotation.x = -Math.PI / 2;
   deck.position.y = 1.0;
   group.add(deck);
 
   // runway stripes
-  var stripeMat = new THREE.MeshStandardMaterial({ color: 0xccccaa, roughness: 0.8, metalness: 0 });
+  var stripeMat = new THREE.MeshToonMaterial({ color: 0xddddbb });
   for (var s = 0; s < 3; s++) {
     var stripeGeo = new THREE.PlaneGeometry(0.08, 7.0);
     var stripe = new THREE.Mesh(stripeGeo, stripeMat);
@@ -224,7 +221,7 @@ function buildCarrierBossMesh() {
 
   // island tower (starboard side)
   var bridgeGeo = new THREE.BoxGeometry(0.9, 1.4, 1.4);
-  var bridgeMat = new THREE.MeshStandardMaterial({ color: 0x4a6a4a, roughness: 0.45, metalness: 0.2 });
+  var bridgeMat = new THREE.MeshToonMaterial({ color: 0x5a8a5a });
   var bridgeIs = new THREE.Mesh(bridgeGeo, bridgeMat);
   bridgeIs.position.set(1.4, 1.7, -1.5);
   group.add(bridgeIs);
@@ -238,7 +235,7 @@ function buildCarrierBossMesh() {
   addBossRadar(group, 1.4, 3.4, -1.5);
 
   // hangar bays
-  var hangarMat = new THREE.MeshStandardMaterial({ color: 0x2a3a2a, roughness: 0.6, metalness: 0.1 });
+  var hangarMat = new THREE.MeshToonMaterial({ color: 0x3a4a3a });
   for (var h = 0; h < 2; h++) {
     var hangar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 1.8), hangarMat);
     hangar.position.set(0, 0.8, h * 3.5 - 0.5);
@@ -247,9 +244,9 @@ function buildCarrierBossMesh() {
 
   // defensive turrets
   var turretGeo = new THREE.CylinderGeometry(0.28, 0.35, 0.3, 8);
-  var turretMat = new THREE.MeshStandardMaterial({ color: 0x2a4a2a, roughness: 0.35, metalness: 0.7 });
+  var turretMat = new THREE.MeshToonMaterial({ color: 0x3a6a3a });
   var barrelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.8, 6);
-  var barrelMat = new THREE.MeshStandardMaterial({ color: 0x1a3a1a, roughness: 0.3, metalness: 0.8 });
+  var barrelMat = new THREE.MeshToonMaterial({ color: 0x2a5a2a });
 
   var turrets = [];
   var tPos = [[0, 1.1, 3.5], [0, 1.1, -4.0]];
@@ -277,20 +274,16 @@ function buildKrakenMesh() {
   ensureBossMats();
   var group = new THREE.Group();
 
-  // body — large sphere-ish mass with PBR
+  // body — large sphere-ish mass
   var bodyGeo = new THREE.SphereGeometry(3.0, 16, 12);
-  var bodyMat = new THREE.MeshStandardMaterial({
-    color: 0x4a2868, roughness: 0.6, metalness: 0.15
-  });
+  var bodyMat = new THREE.MeshToonMaterial({ color: 0x5a3888 });
   var body = new THREE.Mesh(bodyGeo, bodyMat);
   body.scale.set(1.0, 0.5, 1.2);
   body.position.y = 0.5;
   group.add(body);
 
   // mantle ridges (decorative bumps on top)
-  var ridgeMat = new THREE.MeshStandardMaterial({
-    color: 0x3a1a50, roughness: 0.5, metalness: 0.2
-  });
+  var ridgeMat = new THREE.MeshToonMaterial({ color: 0x4a2268 });
   for (var ri = 0; ri < 5; ri++) {
     var ridgeGeo = new THREE.SphereGeometry(0.6, 6, 4);
     var ridge = new THREE.Mesh(ridgeGeo, ridgeMat);
@@ -305,9 +298,8 @@ function buildKrakenMesh() {
 
   // eyes — larger, glowing
   var eyeGeo = new THREE.SphereGeometry(0.5, 10, 8);
-  var eyeMat = new THREE.MeshStandardMaterial({
-    color: 0xffcc00, roughness: 0.2, metalness: 0.3,
-    emissive: 0xffaa00, emissiveIntensity: 0.8
+  var eyeMat = new THREE.MeshToonMaterial({
+    color: 0xffdd00, emissive: 0xffaa00, emissiveIntensity: 0.8
   });
   var eyeL = new THREE.Mesh(eyeGeo, eyeMat);
   eyeL.position.set(-1.0, 1.1, 2.2);
@@ -318,7 +310,7 @@ function buildKrakenMesh() {
 
   // pupils
   var pupilGeo = new THREE.SphereGeometry(0.2, 6, 4);
-  var pupilMat = new THREE.MeshStandardMaterial({ color: 0x110800, roughness: 0.9, metalness: 0 });
+  var pupilMat = new THREE.MeshToonMaterial({ color: 0x110800 });
   var pupilL = new THREE.Mesh(pupilGeo, pupilMat);
   pupilL.position.set(-1.0, 1.1, 2.6);
   group.add(pupilL);
@@ -328,12 +320,8 @@ function buildKrakenMesh() {
 
   // tentacles (stored for animation)
   var tentacles = [];
-  var tentacleMat = new THREE.MeshStandardMaterial({
-    color: 0x5a3078, roughness: 0.55, metalness: 0.1
-  });
-  var suckerMat = new THREE.MeshStandardMaterial({
-    color: 0x8a60aa, roughness: 0.7, metalness: 0.05
-  });
+  var tentacleMat = new THREE.MeshToonMaterial({ color: 0x6a3898 });
+  var suckerMat = new THREE.MeshToonMaterial({ color: 0x9a70cc });
   for (var i = 0; i < 8; i++) {
     var angle = (i / 8) * Math.PI * 2;
     var tentGroup = new THREE.Group();

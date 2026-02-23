@@ -34,9 +34,24 @@ function fitToSize(root, target) {
 function applyFlat(root) {
   root.traverse(function (o) {
     if (!o.isMesh || !o.material) return;
-    if (Array.isArray(o.material)) return;
-    o.material.flatShading = true;
-    o.material.needsUpdate = true;
+    var mats = Array.isArray(o.material) ? o.material : [o.material];
+    var replaced = [];
+    for (var i = 0; i < mats.length; i++) {
+      var m = mats[i];
+      var col = m.color ? m.color.clone() : new THREE.Color(0xcccccc);
+      // boost saturation for cartoon vibrancy
+      var hsl = {};
+      col.getHSL(hsl);
+      col.setHSL(hsl.h, Math.min(1, hsl.s * 1.3 + 0.05), hsl.l);
+      var toon = new THREE.MeshToonMaterial({
+        color: col,
+        side: m.side !== undefined ? m.side : THREE.FrontSide
+      });
+      if (m.map) toon.map = m.map;
+      if (m.transparent) { toon.transparent = true; toon.opacity = m.opacity; }
+      replaced.push(toon);
+    }
+    o.material = Array.isArray(o.material) ? replaced : replaced[0];
   });
 }
 
