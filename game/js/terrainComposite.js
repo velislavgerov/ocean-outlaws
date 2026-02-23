@@ -31,15 +31,205 @@ function seededRand(seed) {
   };
 }
 
-function addVisualColliderFromObject(terrain, obj) {
-  if (!terrain || !obj) return;
+// --- multi-box decomposition grid resolution ---
+var DECOMP_GRID_RES = 12; // cells per axis for footprint rasterization
+var MAX_BOXES_PER_ISLAND = 8;
+
+// Detect arch-type models by path keyword
+function isArchModel(modelPath) {
+  if (!modelPath) return false;
+  var lower = modelPath.toLowerCase();
+  return lower.indexOf("arch") >= 0;
+}
+
+// Rasterize mesh XZ footprint onto a 2D grid, return occupied cells
+function rasterizeFootprint(obj, gridRes) {
   var box = new THREE.Box3().setFromObject(obj);
-  if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
-  var cx = (box.min.x + box.max.x) * 0.5;
-  var cz = (box.min.z + box.max.z) * 0.5;
-  var hx = (box.max.x - box.min.x) * 0.5 * VISUAL_COLLIDER_SHRINK;
-  var hz = (box.max.z - box.min.z) * 0.5 * VISUAL_COLLIDER_SHRINK;
-  terrain.visualColliders.push({ minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz });
+  if (!isFinite(box.min.x) || !isFinite(box.max.x)) return null;
+  var extX = box.max.x - box.min.x;
+  var extZ = box.max.z - box.min.z;
+  if (extX < 0.01 || extZ < 0.01) return null;
+
+  var cellW = extX / gridRes;
+  var cellH = extZ / gridRes;
+  var grid = new Uint8Array(gridRes * gridRes);
+
+  // sample mesh triangles onto the grid
+  obj.traverse(function (child) {
+    if (!child.isMesh || !child.geometry) return;
+    var geo = child.geometry;
+    var posAttr = geo.attributes.position;
+    if (!posAttr) return;
+    var idx = geo.index;
+    var triCount = idx ? idx.count / 3 : posAttr.count / 3;
+    var worldMat = child.matrixWorld;
+    var v = new THREE.Vector3();
+
+    for (var t = 0; t < triCount; t++) {
+      // sample each triangle's three vertices
+      for (var vi = 0; vi < 3; vi++) {
+        var vertIdx = idx ? idx.getX(t * 3 + vi) : t * 3 + vi;
+        v.fromBufferAttribute(posAttr, vertIdx);
+        v.applyMatrix4(worldMat);
+        var gx = Math.floor((v.x - box.min.x) / cellW);
+        var gz = Math.floor((v.z - box.min.z) / cellH);
+        if (gx >= 0 && gx < gridRes && gz >= 0 && gz < gridRes) {
+          grid[gz * gridRes + gx] = 1;
+        }
+      }
+      // also sample triangle centroid for better coverage
+      if (idx) {
+        var i0 = idx.getX(t * 3), i1 = idx.getX(t * 3 + 1), i2 = idx.getX(t * 3 + 2);
+        var cx = 0, cz = 0;
+        for (var k = 0; k < 3; k++) {
+          var ki = k === 0 ? i0 : (k === 1 ? i1 : i2);
+          v.fromBufferAttribute(posAttr, ki);
+          v.applyMatrix4(worldMat);
+          cx += v.x; cz += v.z;
+        }
+        cx /= 3; cz /= 3;
+        var gcx = Math.floor((cx - box.min.x) / cellW);
+        var gcz = Math.floor((cz - box.min.z) / cellH);
+        if (gcx >= 0 && gcx < gridRes && gcz >= 0 && gcz < gridRes) {
+          grid[gcz * gridRes + gcx] = 1;
+        }
+      }
+    }
+  });
+
+  return { grid: grid, res: gridRes, box: box, cellW: cellW, cellH: cellH };
+}
+
+// Greedy box fitting: decompose occupied cells into maximal rectangles
+function decomposeGrid(footprint, maxBoxes) {
+  var res = footprint.res;
+  var grid = new Uint8Array(footprint.grid); // copy so we can mark consumed
+  var boxes = [];
+
+  for (var pass = 0; pass < maxBoxes; pass++) {
+    // find largest rectangle of occupied cells
+    var bestArea = 0, bestR0 = 0, bestC0 = 0, bestR1 = 0, bestC1 = 0;
+    for (var r = 0; r < res; r++) {
+      for (var c = 0; c < res; c++) {
+        if (!grid[r * res + c]) continue;
+        // expand rectangle from (r, c)
+        var maxC1 = res - 1;
+        for (var r1 = r; r1 < res; r1++) {
+          for (var c1 = c; c1 <= maxC1; c1++) {
+            if (!grid[r1 * res + c1]) { maxC1 = c1 - 1; break; }
+          }
+          var area = (r1 - r + 1) * (maxC1 - c + 1);
+          if (area > bestArea) {
+            bestArea = area;
+            bestR0 = r; bestC0 = c; bestR1 = r1; bestC1 = maxC1;
+          }
+        }
+      }
+    }
+    if (bestArea === 0) break;
+
+    // convert grid coords to world AABB
+    var minX = footprint.box.min.x + bestC0 * footprint.cellW;
+    var maxX = footprint.box.min.x + (bestC1 + 1) * footprint.cellW;
+    var minZ = footprint.box.min.z + bestR0 * footprint.cellH;
+    var maxZ = footprint.box.min.z + (bestR1 + 1) * footprint.cellH;
+
+    // shrink slightly to avoid invisible walls
+    var shrinkX = (maxX - minX) * (1 - VISUAL_COLLIDER_SHRINK) * 0.5;
+    var shrinkZ = (maxZ - minZ) * (1 - VISUAL_COLLIDER_SHRINK) * 0.5;
+    boxes.push({
+      minX: minX + shrinkX, maxX: maxX - shrinkX,
+      minZ: minZ + shrinkZ, maxZ: maxZ - shrinkZ
+    });
+
+    // mark consumed cells
+    for (var r = bestR0; r <= bestR1; r++) {
+      for (var c = bestC0; c <= bestC1; c++) {
+        grid[r * res + c] = 0;
+      }
+    }
+  }
+
+  return boxes;
+}
+
+// Decompose arch into two separate pillar colliders (left + right supports)
+function decomposeArch(footprint) {
+  var res = footprint.res;
+  var grid = footprint.grid;
+  // Split grid into left half and right half, build separate boxes for each
+  var halfC = Math.floor(res / 2);
+  var pillars = [];
+
+  for (var side = 0; side < 2; side++) {
+    var cStart = side === 0 ? 0 : halfC;
+    var cEnd = side === 0 ? halfC : res;
+    var minR = res, maxR = -1, minC = res, maxC = -1;
+    var occupied = false;
+    for (var r = 0; r < res; r++) {
+      for (var c = cStart; c < cEnd; c++) {
+        if (!grid[r * res + c]) continue;
+        occupied = true;
+        if (r < minR) minR = r;
+        if (r > maxR) maxR = r;
+        if (c < minC) minC = c;
+        if (c > maxC) maxC = c;
+      }
+    }
+    if (!occupied) continue;
+    var wMinX = footprint.box.min.x + minC * footprint.cellW;
+    var wMaxX = footprint.box.min.x + (maxC + 1) * footprint.cellW;
+    var wMinZ = footprint.box.min.z + minR * footprint.cellH;
+    var wMaxZ = footprint.box.min.z + (maxR + 1) * footprint.cellH;
+    var shrinkX = (wMaxX - wMinX) * (1 - VISUAL_COLLIDER_SHRINK) * 0.5;
+    var shrinkZ = (wMaxZ - wMinZ) * (1 - VISUAL_COLLIDER_SHRINK) * 0.5;
+    pillars.push({
+      minX: wMinX + shrinkX, maxX: wMaxX - shrinkX,
+      minZ: wMinZ + shrinkZ, maxZ: wMaxZ - shrinkZ
+    });
+  }
+  return pillars;
+}
+
+function addVisualColliderFromObject(terrain, obj, modelPath) {
+  if (!terrain || !obj) return;
+
+  // try multi-box decomposition from mesh geometry
+  obj.updateMatrixWorld(true);
+  var footprint = rasterizeFootprint(obj, DECOMP_GRID_RES);
+
+  if (!footprint) {
+    // fallback to single AABB
+    var box = new THREE.Box3().setFromObject(obj);
+    if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
+    var cx = (box.min.x + box.max.x) * 0.5;
+    var cz = (box.min.z + box.max.z) * 0.5;
+    var hx = (box.max.x - box.min.x) * 0.5 * VISUAL_COLLIDER_SHRINK;
+    var hz = (box.max.z - box.min.z) * 0.5 * VISUAL_COLLIDER_SHRINK;
+    terrain.visualColliders.push({ minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz });
+    return;
+  }
+
+  // check if occupied cells exist at all
+  var hasOccupied = false;
+  for (var i = 0; i < footprint.grid.length; i++) {
+    if (footprint.grid[i]) { hasOccupied = true; break; }
+  }
+  if (!hasOccupied) return;
+
+  var boxes;
+  if (isArchModel(modelPath)) {
+    // arch: split into two separate pillar colliders
+    boxes = decomposeArch(footprint);
+  } else {
+    // normal island: greedy multi-box decomposition
+    boxes = decomposeGrid(footprint, MAX_BOXES_PER_ISLAND);
+  }
+
+  // push all decomposed boxes
+  for (var b = 0; b < boxes.length; b++) {
+    terrain.visualColliders.push(boxes[b]);
+  }
 }
 
 function addMinimapMarker(terrain, type, x, z, size, modelPath) {
@@ -176,7 +366,7 @@ export async function addCompositeFieldVisual(root, terrain, seed) {
         var worldScale = (item.scale || 1) * instScale;
         holder.scale.setScalar(worldScale);
         root.add(holder);
-        if (shouldAddCompositeCollider(item)) addVisualColliderFromObject(terrain, holder);
+        if (shouldAddCompositeCollider(item)) addVisualColliderFromObject(terrain, holder, item.modelPath);
         addMinimapMarker(
           terrain,
           getCompositeMarkerTypeByScale(item.type, worldScale),
@@ -246,7 +436,7 @@ export async function addTieredIslandFieldVisual(root, terrain, heightmap, seed)
       holder.rotation.y = rng() * Math.PI * 2;
       holder.scale.setScalar(minScale + rng() * (maxScale - minScale));
       root.add(holder);
-      addVisualColliderFromObject(terrain, holder);
+      addVisualColliderFromObject(terrain, holder, SMALL_ISLAND_MODEL);
       addMinimapMarker(terrain, markerType, cand.x, cand.z, holder.scale.x, SMALL_ISLAND_MODEL);
       placed.push({ x: cand.x, z: cand.z });
       placedNow++;
@@ -355,4 +545,41 @@ export function getTerrainAvoidance(terrain, worldX, worldZ, range) {
   out.factor = Math.max(0, Math.min(1, t * t));
   out.distance = bestDist;
   return out;
+}
+
+// --- debug overlay: render collider boxes as wireframes ---
+var _debugGroup = null;
+
+export function createColliderDebugOverlay(terrain, scene) {
+  if (_debugGroup) {
+    scene.remove(_debugGroup);
+    _debugGroup = null;
+  }
+  if (!terrain || !terrain.visualColliders || terrain.visualColliders.length === 0) return;
+
+  _debugGroup = new THREE.Group();
+  _debugGroup.name = "collider-debug";
+  var mat = new THREE.LineBasicMaterial({ color: 0x00ff00, depthTest: false });
+
+  for (var i = 0; i < terrain.visualColliders.length; i++) {
+    var c = terrain.visualColliders[i];
+    var sx = c.maxX - c.minX;
+    var sz = c.maxZ - c.minZ;
+    var cx = (c.minX + c.maxX) * 0.5;
+    var cz = (c.minZ + c.maxZ) * 0.5;
+    var geo = new THREE.BoxGeometry(sx, 4, sz);
+    var edges = new THREE.EdgesGeometry(geo);
+    var line = new THREE.LineSegments(edges, mat);
+    line.position.set(cx, 6, cz);
+    line.renderOrder = 999;
+    _debugGroup.add(line);
+  }
+  scene.add(_debugGroup);
+  return _debugGroup;
+}
+
+export function removeColliderDebugOverlay(scene) {
+  if (!_debugGroup) return;
+  scene.remove(_debugGroup);
+  _debugGroup = null;
 }

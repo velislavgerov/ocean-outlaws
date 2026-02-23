@@ -324,6 +324,22 @@ function applyHoming(projectile, enemies, turnRate, dt) {
   projectile.velocity.z = Math.cos(newAngle) * speed;
 }
 
+// OBB ratios for heading-aligned ship hitbox
+var OBB_LENGTH_RATIO = 0.6;
+var OBB_WIDTH_RATIO = 0.35;
+
+function pointInShipOBB(px, pz, shipX, shipZ, heading, hitRadius) {
+  var dx = px - shipX;
+  var dz = pz - shipZ;
+  var cosH = Math.cos(heading);
+  var sinH = Math.sin(heading);
+  var localZ = dx * sinH + dz * cosH;
+  var localX = dx * cosH - dz * sinH;
+  var halfL = hitRadius * OBB_LENGTH_RATIO;
+  var halfW = hitRadius * OBB_WIDTH_RATIO;
+  return Math.abs(localZ) <= halfL && Math.abs(localX) <= halfW;
+}
+
 function checkEnemyHit(projectile, enemies, enemyManager, scene) {
   if (!enemies) return false;
   var pp = projectile.mesh.position;
@@ -331,11 +347,14 @@ function checkEnemyHit(projectile, enemies, enemyManager, scene) {
   for (var i = 0; i < enemies.length; i++) {
     var enemy = enemies[i];
     if (!enemy.alive) continue;
-    var dx = pp.x - enemy.mesh.position.x;
-    var dz = pp.z - enemy.mesh.position.z;
+    var ex = enemy.posX;
+    var ez = enemy.posZ;
+    var dx = pp.x - ex;
+    var dz = pp.z - ez;
     var distSq = dx * dx + dz * dz;
     var hitRadius = enemy.hitRadius || 2.0;
-    if (distSq < hitRadius * hitRadius) {
+    if (distSq > hitRadius * hitRadius) continue;
+    if (pointInShipOBB(pp.x, pp.z, ex, ez, enemy.heading, hitRadius)) {
       if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg);
       return true;
     }
@@ -350,7 +369,8 @@ function checkBossHit(projectile, boss, scene) {
   var dx = pp.x - boss.posX, dz = pp.z - boss.posZ;
   var distSq = dx * dx + dz * dz;
   var hitRadius = boss.hitRadius || 5.0;
-  if (distSq < hitRadius * hitRadius) {
+  if (distSq > hitRadius * hitRadius) return false;
+  if (pointInShipOBB(pp.x, pp.z, boss.posX, boss.posZ, boss.heading, hitRadius)) {
     damageBoss(boss, dmg, scene);
     return true;
   }

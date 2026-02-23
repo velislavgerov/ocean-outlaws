@@ -1,7 +1,7 @@
 // terrain.js — procedural island generation, 3D mesh, collision queries
 import * as THREE from "three";
 import { nextRandom } from "./rng.js";
-import { addCompositeFieldVisual, addTieredIslandFieldVisual, pointInVisualLand, resolveVisualCollision, getTerrainAvoidance as _getTerrainAvoidance } from "./terrainComposite.js";
+import { addCompositeFieldVisual, addTieredIslandFieldVisual, pointInVisualLand, resolveVisualCollision, getTerrainAvoidance as _getTerrainAvoidance, createColliderDebugOverlay, removeColliderDebugOverlay } from "./terrainComposite.js";
 
 // --- tuning ---
 var MAP_SIZE = 400;           // world units, matches ocean plane
@@ -590,3 +590,4 @@ export function getTerrainMinimapMarkers(terrain) {
 }
 
 export { _getTerrainAvoidance as getTerrainAvoidance };
+export { createColliderDebugOverlay, removeColliderDebugOverlay };

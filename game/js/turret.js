@@ -275,7 +275,26 @@ export function updateTurrets(turretState, dt, scene, enemyManager) {
   turretState.effects = aliveEffects;
 }
 
-// --- enemy hit detection (bounding sphere) ---
+// --- OBB ship hit detection (heading-aligned bounding box) ---
+// Ships are long and narrow — OBB gives tighter collision than a sphere.
+// halfL = half-length along heading, halfW = half-width perpendicular.
+var OBB_LENGTH_RATIO = 0.6;  // hitRadius * this = half-length along heading
+var OBB_WIDTH_RATIO = 0.35;  // hitRadius * this = half-width perpendicular
+
+function pointInShipOBB(px, pz, shipX, shipZ, heading, hitRadius) {
+  // transform point into ship-local space
+  var dx = px - shipX;
+  var dz = pz - shipZ;
+  var cosH = Math.cos(heading);
+  var sinH = Math.sin(heading);
+  // local Z = along heading (forward), local X = perpendicular
+  var localZ = dx * sinH + dz * cosH;
+  var localX = dx * cosH - dz * sinH;
+  var halfL = hitRadius * OBB_LENGTH_RATIO;
+  var halfW = hitRadius * OBB_WIDTH_RATIO;
+  return Math.abs(localZ) <= halfL && Math.abs(localX) <= halfW;
+}
+
 function checkEnemyHit(projectile, enemies, enemyManager, scene) {
   if (!enemies) return false;
   var pp = projectile.mesh.position;
@@ -283,13 +302,16 @@ function checkEnemyHit(projectile, enemies, enemyManager, scene) {
   for (var i = 0; i < enemies.length; i++) {
     var enemy = enemies[i];
     if (!enemy.alive) continue;
-    var ex = enemy.mesh.position.x;
-    var ez = enemy.mesh.position.z;
+    var ex = enemy.posX;
+    var ez = enemy.posZ;
+    // quick broad-phase radius check first
     var dx = pp.x - ex;
     var dz = pp.z - ez;
     var distSq = dx * dx + dz * dz;
     var hitRadius = enemy.hitRadius || 2.0;
-    if (distSq < hitRadius * hitRadius) {
+    if (distSq > hitRadius * hitRadius) continue;
+    // narrow-phase OBB test
+    if (pointInShipOBB(pp.x, pp.z, ex, ez, enemy.heading, hitRadius)) {
       if (enemyManager) {
         damageEnemy(enemyManager, enemy, scene, dmgMult);
       }

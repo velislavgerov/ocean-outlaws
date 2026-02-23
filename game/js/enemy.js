@@ -491,6 +491,20 @@ function enemyFire(manager, enemy, ship, scene) {
   });
 }
 
+// --- OBB player ship hit test (heading-aligned bounding box) ---
+var PLAYER_OBB_HALF_L = 1.5;  // half-length along heading
+var PLAYER_OBB_HALF_W = 0.9;  // half-width perpendicular
+
+function pointInPlayerOBB(px, pz, ship) {
+  var dx = px - ship.posX;
+  var dz = pz - ship.posZ;
+  var cosH = Math.cos(ship.heading);
+  var sinH = Math.sin(ship.heading);
+  var localZ = dx * sinH + dz * cosH;
+  var localX = dx * cosH - dz * sinH;
+  return Math.abs(localZ) <= PLAYER_OBB_HALF_L && Math.abs(localX) <= PLAYER_OBB_HALF_W;
+}
+
 // --- update enemy projectiles and check hits on player ---
 function updateEnemyProjectiles(manager, ship, dt, scene, terrain) {
   var alive = [];
@@ -513,15 +527,19 @@ function updateEnemyProjectiles(manager, ship, dt, scene, terrain) {
     var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var outOfRange = dist > 50;
 
-    // hit player
+    // hit player — OBB aligned to ship heading
     var hitPlayer = false;
     var pdx = p.mesh.position.x - ship.posX;
     var pdz = p.mesh.position.z - ship.posZ;
     var pDistSq = pdx * pdx + pdz * pdz;
+    // broad-phase radius check
     if (pDistSq < 2.5 * 2.5) {
-      hitPlayer = true;
-      var incomingDmg = Math.max(0.1, 1 - (manager.playerArmor || 0));
-      manager.playerHp = Math.max(0, manager.playerHp - incomingDmg);
+      // narrow-phase OBB
+      if (pointInPlayerOBB(p.mesh.position.x, p.mesh.position.z, ship)) {
+        hitPlayer = true;
+        var incomingDmg = Math.max(0.1, 1 - (manager.playerArmor || 0));
+        manager.playerHp = Math.max(0, manager.playerHp - incomingDmg);
+      }
     }
 
     if (hitWater || hitTerrain || outOfRange || hitPlayer) {
