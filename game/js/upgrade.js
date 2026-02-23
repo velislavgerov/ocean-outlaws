@@ -8,44 +8,56 @@ var UPGRADE_TREE = {
     label: "Weapons",
     color: "#ffaa22",
     upgrades: [
-      { key: "damage",     label: "+Damage",          stat: "damage",         perTier: [0.15, 0.20, 0.30], costs: [30, 60, 120] },
-      { key: "fireRate",   label: "+Fire Rate",       stat: "fireRate",       perTier: [0.10, 0.15, 0.25], costs: [25, 50, 100] },
-      { key: "projSpeed",  label: "+Projectile Spd",  stat: "projSpeed",      perTier: [0.10, 0.15, 0.20], costs: [20, 45, 90]  }
+      { key: "damage",     label: "+Damage",          stat: "damage",         perTier: [0.15, 0.20, 0.30], costs: [150, 350, 600] },
+      { key: "fireRate",   label: "+Fire Rate",       stat: "fireRate",       perTier: [0.10, 0.15, 0.25], costs: [140, 330, 580] },
+      { key: "projSpeed",  label: "+Projectile Spd",  stat: "projSpeed",      perTier: [0.10, 0.15, 0.20], costs: [120, 300, 550] }
     ]
   },
   propulsion: {
     label: "Propulsion",
     color: "#22aaff",
     upgrades: [
-      { key: "maxSpeed",   label: "+Max Speed",       stat: "maxSpeed",       perTier: [0.15, 0.20, 0.30], costs: [25, 50, 100] },
-      { key: "turnRate",   label: "+Turn Rate",       stat: "turnRate",       perTier: [0.10, 0.15, 0.20], costs: [20, 45, 90]  },
-      { key: "accel",      label: "+Acceleration",    stat: "accel",          perTier: [0.15, 0.20, 0.30], costs: [20, 45, 90]  }
+      { key: "maxSpeed",   label: "+Max Speed",       stat: "maxSpeed",       perTier: [0.15, 0.20, 0.30], costs: [140, 330, 580] },
+      { key: "turnRate",   label: "+Turn Rate",       stat: "turnRate",       perTier: [0.10, 0.15, 0.20], costs: [120, 300, 550] },
+      { key: "accel",      label: "+Acceleration",    stat: "accel",          perTier: [0.15, 0.20, 0.30], costs: [120, 300, 550] }
     ]
   },
   defense: {
     label: "Defense",
     color: "#44dd66",
     upgrades: [
-      { key: "maxHp",      label: "+Max HP",          stat: "maxHp",          perTier: [0.15, 0.20, 0.30], costs: [30, 60, 120] },
-      { key: "armor",      label: "+Armor",           stat: "armor",          perTier: [0.10, 0.15, 0.20], costs: [25, 55, 110] },
-      { key: "repair",     label: "+Repair Eff.",     stat: "repair",         perTier: [0.20, 0.30, 0.50], costs: [20, 40, 80]  }
+      { key: "maxHp",      label: "+Max HP",          stat: "maxHp",          perTier: [0.15, 0.20, 0.30], costs: [150, 350, 600] },
+      { key: "armor",      label: "+Armor",           stat: "armor",          perTier: [0.10, 0.15, 0.20], costs: [140, 340, 590] },
+      { key: "repair",     label: "+Repair Eff.",     stat: "repair",         perTier: [0.20, 0.30, 0.50], costs: [120, 300, 550] }
     ]
   },
   radar: {
     label: "Radar",
     color: "#cc66ff",
     upgrades: [
-      { key: "enemyRange", label: "+Enemy Range",     stat: "enemyRange",     perTier: [0.20, 0.30, 0.50], costs: [20, 40, 80]  },
-      { key: "pickupRange",label: "+Pickup Range",    stat: "pickupRange",    perTier: [0.25, 0.35, 0.50], costs: [15, 35, 70]  },
-      { key: "minimap",    label: "Minimap",          stat: "minimap",        perTier: [1, 0, 0],          costs: [50, 0, 0]    }
+      { key: "enemyRange", label: "+Enemy Range",     stat: "enemyRange",     perTier: [0.20, 0.30, 0.50], costs: [120, 300, 550] },
+      { key: "pickupRange",label: "+Pickup Range",    stat: "pickupRange",    perTier: [0.25, 0.35, 0.50], costs: [100, 280, 520] },
+      { key: "minimap",    label: "Minimap",          stat: "minimap",        perTier: [1, 0, 0],          costs: [200, 0, 0]     }
     ]
   }
 };
 
+// --- ship-class repair costs ---
+var REPAIR_COSTS = {
+  destroyer: 50,    // Sloop
+  cruiser: 100,     // Brigantine
+  carrier: 180,     // Galleon
+  submarine: 280    // Man-o'-War
+};
+
+export function getRepairCost(classKey) {
+  return REPAIR_COSTS[classKey] || 100;
+}
+
 // --- create upgrade state (all tiers at 0) ---
 export function createUpgradeState() {
   var state = {
-    salvage: 0,
+    gold: 0,
     levels: {}
   };
   var cats = Object.keys(UPGRADE_TREE);
@@ -58,7 +70,7 @@ export function createUpgradeState() {
   return state;
 }
 
-// --- reset upgrades (on new zone/restart) — keeps salvage (persistent currency) ---
+// --- reset upgrades (on new zone/restart) — keeps gold (persistent currency) ---
 export function resetUpgrades(state) {
   var keys = Object.keys(state.levels);
   for (var i = 0; i < keys.length; i++) {
@@ -66,9 +78,9 @@ export function resetUpgrades(state) {
   }
 }
 
-// --- add salvage points ---
-export function addSalvage(state, amount) {
-  state.salvage += amount;
+// --- add gold ---
+export function addGold(state, amount) {
+  state.gold += amount;
 }
 
 // --- get the upgrade tree config ---
@@ -84,7 +96,7 @@ export function canAfford(state, key) {
   if (level >= 3) return false;
   var cost = info.costs[level];
   if (cost <= 0) return false;
-  return state.salvage >= cost;
+  return state.gold >= cost;
 }
 
 // --- buy upgrade; returns true on success ---
@@ -95,8 +107,8 @@ export function buyUpgrade(state, key) {
   if (level >= 3) return false;
   var cost = info.costs[level];
   if (cost <= 0) return false;
-  if (state.salvage < cost) return false;
-  state.salvage -= cost;
+  if (state.gold < cost) return false;
+  state.gold -= cost;
   state.levels[key] = level + 1;
   return true;
 }
@@ -171,7 +183,7 @@ export function buildCombinedMults(upgradeState, crewBonuses, techBonuses) {
   return mults;
 }
 
-// --- calculate total salvage spent on all upgrades ---
+// --- calculate total gold spent on all upgrades ---
 export function getTotalSpent(state) {
   var total = 0;
   var cats = Object.keys(UPGRADE_TREE);
@@ -188,10 +200,10 @@ export function getTotalSpent(state) {
   return total;
 }
 
-// --- respec: refund all spent salvage and reset levels ---
+// --- respec: refund all spent gold and reset levels ---
 export function respecUpgrades(state) {
   var refund = getTotalSpent(state);
-  state.salvage += refund;
+  state.gold += refund;
   var keys = Object.keys(state.levels);
   for (var i = 0; i < keys.length; i++) {
     state.levels[keys[i]] = 0;
@@ -206,7 +218,7 @@ export function undoUpgrade(state, key) {
   var level = state.levels[key] || 0;
   if (level <= 0) return false;
   var cost = info.costs[level - 1];
-  state.salvage += cost;
+  state.gold += cost;
   state.levels[key] = level - 1;
   return true;
 }

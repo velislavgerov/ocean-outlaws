@@ -588,7 +588,7 @@ function renderInlineDetail(row) {
 function refreshUI() {
   if (!currentState || !root) return;
 
-  salvageLabel.textContent = "\uD83E\uDE99 Gold: " + currentState.salvage;
+  salvageLabel.textContent = "\uD83E\uDE99 Gold: " + currentState.gold;
 
   var tree = getUpgradeTree();
   var cats = Object.keys(tree);

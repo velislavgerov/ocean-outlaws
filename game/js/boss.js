@@ -543,7 +543,7 @@ var LOOT_TABLE = [
   { type: "upgrade", label: "+30% Max HP", stat: "maxHp", value: 0.30 },
   { type: "upgrade", label: "+20% Fire Rate", stat: "fireRate", value: 0.20 },
   { type: "upgrade", label: "+20% Speed", stat: "maxSpeed", value: 0.20 },
-  { type: "salvage", label: "+100 Gold", value: 100 },
+  { type: "gold", label: "+500 Gold", value: 500 },
   { type: "repair", label: "Full Repair", value: 1.0 }
 ];
 
@@ -552,8 +552,8 @@ export function rollBossLoot() {
 }
 
 export function applyBossLoot(loot, upgrades, enemyMgr) {
-  if (loot.type === "salvage") {
-    upgrades.salvage += loot.value;
+  if (loot.type === "gold") {
+    upgrades.gold += loot.value;
   } else if (loot.type === "repair") {
     enemyMgr.playerHp = enemyMgr.playerMaxHp;
   } else if (loot.type === "upgrade") {

@@ -354,8 +354,8 @@ function refreshInfoLabels() {
     partsInfo.textContent = "PARTS: " + d.parts;
     partsInfo.style.color = d.parts > 0 ? T.green : T.text;
   }
-  if (d.salvage !== undefined && salvageInfo) {
-    salvageInfo.textContent = "GOLD: " + d.salvage;
+  if (d.gold !== undefined && salvageInfo) {
+    salvageInfo.textContent = "GOLD: " + d.gold;
   }
   if (d.weatherText && weatherInfo) {
     weatherInfo.textContent = "WEATHER: " + d.weatherText;

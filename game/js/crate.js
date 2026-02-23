@@ -1,6 +1,7 @@
 // crate.js — periodic resource crates: spawn at random water positions
 import * as THREE from "three";
 import { addAmmo, addFuel, addParts } from "./resource.js";
+import { addGold } from "./upgrade.js";
 import { isLand } from "./terrain.js";
 import { nextRandom } from "./rng.js";
 
@@ -23,11 +24,13 @@ var MAX_CRATES = 8;              // max concurrent crates on map
 var CRATE_AMMO = 12;
 var CRATE_FUEL = 20;
 var CRATE_PARTS = 1;
+var CRATE_GOLD = 25;             // gold per crate
 
-// drop chances
-var CHANCE_AMMO = 0.45;
-var CHANCE_FUEL = 0.35;
-// remainder = parts
+// drop chances (must sum to 1)
+var CHANCE_AMMO = 0.35;
+var CHANCE_FUEL = 0.30;
+var CHANCE_GOLD = 0.20;
+// remainder = parts (0.15)
 
 // --- shared geometry ---
 var crateGeo = null;
@@ -43,13 +46,15 @@ function ensureGeo() {
 var TYPE_COLORS = {
   ammo: 0xffaa22,
   fuel: 0x22aaff,
-  parts: 0x44dd66
+  parts: 0x44dd66,
+  gold: 0xffcc44
 };
 
 var GLOW_COLORS = {
   ammo: 0xffdd66,
   fuel: 0x66ccff,
-  parts: 0x88ff99
+  parts: 0x88ff99,
+  gold: 0xffee88
 };
 
 // --- build crate mesh ---
@@ -125,6 +130,8 @@ function spawnCrate(manager, ship, terrain, scene) {
     type = "ammo";
   } else if (roll < CHANCE_AMMO + CHANCE_FUEL) {
     type = "fuel";
+  } else if (roll < CHANCE_AMMO + CHANCE_FUEL + CHANCE_GOLD) {
+    type = "gold";
   } else {
     type = "parts";
   }
@@ -152,7 +159,7 @@ export function clearCrates(manager, scene) {
 }
 
 // --- update crates: spawn timer, bob, collect, despawn ---
-export function updateCrates(manager, ship, resources, terrain, dt, elapsed, getWaveHeight, scene) {
+export function updateCrates(manager, ship, resources, terrain, dt, elapsed, getWaveHeight, scene, upgrades) {
   // tick spawn timer
   manager.spawnTimer -= dt;
   if (manager.spawnTimer <= 0) {
@@ -178,7 +185,7 @@ export function updateCrates(manager, ship, resources, terrain, dt, elapsed, get
     var distSq = dx * dx + dz * dz;
 
     if (distSq < COLLECT_RADIUS * COLLECT_RADIUS) {
-      collectCrate(c, resources);
+      collectCrate(c, resources, upgrades);
       scene.remove(c.mesh);
       continue;
     }
@@ -216,13 +223,15 @@ export function updateCrates(manager, ship, resources, terrain, dt, elapsed, get
 }
 
 // --- collect crate ---
-function collectCrate(crate, resources) {
+function collectCrate(crate, resources, upgrades) {
   if (crate.type === "ammo") {
     addAmmo(resources, CRATE_AMMO);
   } else if (crate.type === "fuel") {
     addFuel(resources, CRATE_FUEL);
   } else if (crate.type === "parts") {
     addParts(resources, CRATE_PARTS);
+  } else if (crate.type === "gold" && upgrades) {
+    addGold(upgrades, CRATE_GOLD);
   }
   console.log("[CRATE] Collected " + crate.type);
 }

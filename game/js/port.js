@@ -1,6 +1,7 @@
 // port.js — supply ports: fixed resupply points on island coastlines
 import * as THREE from "three";
 import { addAmmo, addFuel } from "./resource.js";
+import { getRepairCost } from "./upgrade.js";
 import { getTerrainHeight, isLand } from "./terrain.js";
 import { nextRandom } from "./rng.js";
 
@@ -195,7 +196,7 @@ export function clearPorts(manager, scene) {
 }
 
 // --- update ports: check proximity, tick cooldowns, update visuals ---
-export function updatePorts(manager, ship, resources, enemyMgr, dt) {
+export function updatePorts(manager, ship, resources, enemyMgr, dt, upgrades, classKey) {
   for (var i = 0; i < manager.ports.length; i++) {
     var port = manager.ports[i];
 
@@ -215,13 +216,19 @@ export function updatePorts(manager, ship, resources, enemyMgr, dt) {
       var distSq = dx * dx + dz * dz;
 
       if (distSq < PORT_COLLECT_RADIUS * PORT_COLLECT_RADIUS) {
-        // resupply
+        // resupply ammo + fuel (free)
         addAmmo(resources, PORT_AMMO_RESTOCK);
         addFuel(resources, PORT_FUEL_RESTOCK);
-        // heal player
+        // repair: costs gold based on ship class, only if damaged and can afford
         var hpInfo = { hp: enemyMgr.playerHp, maxHp: enemyMgr.playerMaxHp };
-        var newHp = Math.min(hpInfo.maxHp, hpInfo.hp + PORT_HP_RESTOCK);
-        enemyMgr.playerHp = newHp;
+        if (hpInfo.hp < hpInfo.maxHp && upgrades) {
+          var repairCost = getRepairCost(classKey);
+          if (upgrades.gold >= repairCost) {
+            upgrades.gold -= repairCost;
+            var newHp = Math.min(hpInfo.maxHp, hpInfo.hp + PORT_HP_RESTOCK);
+            enemyMgr.playerHp = newHp;
+          }
+        }
         // start cooldown
         port.cooldown = PORT_COOLDOWN;
         port.available = false;

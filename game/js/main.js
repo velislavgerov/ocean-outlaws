@@ -14,7 +14,7 @@ import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
 import { createPickupManager, spawnPickup, updatePickups, clearPickups } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
-import { createUpgradeState, resetUpgrades, addSalvage, getMultipliers, buildCombinedMults } from "./upgrade.js";
+import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost } from "./upgrade.js";
 import { createUpgradeScreen, showUpgradeScreen, hideUpgradeScreen } from "./upgradeScreen.js";
 import { getShipClass } from "./shipClass.js";
 import { createAbilityState, activateAbility, updateAbility } from "./shipClass.js";
@@ -43,7 +43,7 @@ import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButto
 import { getQualityConfig, createOrientationPrompt, onQualityChange } from "./mobile.js";
 import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 
-var SALVAGE_PER_KILL = 10;
+var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
 
 function fireWithSound(w, s, r, m) {
@@ -119,11 +119,11 @@ createTechScreen();
 setOnDeathCallback(enemyMgr, function (x, y, z) {
   spawnPickup(pickupMgr, x, y, z, scene);
   var techB = getTechBonuses(techState);
-  var sal = Math.round(SALVAGE_PER_KILL * (1 + techB.salvageBonus));
-  addSalvage(upgrades, sal);
+  var gld = Math.round(GOLD_PER_KILL * (1 + techB.salvageBonus));
+  addGold(upgrades, gld);
   playExplosion();
   playKillConfirm();
-  addKillFeedEntry("Enemy destroyed  +" + sal + " gold", "#ffcc44");
+  addKillFeedEntry("Enemy destroyed  +" + gld + " gold", "#ffcc44");
   triggerScreenShake(0.3);
 });
 
@@ -199,7 +199,7 @@ createSettingsMenu({
     resetResources(resources);
     resetEnemyManager(enemyMgr, scene);
     resetUpgrades(upgrades);
-    upgrades.salvage = 0;
+    upgrades.gold = 0;
     resetDrones(droneMgr, scene);
     resetCrew(crew);
     clearRemoteShips(scene);
@@ -388,7 +388,7 @@ var savedGame = loadSave();
 if (savedGame) {
   if (savedGame.mapState) mapState = savedGame.mapState;
   if (savedGame.techTree && savedGame.techTree.unlocked) techState = savedGame.techTree;
-  if (savedGame.upgrades && savedGame.upgrades.salvage !== undefined) upgrades.salvage = savedGame.upgrades.salvage;
+  if (savedGame.upgrades && savedGame.upgrades.gold !== undefined) upgrades.gold = savedGame.upgrades.gold;
   if (savedGame.officers && savedGame.officers.roster) crew = savedGame.officers;
   if (savedGame.selectedClass) selectedClass = savedGame.selectedClass;
 }
@@ -399,8 +399,8 @@ function openTechThenMap() {
   techState = loadTechState();
   techScreenOpen = true;
   showTechScreen(techState, {
-    get: function () { return upgrades.salvage; },
-    spend: function (cost) { upgrades.salvage -= cost; }
+    get: function () { return upgrades.gold; },
+    spend: function (cost) { upgrades.gold -= cost; }
   }, function () {
     techScreenOpen = false;
     performAutoSave();
@@ -487,7 +487,7 @@ function performAutoSave() {
     upgrades: upgrades,
     techTree: techState,
     officers: crew,
-    currency: upgrades ? upgrades.salvage : 0,
+    currency: upgrades ? upgrades.gold : 0,
     skins: [],
     mapState: mapState
   });
@@ -724,9 +724,9 @@ function animate() {
     }
 
     updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain);
-    updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene);
-    updatePorts(portMgr, ship, resources, enemyMgr, dt);
-    updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene);
+    updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
+    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass);
+    updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene, upgrades);
     if (mults.autoRepair) {
       var arHp = getPlayerHp(enemyMgr);
       if (arHp.hp < arHp.maxHp) setPlayerHp(enemyMgr, Math.min(arHp.maxHp, arHp.hp + dt));
@@ -788,6 +788,7 @@ function animate() {
         }
       } else if (event === "game_over") {
         gameFrozen = true;
+        upgrades.gold = 0;
         hideBossHud();
         fadeOut(0.4, function () {
           showGameOver(waveMgr.wave);
@@ -854,7 +855,7 @@ function animate() {
     var portInfo = getPortsInfo(portMgr, ship);
     updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
-      waveMgr.wave, waveState, dt, upgrades.salvage, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo, abilityBarSlots);
+      waveMgr.wave, waveState, dt, upgrades.gold, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo, abilityBarSlots);
 
     // minimap: collect port positions
     var portPositions = [];

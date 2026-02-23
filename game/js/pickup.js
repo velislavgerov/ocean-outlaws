@@ -1,6 +1,7 @@
 // pickup.js — resource pickups: floating crates/barrels dropped by enemies
 import * as THREE from "three";
 import { addAmmo, addFuel, addParts } from "./resource.js";
+import { addGold } from "./upgrade.js";
 import { nextRandom } from "./rng.js";
 
 // --- tuning ---
@@ -17,11 +18,13 @@ var GLOW_PULSE_MIN = 0.5;
 var AMMO_DROP_AMOUNT = 8;
 var FUEL_DROP_AMOUNT = 15;
 var PARTS_DROP_AMOUNT = 1;
+var GOLD_DROP_AMOUNT = 15;       // gold per pickup
 
 // drop chances (must sum to 1)
-var DROP_CHANCE_AMMO = 0.45;
-var DROP_CHANCE_FUEL = 0.35;
-// remainder = parts
+var DROP_CHANCE_AMMO = 0.35;
+var DROP_CHANCE_FUEL = 0.30;
+var DROP_CHANCE_GOLD = 0.20;
+// remainder = parts (0.15)
 
 // --- shared geometry ---
 var crateGeo = null;
@@ -37,13 +40,15 @@ function ensureGeo() {
 var TYPE_COLORS = {
   ammo: 0xffaa22,
   fuel: 0x22aaff,
-  parts: 0x44dd66
+  parts: 0x44dd66,
+  gold: 0xffcc44
 };
 
 var GLOW_COLORS = {
   ammo: 0xffdd66,
   fuel: 0x66ccff,
-  parts: 0x88ff99
+  parts: 0x88ff99,
+  gold: 0xffee88
 };
 
 // --- build pickup mesh ---
@@ -87,6 +92,8 @@ export function spawnPickup(manager, x, y, z, scene) {
     type = "ammo";
   } else if (roll < DROP_CHANCE_AMMO + DROP_CHANCE_FUEL) {
     type = "fuel";
+  } else if (roll < DROP_CHANCE_AMMO + DROP_CHANCE_FUEL + DROP_CHANCE_GOLD) {
+    type = "gold";
   } else {
     type = "parts";
   }
@@ -114,7 +121,7 @@ export function clearPickups(manager, scene) {
 }
 
 // --- update pickups: bob, glow, check proximity, despawn ---
-export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeight, scene) {
+export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeight, scene, upgrades) {
   var alive = [];
 
   for (var i = 0; i < manager.pickups.length; i++) {
@@ -133,7 +140,7 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
     var distSq = dx * dx + dz * dz;
 
     if (distSq < PICKUP_COLLECT_RADIUS * PICKUP_COLLECT_RADIUS) {
-      collectPickup(p, resources);
+      collectPickup(p, resources, upgrades);
       scene.remove(p.mesh);
       continue;
     }
@@ -171,13 +178,15 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
 }
 
 // --- apply pickup to resources ---
-function collectPickup(pickup, resources) {
+function collectPickup(pickup, resources, upgrades) {
   if (pickup.type === "ammo") {
     addAmmo(resources, AMMO_DROP_AMOUNT);
   } else if (pickup.type === "fuel") {
     addFuel(resources, FUEL_DROP_AMOUNT);
   } else if (pickup.type === "parts") {
     addParts(resources, PARTS_DROP_AMOUNT);
+  } else if (pickup.type === "gold" && upgrades) {
+    addGold(upgrades, GOLD_DROP_AMOUNT);
   }
   console.log("[PICKUP] Collected " + pickup.type);
 }

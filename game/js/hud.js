@@ -494,7 +494,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
   // Provide data to settings menu for display
   if (settingsDataCallback) {
     settingsDataCallback({
-      fuel: fuel, maxFuel: maxFuel, parts: parts, salvage: salvage,
+      fuel: fuel, maxFuel: maxFuel, parts: parts, gold: salvage,
       weatherText: weatherText, speedRatio: speedRatio, displaySpeed: displaySpeed,
       heading: heading, wave: wave, waveState: waveState, autofireOn: autofireOn,
       ammo: ammo, maxAmmo: maxAmmo
