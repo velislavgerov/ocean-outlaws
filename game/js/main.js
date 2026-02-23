@@ -22,6 +22,8 @@ import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen, get
 import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./drone.js";
 import { createMapScreen, showMapScreen, hideMapScreen } from "./mapScreen.js";
 import { loadMapState, resetMapState, getZone, calcStars, completeZone, buildZoneWaveConfigs, saveMapState } from "./mapData.js";
+import { createVoyageChart, showVoyageChart, hideVoyageChart } from "./voyageChart.js";
+import { generateVoyageChart, createVoyageState, moveToNode, getReachableNodes, getNodeTypes, saveVoyageState, loadVoyageState, clearVoyageState } from "./voyageData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeatherDim, getWeatherFoam, getWeatherCloudShadow, maybeChangeWeather, createRain, createSplashes, updateWeather } from "./weather.js";
 import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars } from "./daynight.js";
 import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot } from "./boss.js";
@@ -99,6 +101,8 @@ var techScreenOpen = false;
 var mapState = loadMapState();
 var activeZoneId = null;
 var activeTerrain = null;
+var activeChart = null;
+var activeVoyageState = null;
 var resources = createResources();
 var pickupMgr = createPickupManager();
 var portMgr = createPortManager();
@@ -180,6 +184,7 @@ initHealthBars();
 createBossHud();
 var cam = createCamera(window.innerWidth / window.innerHeight);
 createMapScreen();
+createVoyageChart();
 createShipSelectScreen();
 
 // --- settings menu ---
@@ -208,9 +213,11 @@ createSettingsMenu({
     upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
     setAutofire(true);
     setWeather(weather, "calm");
-    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
+    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay(); hideVoyageChart();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
+    clearVoyageState();
+    activeChart = null; activeVoyageState = null;
     resetTechState(techState);
     techState = loadTechState();
     selectedClass = null;
@@ -403,8 +410,21 @@ function openTechThenMap() {
 
 function openMap() {
   mapState = loadMapState();
-  showMapScreen(mapState, function (zoneId) {
-    hideMapScreen();
+  // generate voyage chart for current zone (use first unlocked zone)
+  var zoneId = activeZoneId || "shallow_cove";
+  var zone = getZone(zoneId);
+  var isBossZone = zoneId === "reef_basin" || zoneId === "leviathan_maw";
+  var chartSeed = 0;
+  for (var ci = 0; ci < zoneId.length; ci++) chartSeed += zoneId.charCodeAt(ci) * (ci + 1);
+  chartSeed += 42; // fixed offset for chart layout
+  activeChart = generateVoyageChart(chartSeed, zone ? zone.difficulty : 1, isBossZone);
+  activeVoyageState = createVoyageState(activeChart);
+  showVoyageChart(activeChart, activeVoyageState, function (nodeId) {
+    var moved = moveToNode(activeChart, activeVoyageState, nodeId);
+    if (!moved) return;
+    saveVoyageState(activeVoyageState);
+    hideVoyageChart();
+    // use the zone for combat settings
     activeZoneId = zoneId;
     startZoneCombat(selectedClass, zoneId);
   });
@@ -545,7 +565,9 @@ setRestartCallback(function () {
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false;
   setAutofire(true);
   setWeather(weather, "calm");
-  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay();
+  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hideOverlay(); hideVoyageChart();
+  clearVoyageState();
+  activeChart = null; activeVoyageState = null;
   if (isMultiplayerActive(mpState)) {
     leaveRoom(mpState);
     mpReady = false;
@@ -775,6 +797,8 @@ function animate() {
         performAutoSave();
         gameFrozen = true;
         hideBossHud();
+        // check if voyage chart is complete (reached exit)
+        var voyageComplete = activeVoyageState && activeVoyageState.completed;
         fadeOut(0.4, function () {
           showVictory(waveMgr.wave);
           fadeIn(0.4);
