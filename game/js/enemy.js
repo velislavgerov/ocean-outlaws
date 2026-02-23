@@ -1,30 +1,68 @@
-// enemy.js — enemy patrol boats: spawn, chase AI, firing, health, destruction
+// enemy.js — enemy patrol boats: spawn, faction AI, firing, health, destruction
 import * as THREE from "three";
 import { isLand, collideWithTerrain, terrainBlocksLine } from "./terrain.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
 import { nextRandom } from "./rng.js";
 
+// --- faction definitions ---
+var FACTIONS = {
+  pirate: {
+    label: "Pirate",
+    hullColor: 0x8a2020, deckColor: 0x6a2828, bridgeColor: 0x7a3030,
+    turretColor: 0x6a1818, barrelColor: 0x5a1010, glassColor: 0x3a1010,
+    speed: 18, turnSpeed: 2.2, engageDist: 12, fireRange: 25, fireCooldown: 1.2,
+    hp: 2, goldMult: 1.0, groupSize: [3, 5],
+    announce: "Pirate Fleet Approaching!"
+  },
+  navy: {
+    label: "Royal Navy",
+    hullColor: 0x2a3a6a, deckColor: 0x3a4a7a, bridgeColor: 0x4a5a8a,
+    turretColor: 0x2a3a5a, barrelColor: 0x1a2a4a, glassColor: 0x1a2a4a,
+    speed: 12, turnSpeed: 1.4, engageDist: 30, fireRange: 38, fireCooldown: 1.0,
+    hp: 5, goldMult: 2.0, groupSize: [2, 4],
+    announce: "Royal Navy Patrol!"
+  },
+  merchant: {
+    label: "Merchant",
+    hullColor: 0x6a5030, deckColor: 0x7a6040, bridgeColor: 0x8a7050,
+    turretColor: 0x5a4020, barrelColor: 0x4a3018, glassColor: 0x3a2818,
+    speed: 10, turnSpeed: 1.6, engageDist: 50, fireRange: 20, fireCooldown: 2.5,
+    hp: 3, goldMult: 3.0, groupSize: [1, 3],
+    announce: "Merchant Convoy Spotted!"
+  }
+};
+
+export function getFactions() { return FACTIONS; }
+export function getFactionAnnounce(faction) {
+  var f = FACTIONS[faction];
+  return f ? f.announce : "Fleet Approaching!";
+}
+export function getFactionGoldMult(faction) {
+  var f = FACTIONS[faction];
+  return f ? f.goldMult : 1;
+}
+
 // --- tuning ---
 var ENEMY_SPEED = 14;
 var ENEMY_TURN_SPEED = 1.8;
-var ENGAGE_DIST = 25;          // desired engagement distance
+var ENGAGE_DIST = 25;
 var ARRIVE_TOLERANCE = 5;
 var FIRE_RANGE = 30;
-var FIRE_COOLDOWN = 1.5;       // seconds between enemy shots
+var FIRE_COOLDOWN = 1.5;
 var ENEMY_PROJ_SPEED = 30;
 var ENEMY_PROJ_GRAVITY = 9.8;
 var FLOAT_OFFSET = 1.4;
 var BUOYANCY_LERP = 12;
 var TILT_LERP = 8;
-var TILT_DAMPING = 0.3;        // gentle tilt, not wild rotation
+var TILT_DAMPING = 0.3;
 
 // spawn tuning
 var SPAWN_DIST_MIN = 80;
 var SPAWN_DIST_MAX = 120;
-var INITIAL_SPAWN_INTERVAL = 6;   // seconds
+var INITIAL_SPAWN_INTERVAL = 6;
 var MIN_SPAWN_INTERVAL = 2;
-var SPAWN_ACCEL = 0.02;           // interval decreases per second
+var SPAWN_ACCEL = 0.02;
 var MAX_ENEMIES = 12;
 
 // destruction tuning
@@ -52,34 +90,32 @@ function ensureGeo() {
   enemyProjMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
 }
 
-// --- shared PBR materials for enemy meshes ---
-var enemyHullMat = null;
-var enemyDeckMat = null;
-var enemyBridgeMat = null;
-var enemyTurretMat = null;
-var enemyBarrelMat = null;
-var enemyGlassMat = null;
+// --- per-faction PBR material cache ---
+var factionMats = {};
 
-function ensureEnemyMats() {
-  if (enemyHullMat) return;
-  enemyHullMat = new THREE.MeshStandardMaterial({ color: 0x6a3030, roughness: 0.65, metalness: 0.15 });
-  enemyDeckMat = new THREE.MeshStandardMaterial({ color: 0x7a4040, roughness: 0.5, metalness: 0.05 });
-  enemyBridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a5050, roughness: 0.45, metalness: 0.2 });
-  enemyTurretMat = new THREE.MeshStandardMaterial({ color: 0x5a2828, roughness: 0.35, metalness: 0.7 });
-  enemyBarrelMat = new THREE.MeshStandardMaterial({ color: 0x4a1e1e, roughness: 0.3, metalness: 0.8 });
-  enemyGlassMat = new THREE.MeshStandardMaterial({
-    color: 0x2a1a1a, roughness: 0.1, metalness: 0.5,
-    emissive: 0x2a1a1a, emissiveIntensity: 0
-  });
+function getFactionMats(faction) {
+  if (factionMats[faction]) return factionMats[faction];
+  var f = FACTIONS[faction] || FACTIONS.pirate;
+  factionMats[faction] = {
+    hull: new THREE.MeshStandardMaterial({ color: f.hullColor, roughness: 0.65, metalness: 0.15 }),
+    deck: new THREE.MeshStandardMaterial({ color: f.deckColor, roughness: 0.5, metalness: 0.05 }),
+    bridge: new THREE.MeshStandardMaterial({ color: f.bridgeColor, roughness: 0.45, metalness: 0.2 }),
+    turret: new THREE.MeshStandardMaterial({ color: f.turretColor, roughness: 0.35, metalness: 0.7 }),
+    barrel: new THREE.MeshStandardMaterial({ color: f.barrelColor, roughness: 0.3, metalness: 0.8 }),
+    glass: new THREE.MeshStandardMaterial({
+      color: f.glassColor, roughness: 0.1, metalness: 0.5,
+      emissive: f.glassColor, emissiveIntensity: 0
+    })
+  };
+  return factionMats[faction];
 }
 
-// --- build enemy patrol boat mesh (unique design, not a player recolor) ---
-// angular, aggressive hull shape with ram bow and low-slung profile
-function buildEnemyMesh() {
-  ensureEnemyMats();
+// --- build enemy patrol boat mesh with faction colors ---
+function buildEnemyMesh(faction) {
+  var mats = getFactionMats(faction || "pirate");
   var group = new THREE.Group();
 
-  // hull — angular patrol boat with ram bow (distinct from player curves)
+  // hull — angular patrol boat with ram bow
   var hullShape = new THREE.Shape();
   hullShape.moveTo(0, 2.0);
   hullShape.lineTo(0.35, 1.5);
@@ -99,12 +135,11 @@ function buildEnemyMesh() {
   var hullGeo = new THREE.ExtrudeGeometry(hullShape, {
     depth: 0.38, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 1
   });
-  var hull = new THREE.Mesh(hullGeo, enemyHullMat);
+  var hull = new THREE.Mesh(hullGeo, mats.hull);
   hull.rotation.x = -Math.PI / 2;
   hull.position.y = -0.1;
   group.add(hull);
 
-  // waterline
   var wlGeo = new THREE.PlaneGeometry(1.1, 3.2);
   var wlMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, roughness: 0.9, metalness: 0 });
   var wl = new THREE.Mesh(wlGeo, wlMat);
@@ -112,40 +147,33 @@ function buildEnemyMesh() {
   wl.position.set(0, 0.01, 0.1);
   group.add(wl);
 
-  // deck
   var deckGeo = new THREE.PlaneGeometry(0.85, 2.8);
-  var deck = new THREE.Mesh(deckGeo, enemyDeckMat);
+  var deck = new THREE.Mesh(deckGeo, mats.deck);
   deck.rotation.x = -Math.PI / 2;
   deck.position.set(0, 0.28, 0.1);
   group.add(deck);
 
-  // pilothouse — squat, angular (different from player bridge style)
   var bridgeGeo = new THREE.BoxGeometry(0.45, 0.38, 0.5);
-  var bridge = new THREE.Mesh(bridgeGeo, enemyBridgeMat);
+  var bridge = new THREE.Mesh(bridgeGeo, mats.bridge);
   bridge.position.set(0, 0.47, -0.35);
   group.add(bridge);
-  // window strip
   var winGeo = new THREE.PlaneGeometry(0.36, 0.14);
-  var win = new THREE.Mesh(winGeo, enemyGlassMat);
+  var win = new THREE.Mesh(winGeo, mats.glass);
   win.position.set(0, 0.52, -0.09);
   group.add(win);
 
-  // turret — single fore-mounted
   var turretGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.2, 8);
   var barrelGeo = new THREE.CylinderGeometry(0.025, 0.03, 0.5, 6);
-
   var turret = new THREE.Group();
   turret.position.set(0, 0.4, 0.6);
-  turret.add(new THREE.Mesh(turretGeo, enemyTurretMat));
-  var barrel = new THREE.Mesh(barrelGeo, enemyBarrelMat);
+  turret.add(new THREE.Mesh(turretGeo, mats.turret));
+  var barrel = new THREE.Mesh(barrelGeo, mats.barrel);
   barrel.rotation.x = Math.PI / 2;
   barrel.position.set(0, 0.06, 0.25);
   turret.add(barrel);
   group.add(turret);
-
   group.userData.turret = turret;
 
-  // nav lights (red port, green starboard)
   var portMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
   var stbdMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
   var lightGeo = new THREE.SphereGeometry(0.035, 4, 3);
@@ -256,6 +284,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
   var hpMult = waveConfig ? waveConfig.hpMult : 1;
   var speedMult = waveConfig ? waveConfig.speedMult : 1;
   var fireRateMult = waveConfig ? waveConfig.fireRateMult : 1;
+  var faction = (waveConfig && waveConfig.faction) ? waveConfig.faction : "pirate";
+  var fDef = FACTIONS[faction] || FACTIONS.pirate;
 
   var x, z;
   var attempts = 0;
@@ -267,17 +297,18 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     attempts++;
   } while (terrain && isLand(terrain, x, z) && attempts < 30);
 
-  var mesh = buildEnemyMesh();
+  var mesh = buildEnemyMesh(faction);
   applyEnemyOverrideAsync(mesh);
   mesh.position.set(x, 0.3, z);
 
   var heading = Math.atan2(playerX - x, playerZ - z);
   mesh.rotation.y = heading;
 
-  var scaledHp = Math.round(ENEMY_HP * hpMult);
+  var scaledHp = Math.round(fDef.hp * hpMult);
 
   var enemy = {
     mesh: mesh,
+    faction: faction,
     hp: scaledHp,
     maxHp: scaledHp,
     alive: true,
@@ -285,13 +316,14 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     posX: x,
     posZ: z,
     heading: heading,
-    speed: ENEMY_SPEED * speedMult * (0.7 + nextRandom() * 0.3),
-    fireCooldown: FIRE_COOLDOWN / fireRateMult * (0.8 + nextRandom() * 0.4),
+    speed: fDef.speed * speedMult * (0.7 + nextRandom() * 0.3),
+    turnSpeed: fDef.turnSpeed,
+    engageDist: fDef.engageDist,
+    fireRange: fDef.fireRange,
+    fireCooldown: fDef.fireCooldown / fireRateMult * (0.8 + nextRandom() * 0.4),
     fireTimer: 1 + nextRandom() * 2,
-    // destruction state
     sinking: false,
     sinkTimer: 0,
-    // smoothed buoyancy state (initialized on first update frame)
     _smoothY: 0.3,
     _smoothPitch: 0,
     _smoothRoll: 0,
@@ -357,38 +389,50 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
     if (!e.alive) continue;
 
-    // --- chase AI: steer toward player, maintain engagement distance ---
+    // --- faction AI ---
     var dx = ship.posX - e.posX;
     var dz = ship.posZ - e.posZ;
     var dist = Math.sqrt(dx * dx + dz * dz);
-
     var targetAngle = Math.atan2(dx, dz);
-    var angleDiff = normalizeAngle(targetAngle - e.heading);
+    var fleeAngle = normalizeAngle(targetAngle + Math.PI);
+    var eTurnSpeed = e.turnSpeed || ENEMY_TURN_SPEED;
+    var eEngageDist = e.engageDist || ENGAGE_DIST;
+    var maxTurn = eTurnSpeed * dt;
+    var moveSpeed = e.speed;
+    var steerAngle = targetAngle;
+    var ePrevX = e.posX;
+    var ePrevZ = e.posZ;
 
-    // steer toward player
-    var maxTurn = ENEMY_TURN_SPEED * dt;
+    if (e.faction === "merchant") {
+      // Merchant AI: flee from player, only fire backward when cornered
+      steerAngle = fleeAngle;
+      if (dist < 15) moveSpeed = e.speed * 1.3; // panic burst
+    } else if (e.faction === "navy") {
+      // Navy AI: hold formation at engagement range, broadside fire
+      if (dist < eEngageDist) {
+        // circle strafe — perpendicular to player
+        steerAngle = normalizeAngle(targetAngle + Math.PI * 0.5);
+        moveSpeed = e.speed * 0.6;
+      }
+    } else {
+      // Pirate AI: aggressive rush, close distance fast
+      if (dist < eEngageDist) {
+        moveSpeed = e.speed * Math.max(0.3, dist / eEngageDist);
+      }
+    }
+
+    var angleDiff = normalizeAngle(steerAngle - e.heading);
     if (Math.abs(angleDiff) < maxTurn) {
-      e.heading = targetAngle;
+      e.heading = steerAngle;
     } else {
       e.heading += Math.sign(angleDiff) * maxTurn;
     }
 
-    // speed: full speed when far, slow down near engagement distance
-    var speedFactor = 1;
-    if (dist < ENGAGE_DIST) {
-      speedFactor = Math.max(0.1, (dist - ARRIVE_TOLERANCE) / (ENGAGE_DIST - ARRIVE_TOLERANCE));
-    }
-
-    var moveSpeed = e.speed * speedFactor;
-    // only move forward when roughly facing target
-    var ePrevX = e.posX;
-    var ePrevZ = e.posZ;
     if (Math.abs(angleDiff) < Math.PI * 0.6) {
       e.posX += Math.sin(e.heading) * moveSpeed * dt;
       e.posZ += Math.cos(e.heading) * moveSpeed * dt;
     }
 
-    // terrain collision for enemies
     if (terrain) {
       var ecol = collideWithTerrain(terrain, e.posX, e.posZ, ePrevX, ePrevZ);
       if (ecol.collided) {
@@ -397,7 +441,6 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       }
     }
 
-    // apply position to mesh
     e.mesh.position.x = e.posX;
     e.mesh.position.z = e.posZ;
     e.mesh.rotation.y = e.heading;
@@ -441,10 +484,17 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       turret.rotation.y = localAngle;
     }
 
-    // --- firing (blocked by terrain line-of-sight) ---
+    // --- firing (faction-aware) ---
+    var eFireRange = e.fireRange || FIRE_RANGE;
     e.fireTimer -= dt;
     var hasLOS = !terrain || !terrainBlocksLine(terrain, e.posX, e.posZ, ship.posX, ship.posZ);
-    if (e.fireTimer <= 0 && dist < FIRE_RANGE && hasLOS) {
+    var canFire = e.fireTimer <= 0 && dist < eFireRange && hasLOS;
+    // Merchant: only fires when cornered (player close behind)
+    if (canFire && e.faction === "merchant") {
+      var rearAngle = Math.abs(normalizeAngle(targetAngle - e.heading));
+      canFire = rearAngle > Math.PI * 0.5 && dist < 20;
+    }
+    if (canFire) {
       enemyFire(manager, e, ship, scene);
       e.fireTimer = e.fireCooldown;
     }
@@ -618,7 +668,7 @@ export function damageEnemy(manager, enemy, scene, damageMult) {
     enemy.sinkTimer = 0;
     spawnExplosion(manager, enemy.posX, enemy.mesh.position.y, enemy.posZ, scene);
     if (manager.onDeathCallback) {
-      manager.onDeathCallback(enemy.posX, enemy.mesh.position.y, enemy.posZ);
+      manager.onDeathCallback(enemy.posX, enemy.mesh.position.y, enemy.posZ, enemy.faction);
     }
   }
 }

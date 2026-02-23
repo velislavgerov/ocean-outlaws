@@ -191,8 +191,12 @@ export function getZoneStars(state, zoneId) {
   return (state.zones[zoneId] && state.zones[zoneId].stars) || 0;
 }
 
+// --- faction rotation per wave ---
+var FACTION_ROTATION = ["pirate", "navy", "merchant", "pirate", "navy", "pirate", "merchant", "navy"];
+
 // --- build wave configs for a zone (replaces global wave configs) ---
 // Final wave marked as boss wave if zone has a boss
+// Each wave gets a faction from the rotation
 export function buildZoneWaveConfigs(zone) {
   var configs = [];
   for (var i = 1; i <= zone.waves; i++) {
@@ -201,12 +205,13 @@ export function buildZoneWaveConfigs(zone) {
       enemies: zone.enemyBase + zone.enemiesPerWave * (i - 1),
       hpMult: zone.hpScale * (1.0 + (i - 1) * 0.15),
       speedMult: zone.speedScale * (1.0 + (i - 1) * 0.08),
-      fireRateMult: 1.0 + (i - 1) * 0.1
+      fireRateMult: 1.0 + (i - 1) * 0.1,
+      faction: FACTION_ROTATION[(i - 1) % FACTION_ROTATION.length]
     };
     // mark final wave as boss wave
     if (i === zone.waves && zone.boss) {
       cfg.boss = zone.boss;
-      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2)); // fewer regular enemies during boss
+      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
     }
     configs.push(cfg);
   }

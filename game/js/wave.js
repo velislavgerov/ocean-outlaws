@@ -15,6 +15,9 @@ var STATE_COMPLETE  = "WAVE_COMPLETE";
 var STATE_GAME_OVER = "GAME_OVER";
 var STATE_VICTORY   = "VICTORY";
 
+// --- faction rotation for default waves ---
+var FACTION_ROTATION = ["pirate", "navy", "merchant", "pirate", "navy", "pirate", "merchant", "navy"];
+
 // --- build wave config table ---
 function buildWaveConfigs() {
   var configs = [];
@@ -24,7 +27,8 @@ function buildWaveConfigs() {
       enemies: BASE_ENEMIES + ENEMIES_PER_WAVE * (i - 1),
       hpMult: 1.0 + (i - 1) * 0.15,
       speedMult: 1.0 + (i - 1) * 0.08,
-      fireRateMult: 1.0 + (i - 1) * 0.1
+      fireRateMult: 1.0 + (i - 1) * 0.1,
+      faction: FACTION_ROTATION[(i - 1) % FACTION_ROTATION.length]
     });
   }
   return configs;

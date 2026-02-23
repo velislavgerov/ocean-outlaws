@@ -9,7 +9,7 @@ import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic,
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
-import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager } from "./enemy.js";
+import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
 import { createPickupManager, spawnPickup, updatePickups, clearPickups } from "./pickup.js";
@@ -120,10 +120,11 @@ var techState = loadTechState();
 createTechScreen();
 createPortScreen();
 
-setOnDeathCallback(enemyMgr, function (x, y, z) {
+setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   spawnPickup(pickupMgr, x, y, z, scene);
   var techB = getTechBonuses(techState);
-  var gld = Math.round(GOLD_PER_KILL * (1 + techB.salvageBonus));
+  var factionMult = getFactionGoldMult(faction);
+  var gld = Math.round(GOLD_PER_KILL * factionMult * (1 + techB.salvageBonus));
   addGold(upgrades, gld);
   playExplosion();
   playKillConfirm();
@@ -766,8 +767,10 @@ function animate() {
 
     if (event) {
       if (event === "wave_start") {
-        showBanner("Fleet " + waveMgr.wave + " Approaching!", 3);
-        addKillFeedEntry("Fleet " + waveMgr.wave + " Approaching!", "#44aaff");
+        var waveFaction = waveMgr.currentConfig.faction;
+        var waveAnnounce = getFactionAnnounce(waveFaction);
+        showBanner(waveAnnounce, 3);
+        addKillFeedEntry("Wave " + waveMgr.wave + " — " + waveAnnounce, "#44aaff");
         playWaveHorn();
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
