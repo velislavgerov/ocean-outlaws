@@ -143,6 +143,11 @@ export function createShip(classConfig) {
 
   var stats = classConfig ? classConfig.stats : null;
 
+  // ship lantern — warm PointLight that glows at night for visibility
+  var lantern = new THREE.PointLight(0xffcc66, 0, 18);
+  lantern.position.set(0, 2.5, 0);
+  mesh.add(lantern);
+
   var state = {
     mesh: mesh,
     speed: 0,
@@ -151,6 +156,7 @@ export function createShip(classConfig) {
     posZ: 0,
     navTarget: null,
     classKey: classConfig ? classConfig.key : null,
+    lantern: lantern,
     // base stats from class (or defaults)
     baseMaxSpeed: stats ? stats.maxSpeed : DEFAULT_MAX_SPEED,
     baseAccel: stats ? stats.accel : DEFAULT_ACCEL,
@@ -336,4 +342,10 @@ export function getSpeedRatio(ship) {
 // --- get speed in display units (knots-like) ---
 export function getDisplaySpeed(ship) {
   return Math.abs(ship.speed);
+}
+
+// --- update ship lantern intensity based on nightness (0=day, 1=night) ---
+export function updateShipLantern(ship, nightness) {
+  if (!ship || !ship.lantern) return;
+  ship.lantern.intensity = nightness * 1.8;
 }

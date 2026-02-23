@@ -112,28 +112,35 @@ export function updateDayNight(state, dt) {
   state.sunDirection.normalize();
 }
 
+// minimum ambient RGB floor so objects stay visible at night
+var MIN_AMBIENT_R = 0.12;
+var MIN_AMBIENT_G = 0.12;
+var MIN_AMBIENT_B = 0.18;
+var MIN_SUN_INTENSITY = 0.25;
+var MIN_HEMI_INTENSITY = 0.4;
+
 // apply day/night state to scene lights and fog
 export function applyDayNight(state, ambient, sun, hemi, fog, renderer, weatherDim) {
   var dim = weatherDim !== undefined ? weatherDim : 1.0;
 
-  // ambient light
+  // ambient light — enforce minimum floor for night visibility
   ambient.color.setRGB(
-    state.ambientColor[0] * dim,
-    state.ambientColor[1] * dim,
-    state.ambientColor[2] * dim
+    Math.max(MIN_AMBIENT_R, state.ambientColor[0] * dim),
+    Math.max(MIN_AMBIENT_G, state.ambientColor[1] * dim),
+    Math.max(MIN_AMBIENT_B, state.ambientColor[2] * dim)
   );
   ambient.intensity = 0.6;
 
-  // directional sun
+  // directional sun — enforce minimum so silhouettes remain visible
   sun.color.setRGB(state.sunColor[0], state.sunColor[1], state.sunColor[2]);
-  sun.intensity = state.sunIntensity * dim;
+  sun.intensity = Math.max(MIN_SUN_INTENSITY, state.sunIntensity * dim);
   sun.position.set(
     state.sunDirection.x * 80,
     state.sunDirection.y * 80,
     state.sunDirection.z * 80
   );
 
-  // hemisphere
+  // hemisphere — enforce minimum intensity for fill light
   hemi.color.setRGB(
     state.skyColor[0] * dim,
     state.skyColor[1] * dim,
@@ -144,7 +151,7 @@ export function applyDayNight(state, ambient, sun, hemi, fog, renderer, weatherD
     state.horizonColor[1] * dim * 0.3,
     state.horizonColor[2] * dim * 0.3
   );
-  hemi.intensity = 0.3 + state.sunIntensity * 0.2;
+  hemi.intensity = Math.max(MIN_HEMI_INTENSITY, 0.3 + state.sunIntensity * 0.2);
 
   // fog
   fog.color.setRGB(
@@ -186,17 +193,17 @@ export function createStars(scene) {
   return { mesh: mesh, material: material };
 }
 
+// compute nightness factor (0 = day, 1 = full night)
+export function getNightness(timeOfDay) {
+  if (timeOfDay < 0.2 || timeOfDay > 0.8) return 1.0;
+  if (timeOfDay < 0.3) return 1.0 - (timeOfDay - 0.2) / 0.1;
+  if (timeOfDay > 0.7) return (timeOfDay - 0.7) / 0.1;
+  return 0;
+}
+
 // update star visibility based on time of day
 export function updateStars(stars, timeOfDay) {
   if (!stars) return;
-  // stars visible at night (0.0 midnight), fade during dawn/dusk
-  var nightness = 0;
-  if (timeOfDay < 0.2 || timeOfDay > 0.8) {
-    nightness = 1.0;
-  } else if (timeOfDay < 0.3) {
-    nightness = 1.0 - (timeOfDay - 0.2) / 0.1;
-  } else if (timeOfDay > 0.7) {
-    nightness = (timeOfDay - 0.7) / 0.1;
-  }
+  var nightness = getNightness(timeOfDay);
   stars.material.opacity = nightness * 0.7;
 }

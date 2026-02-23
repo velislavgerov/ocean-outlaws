@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createOcean, updateOcean, getWaveHeight, setTerrainMap, clearTerrainMap } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
-import { createShip, updateShip, getSpeedRatio, getDisplaySpeed } from "./ship.js";
+import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setAbilityBarCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
@@ -25,7 +25,7 @@ import { loadMapState, resetMapState, getZone, calcStars, completeZone, buildZon
 import { createVoyageChart, showVoyageChart, hideVoyageChart } from "./voyageChart.js";
 import { generateVoyageChart, createVoyageState, moveToNode, getReachableNodes, getNodeTypes, saveVoyageState, loadVoyageState, clearVoyageState } from "./voyageData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeatherDim, getWeatherFoam, getWeatherCloudShadow, maybeChangeWeather, createRain, createSplashes, updateWeather } from "./weather.js";
-import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars } from "./daynight.js";
+import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness } from "./daynight.js";
 import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot } from "./boss.js";
 import { createBossHud, showBossHud, hideBossHud, updateBossHud, showLootBanner } from "./bossHud.js";
 import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewBonuses } from "./crew.js";
@@ -652,6 +652,7 @@ function animate() {
       scene.fog.density += edgeFog * 0.04;  // layer on top of day/night fog
     }
     updateStars(stars, dayNight.timeOfDay);
+    updateShipLantern(ship, getNightness(dayNight.timeOfDay));
     // ocean must update before ships so wave height is current-frame
     updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, waveSteps, wp.waterTint, dayNight, cam.camera, wDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
     updateWeather(weather, dt, scene, ship.posX, ship.posZ);
@@ -921,6 +922,7 @@ function animate() {
     var idleDim = getWeatherDim(weather);
     applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, idleDim);
     updateStars(stars, dayNight.timeOfDay);
+    updateShipLantern(ship, getNightness(dayNight.timeOfDay));
     updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waveSteps !== undefined ? wpIdle.waveSteps : 0, wpIdle.waterTint, dayNight, cam.camera, idleDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
     updateWeather(weather, dt, scene, ship ? ship.posX : 0, ship ? ship.posZ : 0);
     if (ship) {
