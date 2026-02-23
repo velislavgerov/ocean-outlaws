@@ -16,6 +16,7 @@ This folder contains the initial iOS-first mobile workspace using Expo SDK 54 + 
 cd mobile
 npm install
 npm run start
+npm run test:logic
 ```
 
 For native device/simulator builds:
@@ -31,3 +32,8 @@ npm run android
 2. Continue extracting reusable gameplay systems from `game/js/*` into shared mobile logic modules.
 3. Replace HUD prototype buttons with joystick + action controls via gesture handler.
 4. Add Supabase project config and edge-function-backed auth stub (`game-center-auth`).
+
+
+## Notes
+
+- `@react-three/fiber` is pinned to v9 for React 19 compatibility in Expo SDK 54.
