@@ -46,6 +46,8 @@ import { getQualityConfig, createOrientationPrompt, onQualityChange } from "./mo
 import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 import { loadInfamy, addInfamy, calcRunInfamy, getLegendLevel, getLegendProgress } from "./infamy.js";
 import { createInfamyScreen, showInfamyScreen, hideInfamyScreen } from "./infamyScreen.js";
+import { createMainMenu, showMainMenu, hideMainMenu } from "./mainMenu.js";
+import { createRunState, saveRunState as saveRun, loadRunState, hasActiveRun, clearRunState } from "./runState.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -55,6 +57,8 @@ var HOLD_THRESHOLD = 200; // ms — presses shorter than this count as click, no
 var runEnemiesSunk = 0; // enemies sunk during current run
 var runGoldLooted = 0; // gold earned during current run
 var runZonesReached = 0; // zones visited during current run
+var currentRunSeed = null; // non-null when in a roguelite run
+var currentNode = null; // current voyage chart node being fought
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -129,6 +133,7 @@ createTechScreen();
 createPortScreen();
 var infamyState = loadInfamy();
 createInfamyScreen();
+createMainMenu();
 
 setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   spawnPickup(pickupMgr, x, y, z, scene);
@@ -240,11 +245,13 @@ createSettingsMenu({
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
     clearVoyageState();
+    clearRunState();
     activeChart = null; activeVoyageState = null;
+    currentRunSeed = null; currentNode = null;
     resetTechState(techState);
     techState = loadTechState();
     selectedClass = null;
-    showShipSelectScreen(handleShipSelect, upgrades, infamyState);
+    showMainMenu(startNewRun, continueRun, hasActiveRun());
   }
 });
 
@@ -325,7 +332,7 @@ setLobbyCallbacks({
   onBack: function () {
     leaveRoom(mpState);
     hideLobbyScreen();
-    showShipSelectScreen(handleShipSelect, upgrades, infamyState);
+    showMainMenu(startNewRun, continueRun, hasActiveRun());
   }
 });
 
@@ -693,7 +700,12 @@ function startMultiplayerCombat() {
 function handleShipSelect(classKey) {
   selectedClass = classKey;
   hideShipSelectScreen();
-  openTechThenMap();
+  var runSeed = Date.now() + Math.floor(Math.random() * 10000);
+  currentRunSeed = runSeed;
+  var run = createRunState(runSeed);
+  run.selectedClass = classKey;
+  saveRun(run);
+  openRunVoyageChart(runSeed);
 }
 
 // --- load save on startup ---
@@ -701,46 +713,255 @@ var savedGame = loadSave();
 if (savedGame) {
   if (savedGame.mapState) mapState = savedGame.mapState;
   if (savedGame.techTree && savedGame.techTree.unlocked) techState = savedGame.techTree;
-  if (savedGame.upgrades && savedGame.upgrades.gold !== undefined) upgrades.gold = savedGame.upgrades.gold;
   if (savedGame.officers && savedGame.officers.roster) crew = savedGame.officers;
   if (savedGame.selectedClass) selectedClass = savedGame.selectedClass;
 }
 
-showShipSelectScreen(handleShipSelect, upgrades, infamyState);
+// --- main menu on startup ---
+showMainMenu(startNewRun, continueRun, hasActiveRun());
 
-function openTechThenMap() {
-  techState = loadTechState();
-  techScreenOpen = true;
-  showTechScreen(techState, {
-    get: function () { return upgrades.gold; },
-    spend: function (cost) { upgrades.gold -= cost; }
-  }, function () {
-    techScreenOpen = false;
-    performAutoSave();
-    openMap();
-  });
+function startNewRun() {
+  hideMainMenu();
+  clearRunState();
+  clearVoyageState();
+  activeChart = null;
+  activeVoyageState = null;
+  currentRunSeed = null;
+  currentNode = null;
+  runEnemiesSunk = 0;
+  runGoldLooted = 0;
+  runZonesReached = 0;
+  resetUpgrades(upgrades);
+  upgrades.gold = 0;
+  resetCrew(crew);
+  showShipSelectScreen(handleShipSelect, upgrades, infamyState);
 }
 
-function openMap() {
-  mapState = loadMapState();
-  // generate voyage chart for current zone (use first unlocked zone)
-  var zoneId = activeZoneId || "shallow_cove";
-  var zone = getZone(zoneId);
-  var isBossZone = zoneId === "reef_basin" || zoneId === "leviathan_maw";
-  var chartSeed = 0;
-  for (var ci = 0; ci < zoneId.length; ci++) chartSeed += zoneId.charCodeAt(ci) * (ci + 1);
-  chartSeed += 42; // fixed offset for chart layout
-  activeChart = generateVoyageChart(chartSeed, zone ? zone.difficulty : 1, isBossZone);
-  activeVoyageState = createVoyageState(activeChart);
+function continueRun() {
+  var run = loadRunState();
+  if (!run) return;
+  hideMainMenu();
+  selectedClass = run.selectedClass;
+  upgrades.gold = run.gold;
+  if (run.upgradeLevels) {
+    var keys = Object.keys(run.upgradeLevels);
+    for (var ki = 0; ki < keys.length; ki++) {
+      upgrades.levels[keys[ki]] = run.upgradeLevels[keys[ki]];
+    }
+  }
+  if (run.crewRoster) crew.roster = run.crewRoster;
+  if (run.crewAssigned) crew.assigned = run.crewAssigned;
+  runEnemiesSunk = run.enemiesSunk || 0;
+  runGoldLooted = run.goldLooted || 0;
+  runZonesReached = run.nodesCompleted || 0;
+  currentRunSeed = run.seed;
+  openRunVoyageChart(run.seed);
+}
+
+function openRunVoyageChart(seed) {
+  activeChart = generateVoyageChart(seed, 3, true);
+  var savedVoyage = loadVoyageState();
+  if (savedVoyage && savedVoyage.chartSeed === seed) {
+    activeVoyageState = savedVoyage;
+  } else {
+    activeVoyageState = createVoyageState(activeChart);
+  }
   showVoyageChart(activeChart, activeVoyageState, function (nodeId) {
     var moved = moveToNode(activeChart, activeVoyageState, nodeId);
     if (!moved) return;
     saveVoyageState(activeVoyageState);
+    var node = null;
+    for (var ni = 0; ni < activeChart.nodes.length; ni++) {
+      if (activeChart.nodes[ni].id === nodeId) { node = activeChart.nodes[ni]; break; }
+    }
+    if (!node) return;
+    currentNode = node;
     hideVoyageChart();
-    // use the zone for combat settings
-    activeZoneId = zoneId;
-    startZoneCombat(selectedClass, zoneId);
+    startNodeEncounter(node, seed);
   });
+}
+
+function startNodeEncounter(node, runSeed) {
+  if (node.type === "salvage") {
+    var salvageGold = 30 + node.col * 15;
+    addGold(upgrades, salvageGold);
+    runGoldLooted += salvageGold;
+    showBanner("Salvage: +" + salvageGold + " gold!", 2);
+    updateRunAfterNode(null, null);
+    setTimeout(function () {
+      if (activeVoyageState && activeVoyageState.completed) {
+        endRunVictory();
+      } else {
+        openRunVoyageChart(runSeed);
+      }
+    }, 1500);
+    return;
+  }
+  if (node.type === "event") {
+    var eventRoll = Math.random();
+    if (eventRoll < 0.6) {
+      var eventGold = 20 + node.col * 10;
+      addGold(upgrades, eventGold);
+      runGoldLooted += eventGold;
+      showBanner("Parley: +" + eventGold + " gold!", 2);
+    } else {
+      showBanner("Ambush avoided!", 2);
+    }
+    updateRunAfterNode(null, null);
+    setTimeout(function () {
+      if (activeVoyageState && activeVoyageState.completed) {
+        endRunVictory();
+      } else {
+        openRunVoyageChart(runSeed);
+      }
+    }, 1500);
+    return;
+  }
+  startNodeCombat(node, runSeed);
+}
+
+function buildNodeWaveConfigs(nodeType, col, totalCols) {
+  var waves = nodeType === "boss" ? 2 : (col < 3 ? 2 : 3);
+  var enemyBase = 2 + Math.floor(col * 0.5);
+  var hpScale = 1.0 + col * 0.15;
+  var speedScale = 1.0 + col * 0.05;
+  if (nodeType === "merchant_chase") {
+    waves = Math.max(1, waves - 1);
+    enemyBase = Math.max(1, enemyBase - 1);
+  }
+  var factions = ["pirate", "navy", "merchant"];
+  var configs = [];
+  for (var wi = 1; wi <= waves; wi++) {
+    var cfg = {
+      wave: wi,
+      enemies: enemyBase + (wi - 1),
+      hpMult: hpScale * (1.0 + (wi - 1) * 0.1),
+      speedMult: speedScale,
+      fireRateMult: 1.0 + col * 0.1,
+      faction: factions[(col + wi) % factions.length]
+    };
+    if (nodeType === "boss" && wi === waves) {
+      var difficulty = 1 + Math.floor(col * 5 / Math.max(1, totalCols - 1));
+      cfg.boss = difficulty >= 4 ? "kraken" : "battleship";
+      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
+    }
+    configs.push(cfg);
+  }
+  return configs;
+}
+
+function startNodeCombat(node, runSeed) {
+  var classCfg = getShipClass(selectedClass);
+  var waveConfigs = buildNodeWaveConfigs(node.type, node.col, activeChart.columns);
+  resetWaveManager(waveMgr, waveConfigs);
+  resetResources(resources);
+  resetEnemyManager(enemyMgr, scene);
+  resetDrones(droneMgr, scene);
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
+  hideBossHud();
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  var terrainSeed = runSeed + node.id * 1000 + 7;
+  seedRNG(terrainSeed);
+  var terrainDiff = 1 + Math.floor(node.col * 5 / Math.max(1, activeChart.columns - 1));
+  activeTerrain = createTerrain(terrainSeed, Math.min(terrainDiff, 6));
+  scene.add(activeTerrain.mesh);
+  setTerrainMap(ocean.uniforms, activeTerrain);
+  clearPorts(portMgr, scene);
+  initPorts(portMgr, activeTerrain, scene);
+  clearCrates(crateMgr, scene);
+  if (ship && ship.mesh) scene.remove(ship.mesh);
+  ship = createShip(classCfg);
+  scene.add(ship.mesh);
+  var run = loadRunState();
+  if (run && run.hp !== null && run.hp !== undefined && run.maxHp !== null) {
+    setPlayerMaxHp(enemyMgr, run.maxHp);
+    setPlayerHp(enemyMgr, run.hp);
+  } else {
+    setPlayerMaxHp(enemyMgr, classCfg.stats.hp);
+    setPlayerHp(enemyMgr, classCfg.stats.hp);
+  }
+  var m = getMultipliers(upgrades);
+  setPlayerArmor(enemyMgr, m.armor + classCfg.stats.armor);
+  weapons = createWeaponState(ship);
+  abilityState = createAbilityState(selectedClass);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  resetDrones(droneMgr, scene);
+  var weatherPreset = "calm";
+  if (node.type === "storm_crossing") weatherPreset = "storm";
+  else if (node.col >= 5) weatherPreset = "rough";
+  setWeather(weather, weatherPreset);
+  setEngineClass(selectedClass);
+  gameFrozen = false;
+  gameStarted = true;
+  upgradeScreenOpen = false;
+  activeZoneId = "run_node_" + node.id;
+  fadeIn(0.6);
+  var nodeTypes = getNodeTypes();
+  var nodeLabel = nodeTypes[node.type] ? nodeTypes[node.type].label : "Combat";
+  showBanner(nodeLabel + " — Prepare for Battle!", 3);
+}
+
+function updateRunAfterNode(hp, maxHp) {
+  runZonesReached++;
+  var run = loadRunState();
+  if (!run) return;
+  run.gold = upgrades.gold;
+  run.upgradeLevels = upgrades.levels;
+  run.crewRoster = crew.roster;
+  run.crewAssigned = crew.assigned;
+  run.enemiesSunk = runEnemiesSunk;
+  run.goldLooted = runGoldLooted;
+  run.nodesCompleted = runZonesReached;
+  if (hp !== null && hp !== undefined) {
+    run.hp = hp;
+    run.maxHp = maxHp;
+  }
+  saveRun(run);
+}
+
+function endRunVictory() {
+  gameFrozen = true;
+  gameStarted = false;
+  var vicData = awardRunInfamy("victory");
+  clearRunState();
+  clearVoyageState();
+  currentRunSeed = null;
+  currentNode = null;
+  fadeOut(0.4, function () {
+    showInfamyScreen(vicData, function () {
+      showMainMenu(startNewRun, continueRun, hasActiveRun());
+    });
+    fadeIn(0.4);
+  });
+}
+
+function endRunDefeat() {
+  gameFrozen = true;
+  gameStarted = false;
+  upgrades.gold = 0;
+  hideBossHud();
+  var goData = awardRunInfamy("defeat");
+  clearRunState();
+  clearVoyageState();
+  currentRunSeed = null;
+  currentNode = null;
+  fadeOut(0.4, function () {
+    showInfamyScreen(goData, function () {
+      showMainMenu(startNewRun, continueRun, hasActiveRun());
+    });
+    fadeIn(0.4);
+  });
+}
+
+function cleanupCombatScene() {
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  resetEnemyManager(enemyMgr, scene);
+  clearPorts(portMgr, scene);
+  clearCrates(crateMgr, scene);
+  clearPickups(pickupMgr, scene);
+  resetDrones(droneMgr, scene);
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
+  hideBossHud();
 }
 
 function startZoneCombat(classKey, zoneId) {
@@ -872,6 +1093,7 @@ setRestartCallback(function () {
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
   resetUpgrades(upgrades);
+  upgrades.gold = 0;
   resetDrones(droneMgr, scene);
   resetCrew(crew);
   clearRemoteShips(scene);
@@ -881,49 +1103,21 @@ setRestartCallback(function () {
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
-  if (ship) {
-    // Find safe water spawn — don't place on land
-    if (activeTerrain) {
-      var spawn = findWaterPosition(activeTerrain, 0, 0, 5, 80);
-      ship.posX = spawn ? spawn.x : 0;
-      ship.posZ = spawn ? spawn.z : 0;
-    } else {
-      ship.posX = 0; ship.posZ = 0;
-    }
-    ship.speed = 0; ship.heading = 0; ship.navTarget = null;
-  }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
   setAutofire(true);
   setWeather(weather, "calm");
   hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
   clearVoyageState();
+  clearRunState();
   activeChart = null; activeVoyageState = null;
+  currentRunSeed = null; currentNode = null;
   if (isMultiplayerActive(mpState)) {
     leaveRoom(mpState);
     mpReady = false;
   }
-  // after victory, show port screen for repair/upgrades before continuing
-  if (lastZoneResult === "victory") {
-    lastZoneResult = null;
-    var hpNow = getPlayerHp(enemyMgr);
-    var portHpInfo = { hp: hpNow.hp, maxHp: hpNow.maxHp };
-    portScreenOpen = true;
-    showPortScreen({
-      upgrades: upgrades,
-      hpInfo: portHpInfo,
-      classKey: selectedClass
-    }, function () {
-      portScreenOpen = false;
-      // apply repair: sync port screen HP back to game state
-      setPlayerHp(enemyMgr, portHpInfo.hp);
-      performAutoSave();
-      openTechThenMap();
-    });
-  } else {
-    lastZoneResult = null;
-    openTechThenMap();
-  }
+  lastZoneResult = null;
+  showMainMenu(startNewRun, continueRun, hasActiveRun());
 });
 
 window.addEventListener("resize", function () {
@@ -1135,7 +1329,7 @@ function animate() {
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
         var zone = getZone(activeZoneId);
-        var difficulty = zone ? zone.difficulty : 1;
+        var difficulty = zone ? zone.difficulty : (currentNode ? 1 + Math.floor(currentNode.col * 5 / Math.max(1, 6)) : 1);
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
         setNavBoss(activeBoss);
         playWaveHorn();
@@ -1182,36 +1376,68 @@ function animate() {
           });
         }
       } else if (event === "game_over") {
-        lastZoneResult = "game_over";
-        gameFrozen = true;
-        upgrades.gold = 0;
-        hideBossHud();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
         }
-        var goData = awardRunInfamy("defeat");
-        fadeOut(0.4, function () {
-          showInfamyScreen(goData, function () {
-            showGameOver(waveMgr.wave);
+        if (currentRunSeed !== null) {
+          endRunDefeat();
+        } else {
+          lastZoneResult = "game_over";
+          gameFrozen = true;
+          upgrades.gold = 0;
+          hideBossHud();
+          var goData = awardRunInfamy("defeat");
+          fadeOut(0.4, function () {
+            showInfamyScreen(goData, function () {
+              showGameOver(waveMgr.wave);
+            });
+            fadeIn(0.4);
           });
-          fadeIn(0.4);
-        });
+        }
       } else if (event === "victory") {
-        lastZoneResult = "victory";
-        handleZoneVictory();
-        performAutoSave();
-        gameFrozen = true;
-        hideBossHud();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
         }
-        var vicData = awardRunInfamy("victory");
-        fadeOut(0.4, function () {
-          showInfamyScreen(vicData, function () {
-            showVictory(waveMgr.wave);
+        if (currentRunSeed !== null) {
+          gameFrozen = true;
+          hideBossHud();
+          var nodeVicHp = getPlayerHp(enemyMgr);
+          updateRunAfterNode(nodeVicHp.hp, nodeVicHp.maxHp);
+          if (activeVoyageState && activeVoyageState.completed) {
+            endRunVictory();
+          } else {
+            upgradeScreenOpen = true;
+            fadeGameAudio();
+            showUpgradeScreen(upgrades, function () {
+              upgradeScreenOpen = false;
+              applyUpgrades();
+              crewScreenOpen = true;
+              showCrewScreen(crew, function () {
+                crewScreenOpen = false;
+                resumeGameAudio();
+                cleanupCombatScene();
+                gameStarted = false;
+                fadeOut(0.3, function () {
+                  openRunVoyageChart(currentRunSeed);
+                  fadeIn(0.3);
+                });
+              });
+            });
+          }
+        } else {
+          lastZoneResult = "victory";
+          handleZoneVictory();
+          performAutoSave();
+          gameFrozen = true;
+          hideBossHud();
+          var vicData = awardRunInfamy("victory");
+          fadeOut(0.4, function () {
+            showInfamyScreen(vicData, function () {
+              showVictory(waveMgr.wave);
+            });
+            fadeIn(0.4);
           });
-          fadeIn(0.4);
-        });
+        }
       } else if (event.indexOf("repair:") === 0) {
         var newHp = parseFloat(event.split(":")[1]);
         setPlayerHp(enemyMgr, newHp);
@@ -1339,7 +1565,7 @@ function animate() {
     var idleDim = getWeatherDim(weather);
     applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, idleDim);
     updateStars(stars, dayNight.timeOfDay);
-    updateShipLantern(ship, getNightness(dayNight.timeOfDay));
+    if (ship) updateShipLantern(ship, getNightness(dayNight.timeOfDay));
     updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waveSteps !== undefined ? wpIdle.waveSteps : 0, wpIdle.waterTint, dayNight, cam.camera, idleDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
     updateWeather(weather, dt, scene, ship ? ship.posX : 0, ship ? ship.posZ : 0);
     if (ship) {
