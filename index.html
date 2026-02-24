@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1">
   <meta name="theme-color" content="#1a1408">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,7 +23,19 @@
       color: #e8d5a8;
       font-family: 'Cinzel', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
       overflow-x: hidden;
+      /* Prevent text selection */
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      /* Default cursor — no text cursor on UI */
+      cursor: default;
+      /* Prevent iOS touch callout */
+      -webkit-touch-callout: none;
+      /* Prevent tap highlight on mobile */
       -webkit-tap-highlight-color: transparent;
+      /* Prevent pull-to-refresh */
+      overscroll-behavior: none;
     }
 
     /* Animated ocean background */
@@ -258,7 +270,9 @@
       letter-spacing: 0.05em;
     }
 
-    footer a { color: #8b7a5a; text-decoration: none; }
+    footer a { color: #8b7a5a; text-decoration: none; cursor: pointer; }
+
+    img, svg { -webkit-user-drag: none; user-drag: none; }
 
     /* Desktop */
     @media (min-width: 768px) {
@@ -339,6 +353,9 @@
   </footer>
 
   <script>
+    // Prevent context menu
+    window.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
     // PWA install prompt
     var deferredPrompt = null;
     var installBtn = document.getElementById('installBtn');

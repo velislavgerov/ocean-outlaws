@@ -14,8 +14,34 @@
   <base href="/ocean-outlaws/game/">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e1a; }
-    canvas { display: block; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; background: #0a0e1a;
+      /* Prevent text selection everywhere */
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      /* Default cursor — no text cursor on UI */
+      cursor: default;
+      /* Prevent iOS touch callout */
+      -webkit-touch-callout: none;
+      /* Prevent tap highlight on mobile */
+      -webkit-tap-highlight-color: transparent;
+      /* Prevent pull-to-refresh & pinch-to-zoom */
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      /* Prevent canvas drag */
+      -webkit-user-drag: none;
+      touch-action: none;
+    }
+    img, svg {
+      -webkit-user-drag: none;
+      user-drag: none;
+      pointer-events: none;
+    }
   </style>
   <script type="importmap">
   {
