@@ -1,4 +1,4 @@
-// soundFx.js — weapon, impact, combat feedback, and UI sounds (procedural)
+// soundFx.js — pirate weapon, impact, combat feedback, and UI sounds (procedural)
 import { getCtx, getSfxGain, isReady, playNoiseShot } from "./sound.js";
 
 // --- weapon sounds ---
@@ -6,175 +6,163 @@ export function playWeaponSound(weaponKey) {
   if (!isReady()) return;
   var ctx = getCtx();
   var now = ctx.currentTime;
-  if (weaponKey === "turret") { playTurretFire(now); }
-  else if (weaponKey === "missile") { playMissileLaunch(now); }
-  else if (weaponKey === "torpedo") { playTorpedoLaunch(now); }
+  if (weaponKey === "turret") { playCannonFire(now); }
+  else if (weaponKey === "missile") { playMusketFire(now); }
+  else if (weaponKey === "torpedo") { playCannonballFlight(now); }
 }
 
-// Turret: percussive transient click + filtered noise burst
-function playTurretFire(now) {
+// Broadside cannon: deep boom with reverb tail — low-freq burst + noise transient
+function playCannonFire(now) {
   var ctx = getCtx();
   var sfx = getSfxGain();
-  // sharp transient click
-  var click = ctx.createOscillator();
-  click.type = "square";
-  click.frequency.setValueAtTime(1200, now);
-  click.frequency.exponentialRampToValueAtTime(200, now + 0.02);
+  // deep boom — low sine with sharp attack and long decay
+  var boom = ctx.createOscillator();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(120, now);
+  boom.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+  var boomGn = ctx.createGain();
+  boomGn.gain.setValueAtTime(0.45, now);
+  boomGn.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  boom.connect(boomGn);
+  boomGn.connect(sfx);
+  boom.start(now);
+  boom.stop(now + 0.5);
+  // heavy noise transient for punch/smoke
+  playNoiseShot(now, 0.15, 0.4, 600);
+  // mid crackle layer
+  var crackle = ctx.createOscillator();
+  crackle.type = "sawtooth";
+  crackle.frequency.setValueAtTime(300, now);
+  crackle.frequency.exponentialRampToValueAtTime(60, now + 0.12);
+  var cg = ctx.createGain();
+  cg.gain.setValueAtTime(0.2, now);
+  cg.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  crackle.connect(cg);
+  cg.connect(sfx);
+  crackle.start(now);
+  crackle.stop(now + 0.18);
+  // reverb tail — filtered noise that lingers
+  playNoiseShot(now + 0.05, 0.35, 0.12, 300);
+}
+
+// Musket/swivel gun: sharper crack, shorter decay
+function playMusketFire(now) {
+  var ctx = getCtx();
+  var sfx = getSfxGain();
+  // sharp crack
+  var crack = ctx.createOscillator();
+  crack.type = "square";
+  crack.frequency.setValueAtTime(800, now);
+  crack.frequency.exponentialRampToValueAtTime(150, now + 0.04);
   var cg = ctx.createGain();
   cg.gain.setValueAtTime(0.35, now);
-  cg.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-  click.connect(cg);
+  cg.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  crack.connect(cg);
   cg.connect(sfx);
-  click.start(now);
-  click.stop(now + 0.03);
-  // body: pitched-down thump
-  var body = ctx.createOscillator();
-  body.type = "square";
-  body.frequency.setValueAtTime(600, now);
-  body.frequency.exponentialRampToValueAtTime(80, now + 0.08);
-  var bg = ctx.createGain();
-  bg.gain.setValueAtTime(0.25, now);
-  bg.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-  body.connect(bg);
-  bg.connect(sfx);
-  body.start(now);
-  body.stop(now + 0.12);
-  // noise burst for punch
-  playNoiseShot(now, 0.06, 0.3, 1200);
-  // low thud for weight
-  var thud = ctx.createOscillator();
-  thud.type = "sine";
-  thud.frequency.setValueAtTime(80, now);
-  thud.frequency.exponentialRampToValueAtTime(30, now + 0.1);
+  crack.start(now);
+  crack.stop(now + 0.08);
+  // snap noise burst
+  playNoiseShot(now, 0.05, 0.35, 2000);
+  // brief low thump
+  var thump = ctx.createOscillator();
+  thump.type = "sine";
+  thump.frequency.setValueAtTime(100, now);
+  thump.frequency.exponentialRampToValueAtTime(40, now + 0.06);
   var tg = ctx.createGain();
   tg.gain.setValueAtTime(0.2, now);
-  tg.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-  thud.connect(tg);
+  tg.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  thump.connect(tg);
   tg.connect(sfx);
-  thud.start(now);
-  thud.stop(now + 0.12);
+  thump.start(now);
+  thump.stop(now + 0.1);
 }
 
-// Missile: rising Doppler pitch + trailing off
-function playMissileLaunch(now) {
+// Cannonball flight: subtle whistle with descending pitch
+function playCannonballFlight(now) {
   var ctx = getCtx();
   var sfx = getSfxGain();
-  // whoosh with Doppler rise then fall
-  var osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(180, now);
-  osc.frequency.exponentialRampToValueAtTime(1400, now + 0.2);
-  osc.frequency.exponentialRampToValueAtTime(600, now + 0.5);
-  osc.frequency.exponentialRampToValueAtTime(200, now + 0.8);
-  var filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.setValueAtTime(400, now);
-  filter.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
-  filter.frequency.exponentialRampToValueAtTime(300, now + 0.8);
-  filter.Q.value = 1.5;
-  var g = ctx.createGain();
-  g.gain.setValueAtTime(0.12, now);
-  g.gain.linearRampToValueAtTime(0.25, now + 0.15);
-  g.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-  osc.connect(filter);
-  filter.connect(g);
-  g.connect(sfx);
-  osc.start(now);
-  osc.stop(now + 0.8);
-  // trailing noise
-  playNoiseShot(now, 0.5, 0.15, 1500);
-  // ignition pop
-  var pop = ctx.createOscillator();
-  pop.type = "sine";
-  pop.frequency.setValueAtTime(400, now);
-  pop.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-  var pg = ctx.createGain();
-  pg.gain.setValueAtTime(0.2, now);
-  pg.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-  pop.connect(pg);
-  pg.connect(sfx);
-  pop.start(now);
-  pop.stop(now + 0.06);
+  // cannon boom first (lighter than broadside)
+  var boom = ctx.createOscillator();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(100, now);
+  boom.frequency.exponentialRampToValueAtTime(25, now + 0.25);
+  var bg = ctx.createGain();
+  bg.gain.setValueAtTime(0.3, now);
+  bg.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  boom.connect(bg);
+  bg.connect(sfx);
+  boom.start(now);
+  boom.stop(now + 0.35);
+  playNoiseShot(now, 0.1, 0.25, 500);
+  // descending whistle
+  var whistle = ctx.createOscillator();
+  whistle.type = "sine";
+  whistle.frequency.setValueAtTime(1800, now + 0.08);
+  whistle.frequency.exponentialRampToValueAtTime(400, now + 0.6);
+  var wFilt = ctx.createBiquadFilter();
+  wFilt.type = "bandpass";
+  wFilt.frequency.setValueAtTime(1600, now + 0.08);
+  wFilt.frequency.exponentialRampToValueAtTime(500, now + 0.6);
+  wFilt.Q.value = 2;
+  var wg = ctx.createGain();
+  wg.gain.setValueAtTime(0.001, now);
+  wg.gain.linearRampToValueAtTime(0.08, now + 0.12);
+  wg.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+  whistle.connect(wFilt);
+  wFilt.connect(wg);
+  wg.connect(sfx);
+  whistle.start(now + 0.05);
+  whistle.stop(now + 0.6);
 }
 
-// Torpedo: water entry ploonk + underwater travel hum
-function playTorpedoLaunch(now) {
-  var ctx = getCtx();
-  var sfx = getSfxGain();
-  // water entry "ploonk" — low sine with sharp attack
-  var plonk = ctx.createOscillator();
-  plonk.type = "sine";
-  plonk.frequency.setValueAtTime(180, now);
-  plonk.frequency.exponentialRampToValueAtTime(40, now + 0.15);
-  var pg = ctx.createGain();
-  pg.gain.setValueAtTime(0.35, now);
-  pg.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-  plonk.connect(pg);
-  pg.connect(sfx);
-  plonk.start(now);
-  plonk.stop(now + 0.25);
-  // bubble splash noise
-  playNoiseShot(now, 0.2, 0.2, 400);
-  // underwater travel hum — starts after entry
-  var hum = ctx.createOscillator();
-  hum.type = "triangle";
-  hum.frequency.setValueAtTime(65, now + 0.15);
-  hum.frequency.linearRampToValueAtTime(55, now + 0.8);
-  var humFilter = ctx.createBiquadFilter();
-  humFilter.type = "lowpass";
-  humFilter.frequency.value = 200;
-  var hg = ctx.createGain();
-  hg.gain.setValueAtTime(0.001, now);
-  hg.gain.linearRampToValueAtTime(0.12, now + 0.2);
-  hg.gain.setValueAtTime(0.12, now + 0.6);
-  hg.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-  hum.connect(humFilter);
-  humFilter.connect(hg);
-  hg.connect(sfx);
-  hum.start(now + 0.1);
-  hum.stop(now + 0.9);
-}
-
-// --- impact sounds: metal, water, terrain ---
+// --- impact sounds: wood, water, terrain ---
 export function playImpactSound(type) {
   if (!isReady()) return;
   var ctx = getCtx();
   var now = ctx.currentTime;
-  if (type === "metal") { playMetalHit(now); }
+  if (type === "metal") { playWoodHit(now); } // metal → wood for pirate ships
   else if (type === "water") { playWaterSplash(now); }
   else if (type === "terrain") { playTerrainThud(now); }
 }
 
-function playMetalHit(now) {
+// Impact on wood: splintering crack with resonant filter
+function playWoodHit(now) {
   var ctx = getCtx();
   var sfx = getSfxGain();
-  // metallic clang — high sine with quick decay
-  var osc = ctx.createOscillator();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(900, now);
-  osc.frequency.exponentialRampToValueAtTime(300, now + 0.08);
+  // splintering crack — noise burst through resonant filter
+  var bufferSize = Math.floor(ctx.sampleRate * 0.12);
+  var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  var src = ctx.createBufferSource();
+  src.buffer = buffer;
+  var filt = ctx.createBiquadFilter();
+  filt.type = "bandpass";
+  filt.frequency.setValueAtTime(1200, now);
+  filt.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+  filt.Q.value = 4;
   var g = ctx.createGain();
-  g.gain.setValueAtTime(0.25, now);
+  g.gain.setValueAtTime(0.3, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-  osc.connect(g);
+  src.connect(filt);
+  filt.connect(g);
   g.connect(sfx);
-  osc.start(now);
-  osc.stop(now + 0.15);
-  // ring resonance
-  var ring = ctx.createOscillator();
-  ring.type = "sine";
-  ring.frequency.setValueAtTime(1800, now);
-  ring.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
-  var rg = ctx.createGain();
-  rg.gain.setValueAtTime(0.08, now);
-  rg.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-  ring.connect(rg);
-  rg.connect(sfx);
-  ring.start(now);
-  ring.stop(now + 0.25);
-  playNoiseShot(now, 0.06, 0.2, 2000);
+  src.start(now);
+  // woody thunk body
+  var body = ctx.createOscillator();
+  body.type = "triangle";
+  body.frequency.setValueAtTime(300, now);
+  body.frequency.exponentialRampToValueAtTime(80, now + 0.1);
+  var bg = ctx.createGain();
+  bg.gain.setValueAtTime(0.2, now);
+  bg.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  body.connect(bg);
+  bg.connect(sfx);
+  body.start(now);
+  body.stop(now + 0.15);
 }
 
+// Impact on water: splash with filtered noise and quick decay
 function playWaterSplash(now) {
   var ctx = getCtx();
   var sfx = getSfxGain();
@@ -190,14 +178,14 @@ function playWaterSplash(now) {
   pg.connect(sfx);
   plop.start(now);
   plop.stop(now + 0.2);
-  // splash noise
-  playNoiseShot(now, 0.15, 0.15, 600);
+  // splash noise with quick decay
+  playNoiseShot(now, 0.12, 0.18, 800);
 }
 
 function playTerrainThud(now) {
   var ctx = getCtx();
   var sfx = getSfxGain();
-  // dull thud
+  // dull earthy thud
   var osc = ctx.createOscillator();
   osc.type = "sine";
   osc.frequency.setValueAtTime(60, now);
@@ -214,104 +202,137 @@ function playTerrainThud(now) {
 }
 
 // --- combat feedback ---
+// Hit confirm: satisfying woody thunk when your shot lands on an enemy
 export function playHitConfirm() {
   if (!isReady()) return;
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
-  // satisfying "ding"
+  // woody thunk
   var osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(1200, now);
-  osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(400, now);
+  osc.frequency.exponentialRampToValueAtTime(120, now + 0.06);
   var g = ctx.createGain();
-  g.gain.setValueAtTime(0.15, now);
+  g.gain.setValueAtTime(0.2, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
   osc.connect(g);
   g.connect(sfx);
   osc.start(now);
   osc.stop(now + 0.12);
-  // subtle crunch
-  playNoiseShot(now, 0.04, 0.1, 1500);
+  // crunch/splinter
+  playNoiseShot(now, 0.05, 0.15, 1000);
 }
 
+// Kill confirm: brief triumphant horn note
 export function playKillConfirm() {
   if (!isReady()) return;
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
-  // two-tone rising confirmation
-  var o1 = ctx.createOscillator();
-  o1.type = "triangle";
-  o1.frequency.setValueAtTime(600, now);
-  var g1 = ctx.createGain();
-  g1.gain.setValueAtTime(0.15, now);
-  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-  o1.connect(g1);
-  g1.connect(sfx);
-  o1.start(now);
-  o1.stop(now + 0.1);
-  var o2 = ctx.createOscillator();
-  o2.type = "triangle";
-  o2.frequency.setValueAtTime(900, now + 0.08);
-  var g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.001, now);
-  g2.gain.linearRampToValueAtTime(0.18, now + 0.08);
-  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-  o2.connect(g2);
-  g2.connect(sfx);
-  o2.start(now + 0.06);
-  o2.stop(now + 0.2);
+  // horn: two detuned sawtooths through lowpass for brassy tone
+  var freqs = [220, 277]; // A3 + C#4 — major third, triumphant
+  for (var i = 0; i < freqs.length; i++) {
+    var osc = ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = freqs[i];
+    var filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.frequency.setValueAtTime(200, now);
+    filt.frequency.linearRampToValueAtTime(800, now + 0.15);
+    filt.frequency.linearRampToValueAtTime(300, now + 0.5);
+    filt.Q.value = 1;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.1, now + 0.08);
+    g.gain.setValueAtTime(0.1, now + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc.connect(filt);
+    filt.connect(g);
+    g.connect(sfx);
+    osc.start(now);
+    osc.stop(now + 0.55);
+  }
 }
 
-// --- explosion (enhanced) ---
+// --- explosion (ship sinking — wood splintering + deep boom) ---
 export function playExplosion() {
   if (!isReady()) return;
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
+  // deep cannon-like boom
   var osc = ctx.createOscillator();
   osc.type = "sine";
   osc.frequency.setValueAtTime(100, now);
-  osc.frequency.exponentialRampToValueAtTime(20, now + 0.5);
+  osc.frequency.exponentialRampToValueAtTime(18, now + 0.6);
   var g = ctx.createGain();
   g.gain.setValueAtTime(0.4, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
   osc.connect(g);
   g.connect(sfx);
   osc.start(now);
-  osc.stop(now + 0.6);
-  playNoiseShot(now, 0.4, 0.35, 600);
-  var osc2 = ctx.createOscillator();
-  osc2.type = "square";
-  osc2.frequency.setValueAtTime(300, now);
-  osc2.frequency.exponentialRampToValueAtTime(30, now + 0.3);
-  var g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.15, now);
-  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-  osc2.connect(g2);
-  g2.connect(sfx);
-  osc2.start(now);
-  osc2.stop(now + 0.35);
+  osc.stop(now + 0.7);
+  // heavy wood splintering noise
+  playNoiseShot(now, 0.5, 0.35, 800);
+  // cracking timbers — mid-range resonant burst
+  var crack = ctx.createOscillator();
+  crack.type = "sawtooth";
+  crack.frequency.setValueAtTime(400, now);
+  crack.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+  var cf = ctx.createBiquadFilter();
+  cf.type = "bandpass";
+  cf.frequency.value = 300;
+  cf.Q.value = 3;
+  var cg = ctx.createGain();
+  cg.gain.setValueAtTime(0.18, now);
+  cg.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+  crack.connect(cf);
+  cf.connect(cg);
+  cg.connect(sfx);
+  crack.start(now);
+  crack.stop(now + 0.4);
+  // water rush as ship sinks
+  playNoiseShot(now + 0.2, 0.4, 0.15, 400);
 }
 
+// Player hit: wood splintering + impact
 export function playPlayerHit() {
   if (!isReady()) return;
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
+  // wood splinter crack
   var osc = ctx.createOscillator();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(800, now);
-  osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(500, now);
+  osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+  var filt = ctx.createBiquadFilter();
+  filt.type = "bandpass";
+  filt.frequency.value = 400;
+  filt.Q.value = 3;
   var g = ctx.createGain();
   g.gain.setValueAtTime(0.3, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-  osc.connect(g);
+  osc.connect(filt);
+  filt.connect(g);
   g.connect(sfx);
   osc.start(now);
   osc.stop(now + 0.2);
-  playNoiseShot(now, 0.1, 0.25, 1000);
+  // splintering noise
+  playNoiseShot(now, 0.12, 0.3, 1200);
+  // heavy thunk impact
+  var thunk = ctx.createOscillator();
+  thunk.type = "sine";
+  thunk.frequency.setValueAtTime(80, now);
+  thunk.frequency.exponentialRampToValueAtTime(25, now + 0.1);
+  var tg = ctx.createGain();
+  tg.gain.setValueAtTime(0.2, now);
+  tg.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  thunk.connect(tg);
+  tg.connect(sfx);
+  thunk.start(now);
+  thunk.stop(now + 0.15);
 }
 
 // --- UI sounds ---
@@ -320,12 +341,13 @@ export function playClick() {
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
+  // wooden tap
   var osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(1000, now);
-  osc.frequency.exponentialRampToValueAtTime(600, now + 0.03);
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(800, now);
+  osc.frequency.exponentialRampToValueAtTime(400, now + 0.03);
   var g = ctx.createGain();
-  g.gain.setValueAtTime(0.15, now);
+  g.gain.setValueAtTime(0.12, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
   osc.connect(g);
   g.connect(sfx);
@@ -338,28 +360,30 @@ export function playUpgrade() {
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
-  var notes = [440, 554, 659, 880];
+  // ascending pentatonic fanfare — pirate flair
+  var notes = [392, 440, 523, 659]; // G4 A4 C5 E5
   for (var i = 0; i < notes.length; i++) {
-    var t = now + i * 0.08;
+    var t = now + i * 0.1;
     var osc = ctx.createOscillator();
     osc.type = "triangle";
     osc.frequency.setValueAtTime(notes[i], t);
     var g = ctx.createGain();
     g.gain.setValueAtTime(0.12, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
     osc.connect(g);
     g.connect(sfx);
     osc.start(t);
-    osc.stop(t + 0.15);
+    osc.stop(t + 0.18);
   }
 }
 
+// Ship horn — deep foghorn for pirate ships
 export function playWaveHorn() {
   if (!isReady()) return;
   var ctx = getCtx();
   var sfx = getSfxGain();
   var now = ctx.currentTime;
-  var freqs = [110, 138.6, 165];
+  var freqs = [110, 138.6, 165]; // power chord
   for (var i = 0; i < freqs.length; i++) {
     var osc = ctx.createOscillator();
     osc.type = "sawtooth";
@@ -367,8 +391,8 @@ export function playWaveHorn() {
     var filter = ctx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.setValueAtTime(100, now);
-    filter.frequency.linearRampToValueAtTime(600, now + 0.3);
-    filter.frequency.linearRampToValueAtTime(200, now + 1.2);
+    filter.frequency.linearRampToValueAtTime(500, now + 0.3);
+    filter.frequency.linearRampToValueAtTime(150, now + 1.2);
     var g = ctx.createGain();
     g.gain.setValueAtTime(0, now);
     g.gain.linearRampToValueAtTime(0.12, now + 0.2);

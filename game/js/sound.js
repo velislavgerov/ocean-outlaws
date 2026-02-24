@@ -1,4 +1,6 @@
-// sound.js — procedural audio core, engine, and ambience (no audio files)
+// sound.js — procedural audio core: wind propulsion, ocean ambience (no audio files)
+import { initMusic, startMusic as startMusicModule, updateMusic as updateMusicModule } from "./music.js";
+
 var ctx = null;
 var masterGain = null;
 var musicGain = null;
@@ -9,9 +11,8 @@ var muted = false;
 var masterVolume = 0.5;
 var unlocked = false;
 
-// engine layers
-var engineLayers = null;
-var engineClassKey = "cruiser";
+// wind/sail propulsion layers
+var windLayers = null;
 var smoothSpeed = 0;
 
 // wake layer
@@ -31,27 +32,21 @@ var swellGain = null;
 var gustTimer = 0;
 var gustTarget = 0;
 
-// low HP
+// hull creaking
+var hullCreakTimer = 0;
+
+// seagull chirps
+var seagullTimer = 0;
+
+// low HP — hull stress
 var lowHpOsc = null;
 var lowHpGain = null;
 var lowHpActive = false;
-
-// music
-var musicState = null;
-
-// --- per-class engine tuning ---
-var ENGINE_PROFILES = {
-  destroyer: { baseFreq: 55, whineFreq: 400, whineMax: 1200, rumbleVol: 0.04, chugRate: 8, chugDepth: 0.15, whineVol: 0.06, filterBase: 150 },
-  cruiser:   { baseFreq: 38, whineFreq: 250, whineMax: 800, rumbleVol: 0.06, chugRate: 5, chugDepth: 0.2, whineVol: 0.04, filterBase: 120 },
-  carrier:   { baseFreq: 28, whineFreq: 180, whineMax: 500, rumbleVol: 0.08, chugRate: 3, chugDepth: 0.25, whineVol: 0.03, filterBase: 90 },
-  submarine: { baseFreq: 50, whineFreq: 300, whineMax: 600, rumbleVol: 0.03, chugRate: 6, chugDepth: 0.1, whineVol: 0.02, filterBase: 100 }
-};
 
 function ensureContext() {
   if (ctx) return true;
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // compressor on master output to prevent clipping
     compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -12;
     compressor.knee.value = 10;
@@ -71,6 +66,7 @@ function ensureContext() {
     musicGain = ctx.createGain();
     musicGain.gain.value = 0.18;
     musicGain.connect(masterGain);
+    initMusic(ctx, musicGain);
     return true;
   } catch (e) {
     return false;
@@ -115,7 +111,7 @@ export function unlockAudio() {
   if (ctx.state === "suspended") ctx.resume();
   unlocked = true;
   startAmbience();
-  startMusic();
+  startMusicModule();
 }
 
 export function setMasterVolume(v) {
@@ -162,74 +158,86 @@ export function resumeGameAudio() {
   if (musicGain) musicGain.gain.value = savedMusicVol;
 }
 
-// --- layered engine: rumble + mechanical chug + whine + wake ---
+// --- wind/sail propulsion: filtered wind noise + canvas flapping + rigging creak ---
 export function setEngineClass(classKey) {
-  engineClassKey = classKey || "cruiser";
-  // tear down existing layers so they rebuild with new profile
-  if (engineLayers) {
-    try { engineLayers.rumble.osc.stop(); } catch (e) { /* ok */ }
-    try { engineLayers.whine.osc.stop(); } catch (e) { /* ok */ }
-    try { engineLayers.chug.lfo.stop(); } catch (e) { /* ok */ }
-    engineLayers = null;
+  // pirate ships share the same wind profile — kept for API compat
+  if (windLayers) {
+    try { windLayers.windSrc.stop(); } catch (e) { /* ok */ }
+    try { windLayers.flapLfo.stop(); } catch (e) { /* ok */ }
+    try { windLayers.creakOsc.stop(); } catch (e) { /* ok */ }
+    windLayers = null;
   }
 }
 
-function buildEngine() {
-  var p = ENGINE_PROFILES[engineClassKey] || ENGINE_PROFILES.cruiser;
+function buildWindPropulsion() {
+  // layer 1: wind in sails — filtered noise with periodic gusting
+  var windBuf = makeNoise(ctx, 2);
+  var windSrc = ctx.createBufferSource();
+  windSrc.buffer = windBuf;
+  windSrc.loop = true;
+  var windFilt = ctx.createBiquadFilter();
+  windFilt.type = "bandpass";
+  windFilt.frequency.value = 600;
+  windFilt.Q.value = 0.6;
+  var windGn = ctx.createGain();
+  windGn.gain.value = 0;
+  var gustLfo = ctx.createOscillator();
+  gustLfo.type = "sine";
+  gustLfo.frequency.value = 0.3;
+  var gustLfoGn = ctx.createGain();
+  gustLfoGn.gain.value = 0;
+  gustLfo.connect(gustLfoGn);
+  gustLfoGn.connect(windGn.gain);
+  gustLfo.start();
+  windSrc.connect(windFilt);
+  windFilt.connect(windGn);
+  windGn.connect(ambienceGain);
+  windSrc.start();
 
-  // layer 1: bass rumble oscillator
-  var rumbleOsc = ctx.createOscillator();
-  rumbleOsc.type = "sawtooth";
-  rumbleOsc.frequency.value = p.baseFreq;
-  var rumbleFilter = ctx.createBiquadFilter();
-  rumbleFilter.type = "lowpass";
-  rumbleFilter.frequency.value = p.filterBase;
-  rumbleFilter.Q.value = 2;
-  var rumbleGain = ctx.createGain();
-  rumbleGain.gain.value = 0;
-  rumbleOsc.connect(rumbleFilter);
-  rumbleFilter.connect(rumbleGain);
-  rumbleGain.connect(ambienceGain);
-  rumbleOsc.start();
+  // layer 2: canvas flapping — rhythmic amplitude modulation
+  var flapSrc = ctx.createBufferSource();
+  flapSrc.buffer = windBuf;
+  flapSrc.loop = true;
+  var flapFilt = ctx.createBiquadFilter();
+  flapFilt.type = "highpass";
+  flapFilt.frequency.value = 1200;
+  flapFilt.Q.value = 0.3;
+  var flapGn = ctx.createGain();
+  flapGn.gain.value = 0;
+  var flapLfo = ctx.createOscillator();
+  flapLfo.type = "square";
+  flapLfo.frequency.value = 3;
+  var flapLfoGn = ctx.createGain();
+  flapLfoGn.gain.value = 0;
+  flapLfo.connect(flapLfoGn);
+  flapLfoGn.connect(flapGn.gain);
+  flapSrc.connect(flapFilt);
+  flapFilt.connect(flapGn);
+  flapGn.connect(ambienceGain);
+  flapSrc.start();
+  flapLfo.start();
 
-  // layer 2: mechanical chug — LFO amplitude-modulating a sub-oscillator
-  var chugOsc = ctx.createOscillator();
-  chugOsc.type = "triangle";
-  chugOsc.frequency.value = p.baseFreq * 1.5;
-  var chugGain = ctx.createGain();
-  chugGain.gain.value = 0;
-  var chugLfo = ctx.createOscillator();
-  chugLfo.type = "square";
-  chugLfo.frequency.value = p.chugRate;
-  var chugLfoGain = ctx.createGain();
-  chugLfoGain.gain.value = 0;
-  chugLfo.connect(chugLfoGain);
-  chugLfoGain.connect(chugGain.gain);
-  chugOsc.connect(chugGain);
-  chugGain.connect(ambienceGain);
-  chugOsc.start();
-  chugLfo.start();
+  // layer 3: rope/rigging creak — subtle low-frequency tone
+  var creakOsc = ctx.createOscillator();
+  creakOsc.type = "triangle";
+  creakOsc.frequency.value = 80;
+  var creakFilt = ctx.createBiquadFilter();
+  creakFilt.type = "bandpass";
+  creakFilt.frequency.value = 90;
+  creakFilt.Q.value = 5;
+  var creakGn = ctx.createGain();
+  creakGn.gain.value = 0;
+  creakOsc.connect(creakFilt);
+  creakFilt.connect(creakGn);
+  creakGn.connect(ambienceGain);
+  creakOsc.start();
 
-  // layer 3: high-frequency whine
-  var whineOsc = ctx.createOscillator();
-  whineOsc.type = "sine";
-  whineOsc.frequency.value = p.whineFreq;
-  var whineFilter = ctx.createBiquadFilter();
-  whineFilter.type = "bandpass";
-  whineFilter.frequency.value = p.whineFreq;
-  whineFilter.Q.value = 3;
-  var whineGain = ctx.createGain();
-  whineGain.gain.value = 0;
-  whineOsc.connect(whineFilter);
-  whineFilter.connect(whineGain);
-  whineGain.connect(ambienceGain);
-  whineOsc.start();
-
-  engineLayers = {
-    rumble: { osc: rumbleOsc, filter: rumbleFilter, gain: rumbleGain },
-    chug: { osc: chugOsc, gain: chugGain, lfo: chugLfo, lfoGain: chugLfoGain },
-    whine: { osc: whineOsc, filter: whineFilter, gain: whineGain },
-    profile: p
+  windLayers = {
+    windSrc: windSrc, windFilt: windFilt, windGn: windGn,
+    gustLfo: gustLfo, gustLfoGn: gustLfoGn,
+    flapSrc: flapSrc, flapFilt: flapFilt, flapGn: flapGn,
+    flapLfo: flapLfo, flapLfoGn: flapLfoGn,
+    creakOsc: creakOsc, creakFilt: creakFilt, creakGn: creakGn
   };
 }
 
@@ -252,46 +260,41 @@ function buildWake() {
 
 export function updateEngine(speedRatio) {
   if (!ctx || !unlocked) return;
-  if (!engineLayers) buildEngine();
+  if (!windLayers) buildWindPropulsion();
   if (!wakeNoise) buildWake();
-  var p = engineLayers.profile;
   var ratio = Math.max(0, Math.min(1, speedRatio));
 
-  // smooth throttle response
   smoothSpeed += (ratio - smoothSpeed) * 0.04;
   var s = smoothSpeed;
 
-  // idle throb when stationary
-  var idleVol = (1 - s) * 0.02;
+  // idle: gentle hull bob creaking + distant wind
+  var idleWind = (1 - s) * 0.015;
 
-  // rumble layer
-  engineLayers.rumble.osc.frequency.value = p.baseFreq + s * p.baseFreq * 0.8;
-  engineLayers.rumble.gain.gain.value = p.rumbleVol + s * p.rumbleVol * 2 + idleVol;
-  engineLayers.rumble.filter.frequency.value = p.filterBase + s * 400;
+  // wind in sails — intensity scales with speed
+  windLayers.windGn.gain.value = 0.02 + s * 0.1 + idleWind;
+  windLayers.windFilt.frequency.value = 400 + s * 800;
+  windLayers.gustLfoGn.gain.value = 0.01 + s * 0.04;
+  windLayers.gustLfo.frequency.value = 0.2 + s * 0.5;
 
-  // chug layer — rate increases with speed
-  engineLayers.chug.lfo.frequency.value = p.chugRate + s * p.chugRate;
-  engineLayers.chug.lfoGain.gain.value = p.chugDepth * (0.3 + s * 0.7);
-  engineLayers.chug.osc.frequency.value = p.baseFreq * 1.5 + s * 30;
-  engineLayers.chug.gain.gain.value = 0.03 + s * 0.05;
+  // canvas flapping — faster when accelerating/at speed
+  windLayers.flapLfo.frequency.value = 2 + s * 8;
+  windLayers.flapLfoGn.gain.value = s * 0.03;
+  windLayers.flapGn.gain.value = s * 0.04;
 
-  // whine layer — only at higher speeds
-  var whineAmount = Math.max(0, s - 0.2) / 0.8;
-  engineLayers.whine.osc.frequency.value = p.whineFreq + whineAmount * (p.whineMax - p.whineFreq);
-  engineLayers.whine.filter.frequency.value = p.whineFreq + whineAmount * (p.whineMax - p.whineFreq);
-  engineLayers.whine.gain.gain.value = p.whineVol * whineAmount;
+  // rigging creak
+  windLayers.creakGn.gain.value = 0.005 + s * 0.015;
+  windLayers.creakOsc.frequency.value = 70 + s * 30;
 
-  // wake/spray layer
+  // wake/bow spray — increases with speed
   wakeGainNode.gain.value = s * 0.08;
   wakeFilter.frequency.value = 1500 + s * 3000;
 }
 
-// --- ocean ambience: rhythmic swells + wind gusts ---
+// --- ocean ambience: rhythmic swells + wind gusts + hull creaking + seagulls ---
 function startAmbience() {
   if (waveNoise) return;
   var buf = makeNoise(ctx, 2);
 
-  // wave noise with rhythmic swell LFO
   waveNoise = ctx.createBufferSource();
   waveNoise.buffer = buf;
   waveNoise.loop = true;
@@ -305,7 +308,7 @@ function startAmbience() {
   // swell LFO — modulates wave volume for periodic rhythm
   swellLfo = ctx.createOscillator();
   swellLfo.type = "sine";
-  swellLfo.frequency.value = 0.12; // ~8 second cycle
+  swellLfo.frequency.value = 0.12;
   swellGain = ctx.createGain();
   swellGain.gain.value = 0.06;
   swellLfo.connect(swellGain);
@@ -334,8 +337,56 @@ function startAmbience() {
   windNoise.start();
 }
 
+// play a one-shot hull creak sound
+function playHullCreak() {
+  if (!ctx || !ambienceGain) return;
+  var now = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  osc.type = "triangle";
+  var baseFreq = 60 + Math.random() * 40;
+  osc.frequency.setValueAtTime(baseFreq, now);
+  osc.frequency.linearRampToValueAtTime(baseFreq * 0.7, now + 0.4);
+  var filt = ctx.createBiquadFilter();
+  filt.type = "bandpass";
+  filt.frequency.value = baseFreq;
+  filt.Q.value = 8;
+  var g = ctx.createGain();
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.06, now + 0.05);
+  g.gain.setValueAtTime(0.06, now + 0.15);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  osc.connect(filt);
+  filt.connect(g);
+  g.connect(ambienceGain);
+  osc.start(now);
+  osc.stop(now + 0.5);
+}
+
+// play a one-shot seagull chirp
+function playSeagullChirp() {
+  if (!ctx || !ambienceGain) return;
+  var now = ctx.currentTime;
+  for (var i = 0; i < 2; i++) {
+    var t = now + i * 0.15;
+    var osc = ctx.createOscillator();
+    osc.type = "sine";
+    var freq = 2200 + Math.random() * 600;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.linearRampToValueAtTime(freq * 0.75, t + 0.1);
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.025, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(g);
+    g.connect(ambienceGain);
+    osc.start(t);
+    osc.stop(t + 0.12);
+  }
+}
+
 export function updateAmbience(weatherKey, dt) {
   if (!ctx || !unlocked) return;
+  var deltaT = dt || 0.016;
   var tw = 0.15, twd = 0, twf = 300, twdf = 800, swellAmt = 0.06;
   if (weatherKey === "storm") { tw = 0.35; twd = 0.25; twf = 500; twdf = 600; swellAmt = 0.12; }
   else if (weatherKey === "rough") { tw = 0.25; twd = 0.12; twf = 400; twdf = 700; swellAmt = 0.09; }
@@ -343,9 +394,9 @@ export function updateAmbience(weatherKey, dt) {
   if (waveFilter) waveFilter.frequency.value += (twf - waveFilter.frequency.value) * 0.02;
   if (swellGain) swellGain.gain.value += (swellAmt - swellGain.gain.value) * 0.02;
 
-  // intermittent wind gusts in storms
+  // intermittent wind gusts — whistling during storms
   if (weatherKey === "storm" || weatherKey === "rough") {
-    gustTimer -= (dt || 0.016);
+    gustTimer -= deltaT;
     if (gustTimer <= 0) {
       gustTarget = twd * (0.5 + Math.random() * 1.5);
       gustTimer = 2 + Math.random() * 5;
@@ -354,120 +405,83 @@ export function updateAmbience(weatherKey, dt) {
     gustTarget = twd;
   }
   if (windGainNode) windGainNode.gain.value += (gustTarget - windGainNode.gain.value) * 0.03;
-  if (windFilter) windFilter.frequency.value += (twdf - windFilter.frequency.value) * 0.02;
+  if (windFilter) {
+    var targetWindFreq = twdf;
+    if (weatherKey === "storm") targetWindFreq = 1200 + Math.random() * 400;
+    windFilter.frequency.value += (targetWindFreq - windFilter.frequency.value) * 0.02;
+  }
+
+  // hull creaking — wooden groaning in rough seas
+  if (weatherKey === "storm" || weatherKey === "rough") {
+    hullCreakTimer -= deltaT;
+    if (hullCreakTimer <= 0) {
+      playHullCreak();
+      hullCreakTimer = (weatherKey === "storm" ? 1.5 : 3) + Math.random() * 3;
+    }
+  }
+
+  // seagull chirps — occasional in calm weather
+  if (weatherKey !== "storm") {
+    seagullTimer -= deltaT;
+    if (seagullTimer <= 0) {
+      playSeagullChirp();
+      seagullTimer = 8 + Math.random() * 15;
+    }
+  }
 }
 
-// --- low HP warning: heartbeat pulse ---
+// --- low HP warning: hull stress creaking (thematic, not alarm beep) ---
 export function updateLowHpWarning(hpRatio) {
   if (!ctx || !unlocked) return;
   var shouldWarn = hpRatio > 0 && hpRatio < 0.25;
   if (shouldWarn && !lowHpActive) {
     lowHpActive = true;
-    lowHpOsc = ctx.createOscillator();
-    lowHpOsc.type = "sine";
-    lowHpOsc.frequency.value = 1.2; // heartbeat rate
-    lowHpGain = ctx.createGain();
-    lowHpGain.gain.value = 0;
-    var pulseOsc = ctx.createOscillator();
-    pulseOsc.type = "sine";
-    pulseOsc.frequency.value = 60;
-    var pulseGain = ctx.createGain();
-    pulseGain.gain.value = 0;
-    lowHpOsc.connect(pulseGain.gain);
-    pulseOsc.connect(pulseGain);
-    pulseGain.connect(sfxGain);
-    pulseOsc.start();
-    lowHpOsc.start();
-    lowHpOsc._pulse = pulseOsc;
-    lowHpOsc._pulseGain = pulseGain;
-    lowHpGain = pulseGain;
+    var stressOsc = ctx.createOscillator();
+    stressOsc.type = "triangle";
+    stressOsc.frequency.value = 50;
+    var stressFilt = ctx.createBiquadFilter();
+    stressFilt.type = "bandpass";
+    stressFilt.frequency.value = 55;
+    stressFilt.Q.value = 10;
+    var stressGn = ctx.createGain();
+    stressGn.gain.value = 0;
+    var stressLfo = ctx.createOscillator();
+    stressLfo.type = "sine";
+    stressLfo.frequency.value = 1.0;
+    var stressLfoGn = ctx.createGain();
+    stressLfoGn.gain.value = 0.04;
+    stressLfo.connect(stressLfoGn);
+    stressLfoGn.connect(stressGn.gain);
+    stressOsc.connect(stressFilt);
+    stressFilt.connect(stressGn);
+    stressGn.connect(sfxGain);
+    stressOsc.start();
+    stressLfo.start();
+    lowHpOsc = stressOsc;
+    lowHpOsc._lfo = stressLfo;
+    lowHpOsc._lfoGain = stressLfoGn;
+    lowHpOsc._filter = stressFilt;
+    lowHpGain = stressGn;
   } else if (!shouldWarn && lowHpActive) {
     lowHpActive = false;
     if (lowHpOsc) {
       try { lowHpOsc.stop(); } catch (e) { /* ok */ }
-      try { lowHpOsc._pulse.stop(); } catch (e) { /* ok */ }
+      try { lowHpOsc._lfo.stop(); } catch (e) { /* ok */ }
       lowHpOsc = null;
     }
   }
-  // scale intensity with how low HP is
   if (lowHpActive && lowHpOsc) {
     var intensity = 1 - (hpRatio / 0.25);
-    lowHpOsc.frequency.value = 1.0 + intensity * 0.8;
-    if (lowHpOsc._pulseGain) lowHpOsc._pulseGain.gain.value = 0.08 + intensity * 0.08;
+    lowHpOsc.frequency.value = 45 + intensity * 15;
+    if (lowHpOsc._filter) lowHpOsc._filter.frequency.value = 50 + intensity * 20;
+    if (lowHpOsc._lfo) lowHpOsc._lfo.frequency.value = 0.8 + intensity * 1.2;
+    if (lowHpOsc._lfoGain) lowHpOsc._lfoGain.gain.value = 0.04 + intensity * 0.06;
+    if (lowHpGain) lowHpGain.gain.value = 0.02 + intensity * 0.04;
   }
 }
 
-// --- procedural music (unchanged) ---
-var CALM_NOTES = [
-  [48, 52, 55], [53, 57, 60], [43, 47, 50],
-  [55, 58, 62], [50, 53, 57], [48, 52, 55]
-];
-var COMBAT_NOTES = [
-  [36, 43, 48], [41, 48, 53], [43, 50, 55],
-  [39, 46, 51], [36, 43, 48], [34, 41, 46]
-];
-
-function midiToFreq(midi) {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-function startMusic() {
-  if (musicState) return;
-  musicState = {
-    mode: "calm", chordIndex: 0,
-    nextChordTime: ctx.currentTime + 0.5,
-    chordDuration: 4.0
-  };
-}
-
+// --- music: delegate to music.js ---
 export function updateMusic(inCombat) {
-  if (!ctx || !unlocked || !musicState) return;
-  var now = ctx.currentTime;
-  var targetMode = inCombat ? "combat" : "calm";
-  if (targetMode !== musicState.mode) {
-    musicState.mode = targetMode;
-    musicState.chordDuration = inCombat ? 2.0 : 4.0;
-  }
-  if (now < musicState.nextChordTime) return;
-  var chords = musicState.mode === "combat" ? COMBAT_NOTES : CALM_NOTES;
-  var chord = chords[musicState.chordIndex % chords.length];
-  musicState.chordIndex++;
-  var dur = musicState.chordDuration;
-  musicState.nextChordTime = now + dur;
-  for (var i = 0; i < chord.length; i++) {
-    var osc = ctx.createOscillator();
-    osc.type = musicState.mode === "combat" ? "sawtooth" : "sine";
-    osc.frequency.value = midiToFreq(chord[i]);
-    var filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = musicState.mode === "combat" ? 800 : 400;
-    filter.Q.value = 0.5;
-    var g = ctx.createGain();
-    g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.08, now + dur * 0.15);
-    g.gain.setValueAtTime(0.08, now + dur * 0.7);
-    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    osc.connect(filter);
-    filter.connect(g);
-    g.connect(musicGain);
-    osc.start(now);
-    osc.stop(now + dur);
-  }
-  if (musicState.mode === "combat") {
-    var beatCount = Math.floor(dur / 0.5);
-    for (var b = 0; b < beatCount; b++) {
-      var bt = now + b * 0.5;
-      var kick = ctx.createOscillator();
-      kick.type = "sine";
-      kick.frequency.setValueAtTime(80, bt);
-      kick.frequency.exponentialRampToValueAtTime(30, bt + 0.1);
-      var kg = ctx.createGain();
-      kg.gain.setValueAtTime(0.12, bt);
-      kg.gain.exponentialRampToValueAtTime(0.001, bt + 0.15);
-      kick.connect(kg);
-      kg.connect(musicGain);
-      kick.start(bt);
-      kick.stop(bt + 0.15);
-    }
-  }
+  if (!ctx || !unlocked) return;
+  updateMusicModule(inCombat);
 }
