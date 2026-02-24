@@ -6,7 +6,8 @@ var mouse = {
   y: 0,
   clicked: false,
   clickConsumed: false,
-  held: false
+  held: false,
+  holdStart: 0
 };
 
 // keyboard action queue — consumed once per frame
@@ -32,6 +33,7 @@ function onMouseDown(e) {
     mouse.clicked = true;
     mouse.clickConsumed = false;
     mouse.held = true;
+    mouse.holdStart = performance.now();
   }
 }
 
@@ -49,6 +51,7 @@ function onTouchStart(e) {
     mouse.clicked = true;
     mouse.clickConsumed = false;
     mouse.held = true;
+    mouse.holdStart = performance.now();
   }
 }
 

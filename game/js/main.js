@@ -51,6 +51,7 @@ var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
 var lastZoneResult = null; // "victory" or "game_over"
 var wasHeld = false; // tracks previous frame hold state for release detection
+var HOLD_THRESHOLD = 200; // ms — presses shorter than this count as click, not hold
 var runEnemiesSunk = 0; // enemies sunk during current run
 var runGoldLooted = 0; // gold earned during current run
 var runZonesReached = 0; // zones visited during current run
@@ -977,12 +978,16 @@ function animate() {
     }
 
     // press-and-hold: continuously update nav target while pointer is held
-    if (mouse.held) {
+    // Only activate hold mode after HOLD_THRESHOLD ms — shorter presses are clicks (waypoints)
+    var holdElapsed = mouse.held ? performance.now() - mouse.holdStart : 0;
+    if (mouse.held && holdElapsed >= HOLD_THRESHOLD) {
       handleHold(mouse.x, mouse.y);
       wasHeld = true;
-    } else if (wasHeld) {
-      // pointer just released — stop movement
+    } else if (!mouse.held && wasHeld) {
+      // pointer released after a hold — stop continuous movement
       stopHold();
+      wasHeld = false;
+    } else if (!mouse.held) {
       wasHeld = false;
     }
 
