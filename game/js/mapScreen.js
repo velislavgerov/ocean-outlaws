@@ -3,12 +3,14 @@
 import { getZones, loadMapState, isZoneUnlocked, getZoneStars } from "./mapData.js";
 import { isMobile } from "./mobile.js";
 import { T, FONT } from "./theme.js";
+import { isZoneInfamyUnlocked, getZoneInfamyReq } from "./infamy.js";
 
 var overlay = null;
 var mapCanvas = null;
 var mapCtx = null;
 var onSelectCallback = null;
 var currentState = null;
+var currentInfamyState = null;
 var hoveredZone = null;
 var tooltipEl = null;
 var zoneHitAreas = [];   // {id, cx, cy, r} for click detection
@@ -179,7 +181,8 @@ function onTouchEnd(e) {
 
   // show tooltip on first tap, select on second tap (or tap on same zone)
   if (zoneId && currentState) {
-    if (hoveredZone === zoneId && isZoneUnlocked(currentState, zoneId)) {
+    var infamyOk = !currentInfamyState || isZoneInfamyUnlocked(currentInfamyState, zoneId);
+    if (hoveredZone === zoneId && isZoneUnlocked(currentState, zoneId) && infamyOk) {
       // second tap on same unlocked zone — select it
       if (onSelectCallback) onSelectCallback(zoneId);
       return;
@@ -204,19 +207,30 @@ function showTooltipForZone(zoneId, touch) {
   if (!zone) return;
 
   var unlocked = isZoneUnlocked(currentState, zoneId);
+  var infamyOk = !currentInfamyState || isZoneInfamyUnlocked(currentInfamyState, zoneId);
+  var infamyReq = getZoneInfamyReq(zoneId);
+  var fullyUnlocked = unlocked && infamyOk;
   var stars = getZoneStars(currentState, zoneId);
   var starStr = stars > 0 ? " " + starString(stars) : "";
 
+  var statusHtml = "";
+  if (!infamyOk) {
+    statusHtml = '<div style="color:' + T.gold + ';margin-top:6px">\uD83D\uDD12 Requires ' + infamyReq + ' Infamy</div>';
+  } else if (fullyUnlocked) {
+    statusHtml = '<div style="color:' + T.greenBright + ';margin-top:6px">Tap again to deploy</div>';
+  } else {
+    statusHtml = '<div style="color:' + T.brownDark + ';margin-top:6px">Complete adjacent zone to unlock</div>';
+  }
+
   tooltipEl.innerHTML = '<div style="font-size:14px;font-weight:bold;color:' +
-    (unlocked ? T.textLight : T.textDark) + ';margin-bottom:4px">' +
+    (fullyUnlocked ? T.textLight : T.textDark) + ';margin-bottom:4px">' +
     zone.name + starStr + '</div>' +
     '<div style="color:' + T.text + '">Difficulty: ' + zone.difficulty + '/6</div>' +
     '<div style="color:' + CONDITION_COLORS[zone.condition] + '">Seas: ' +
     zone.condition.charAt(0).toUpperCase() + zone.condition.slice(1) + '</div>' +
     '<div style="color:' + T.textDim + '">' + zone.waves + ' waves</div>' +
     '<div style="color:' + T.textDim + ';margin-top:4px;font-style:italic">' + zone.description + '</div>' +
-    (unlocked ? '<div style="color:' + T.greenBright + ';margin-top:6px">Tap again to deploy</div>' :
-      '<div style="color:' + T.brownDark + ';margin-top:6px">Complete adjacent zone to unlock</div>');
+    statusHtml;
 
   var rect = mapCanvas.getBoundingClientRect();
   var tx = touch.clientX - rect.left + 16;
@@ -251,19 +265,30 @@ function onMouseMove(e) {
     }
     if (zone) {
       var unlocked = isZoneUnlocked(currentState, zoneId);
+      var infamyOk = !currentInfamyState || isZoneInfamyUnlocked(currentInfamyState, zoneId);
+      var infamyReq = getZoneInfamyReq(zoneId);
+      var fullyUnlocked = unlocked && infamyOk;
       var stars = getZoneStars(currentState, zoneId);
       var starStr = stars > 0 ? " " + starString(stars) : "";
 
+      var statusHtml = "";
+      if (!infamyOk) {
+        statusHtml = '<div style="color:' + T.gold + ';margin-top:6px">\uD83D\uDD12 Requires ' + infamyReq + ' Infamy</div>';
+      } else if (fullyUnlocked) {
+        statusHtml = '<div style="color:' + T.greenBright + ';margin-top:6px">Click to deploy</div>';
+      } else {
+        statusHtml = '<div style="color:' + T.brownDark + ';margin-top:6px">Complete adjacent zone to unlock</div>';
+      }
+
       tooltipEl.innerHTML = '<div style="font-size:14px;font-weight:bold;color:' +
-        (unlocked ? T.textLight : T.textDark) + ';margin-bottom:4px">' +
+        (fullyUnlocked ? T.textLight : T.textDark) + ';margin-bottom:4px">' +
         zone.name + starStr + '</div>' +
         '<div style="color:' + T.text + '">Difficulty: ' + zone.difficulty + '/6</div>' +
         '<div style="color:' + CONDITION_COLORS[zone.condition] + '">Seas: ' +
         zone.condition.charAt(0).toUpperCase() + zone.condition.slice(1) + '</div>' +
         '<div style="color:' + T.textDim + '">' + zone.waves + ' waves</div>' +
         '<div style="color:' + T.textDim + ';margin-top:4px;font-style:italic">' + zone.description + '</div>' +
-        (unlocked ? '<div style="color:' + T.greenBright + ';margin-top:6px">Click to deploy</div>' :
-          '<div style="color:' + T.brownDark + ';margin-top:6px">Complete adjacent zone to unlock</div>');
+        statusHtml;
 
       // position tooltip near mouse
       var rect = mapCanvas.getBoundingClientRect();
@@ -288,7 +313,8 @@ function onClick(e) {
   var zoneId = findZoneAt(pos.x, pos.y);
   if (!zoneId || !currentState) return;
 
-  if (isZoneUnlocked(currentState, zoneId)) {
+  var infamyOk = !currentInfamyState || isZoneInfamyUnlocked(currentInfamyState, zoneId);
+  if (isZoneUnlocked(currentState, zoneId) && infamyOk) {
     if (onSelectCallback) onSelectCallback(zoneId);
   }
 }
@@ -378,13 +404,16 @@ function drawMap() {
     var cy = (z.y / 100) * H;
     var r = 22;
     var unlocked = isZoneUnlocked(currentState, z.id);
+    var infamyOk = !currentInfamyState || isZoneInfamyUnlocked(currentInfamyState, z.id);
+    var infamyReq = getZoneInfamyReq(z.id);
+    var fullyUnlocked = unlocked && infamyOk;
     var stars = getZoneStars(currentState, z.id);
     var isHovered = hoveredZone === z.id;
 
     zoneHitAreas.push({ id: z.id, cx: cx, cy: cy, r: r + 6 });
 
     // glow for hovered unlocked zone
-    if (isHovered && unlocked) {
+    if (isHovered && fullyUnlocked) {
       ctx.shadowColor = CONDITION_COLORS[z.condition] || "#aaaaaa";
       ctx.shadowBlur = 20;
     }
@@ -392,7 +421,7 @@ function drawMap() {
     // outer ring
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    if (unlocked) {
+    if (fullyUnlocked) {
       ctx.fillStyle = "rgba(40, 30, 18, 0.9)";
       ctx.fill();
       ctx.strokeStyle = CONDITION_COLORS[z.condition] || "#888888";
@@ -409,17 +438,30 @@ function drawMap() {
     ctx.shadowColor = "transparent";
     ctx.shadowBlur = 0;
 
-    // difficulty number
-    ctx.fillStyle = unlocked ? T.cream : "#4a3a22";
+    // difficulty number or lock icon
+    ctx.fillStyle = fullyUnlocked ? T.cream : "#4a3a22";
     ctx.font = "bold 16px serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(z.difficulty), cx, cy);
+    if (!infamyOk) {
+      ctx.fillStyle = T.gold;
+      ctx.font = "16px serif";
+      ctx.fillText("\uD83D\uDD12", cx, cy);
+    } else {
+      ctx.fillText(String(z.difficulty), cx, cy);
+    }
 
     // zone name below
-    ctx.fillStyle = unlocked ? "rgba(196, 168, 114, 0.8)" : "rgba(80, 60, 35, 0.5)";
+    ctx.fillStyle = fullyUnlocked ? "rgba(196, 168, 114, 0.8)" : "rgba(80, 60, 35, 0.5)";
     ctx.font = "10px serif";
     ctx.fillText(z.name, cx, cy + r + 14);
+
+    // Infamy requirement below name (for infamy-locked zones)
+    if (!infamyOk && infamyReq > 0) {
+      ctx.fillStyle = T.gold;
+      ctx.font = "9px serif";
+      ctx.fillText(infamyReq + " Infamy", cx, cy + r + 26);
+    }
 
     // star rating below name
     if (stars > 0) {
@@ -475,8 +517,9 @@ function drawCompassRose(ctx, cx, cy, r) {
 }
 
 // --- show the map screen ---
-export function showMapScreen(mapState, callback) {
+export function showMapScreen(mapState, callback, infamyState) {
   currentState = mapState;
+  currentInfamyState = infamyState || null;
   onSelectCallback = callback;
   if (overlay) {
     overlay.style.display = "flex";

@@ -6,6 +6,7 @@ import { isMobile } from "./mobile.js";
 import { T, FONT, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
 import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
+import { isShipUnlocked, getShipInfamyReq, getTotalInfamy, getLegendLevel } from "./infamy.js";
 
 var overlay = null;
 export function getShipSelectOverlay() { return overlay; }
@@ -13,6 +14,9 @@ var onSelectCallback = null;
 var resetBtn = null;
 var confirmDialog = null;
 var currentUpgradeState = null;
+var currentInfamyState = null;
+var infamyLabel = null;
+var legendLabel = null;
 var previewRenderer = null;
 var previewCards = [];
 var previewAnimId = null;
@@ -118,6 +122,36 @@ export function createShipSelectScreen() {
   ].join(";");
   overlay.appendChild(title);
 
+  // Infamy + Legend Level counter
+  var infamyRow = document.createElement("div");
+  infamyRow.style.cssText = [
+    "display:flex",
+    "gap:24px",
+    "align-items:center",
+    "margin-bottom:" + (_mobTitle ? "12px" : "16px")
+  ].join(";");
+
+  infamyLabel = document.createElement("div");
+  infamyLabel.style.cssText = [
+    "font-size:" + (_mobTitle ? "14px" : "16px"),
+    "color:" + T.gold,
+    "text-shadow:0 1px 4px rgba(212,164,74,0.4)"
+  ].join(";");
+  infamyLabel.textContent = "Infamy: 0";
+  infamyRow.appendChild(infamyLabel);
+
+  legendLabel = document.createElement("div");
+  legendLabel.style.cssText = [
+    "font-size:" + (_mobTitle ? "14px" : "16px"),
+    "color:" + T.goldBright,
+    "font-weight:bold",
+    "text-shadow:0 1px 4px rgba(240,200,96,0.3)"
+  ].join(";");
+  legendLabel.textContent = "Legend Lv 0";
+  infamyRow.appendChild(legendLabel);
+
+  overlay.appendChild(infamyRow);
+
   var grid = document.createElement("div");
   var _mob = isMobile();
   grid.style.cssText = [
@@ -136,7 +170,8 @@ export function createShipSelectScreen() {
 
   for (var i = 0; i < order.length; i++) {
     var cls = classes[order[i]];
-    var card = buildCard(cls);
+    var card = buildCard(cls, null);
+    card.setAttribute("data-class-key", cls.key);
     grid.appendChild(card);
   }
 
@@ -290,18 +325,22 @@ function updateResetButton() {
   resetBtn.style.display = spent > 0 ? "inline-block" : "none";
 }
 
-function buildCard(cls) {
+function buildCard(cls, infamyState) {
   var _mob = isMobile();
+  var locked = infamyState ? !isShipUnlocked(infamyState, cls.key) : false;
+  var reqInfamy = getShipInfamyReq(cls.key);
   var card = document.createElement("div");
   card.style.cssText = [
+    "position:relative",
     _mob ? "width:100%;max-width:340px" : "width: 170px",
     "padding: " + (_mob ? "14px 16px" : "16px"),
     PARCHMENT_BG,
-    "border: 2px solid " + T.border,
+    "border: 2px solid " + (locked ? T.textDark : T.border),
     "border-radius: 8px",
-    "cursor: pointer",
+    locked ? "cursor: not-allowed" : "cursor: pointer",
     "pointer-events: auto",
     "transition: border-color 0.2s",
+    locked ? "opacity: 0.6" : "",
     PARCHMENT_SHADOW
   ].join(";");
 
@@ -408,19 +447,108 @@ function buildCard(cls) {
 
   card.appendChild(abilityRow);
 
+  // lock overlay for Infamy-gated ships
+  if (locked && reqInfamy > 0) {
+    var lockOverlay = document.createElement("div");
+    lockOverlay.className = "ship-lock-overlay";
+    lockOverlay.style.cssText = [
+      "position:absolute",
+      "top:0", "left:0",
+      "width:100%", "height:100%",
+      "display:flex",
+      "flex-direction:column",
+      "align-items:center",
+      "justify-content:center",
+      "background:rgba(20,14,8,0.7)",
+      "border-radius:8px",
+      "z-index:1"
+    ].join(";");
+    var lockIcon = document.createElement("div");
+    lockIcon.textContent = "\uD83D\uDD12";
+    lockIcon.style.cssText = "font-size:28px;margin-bottom:6px";
+    lockOverlay.appendChild(lockIcon);
+    var lockText = document.createElement("div");
+    lockText.textContent = reqInfamy + " Infamy";
+    lockText.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + T.gold + ";font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.5)";
+    lockOverlay.appendChild(lockText);
+    card.appendChild(lockOverlay);
+  }
+
   card.addEventListener("click", function () {
+    if (currentInfamyState && !isShipUnlocked(currentInfamyState, cls.key)) return;
     if (onSelectCallback) onSelectCallback(cls.key);
   });
 
   return card;
 }
 
-export function showShipSelectScreen(callback, upgradeState) {
+export function showShipSelectScreen(callback, upgradeState, infamyState) {
   onSelectCallback = callback;
   currentUpgradeState = upgradeState || null;
+  currentInfamyState = infamyState || null;
   updateResetButton();
+  updateInfamyDisplay();
+  updateCardLocks();
   if (overlay) overlay.style.display = "flex";
   startPreviewAnimation();
+}
+
+function updateInfamyDisplay() {
+  if (infamyLabel && currentInfamyState) {
+    infamyLabel.textContent = "Infamy: " + getTotalInfamy(currentInfamyState);
+  } else if (infamyLabel) {
+    infamyLabel.textContent = "Infamy: 0";
+  }
+  if (legendLabel && currentInfamyState) {
+    legendLabel.textContent = "Legend Lv " + getLegendLevel(currentInfamyState);
+  } else if (legendLabel) {
+    legendLabel.textContent = "Legend Lv 0";
+  }
+}
+
+function updateCardLocks() {
+  if (!overlay || !currentInfamyState) return;
+  var order = getClassOrder();
+  var classes = getAllClasses();
+  var cards = overlay.querySelectorAll("[data-class-key]");
+  for (var i = 0; i < cards.length; i++) {
+    var key = cards[i].getAttribute("data-class-key");
+    var locked = !isShipUnlocked(currentInfamyState, key);
+    var reqInfamy = getShipInfamyReq(key);
+    var existingLock = cards[i].querySelector(".ship-lock-overlay");
+    // update opacity and cursor
+    cards[i].style.opacity = locked ? "0.6" : "";
+    cards[i].style.cursor = locked ? "not-allowed" : "pointer";
+    cards[i].style.borderColor = locked ? T.textDark : T.border;
+    if (locked && reqInfamy > 0 && !existingLock) {
+      var _mob = isMobile();
+      var lockOverlay = document.createElement("div");
+      lockOverlay.className = "ship-lock-overlay";
+      lockOverlay.style.cssText = [
+        "position:absolute",
+        "top:0", "left:0",
+        "width:100%", "height:100%",
+        "display:flex",
+        "flex-direction:column",
+        "align-items:center",
+        "justify-content:center",
+        "background:rgba(20,14,8,0.7)",
+        "border-radius:8px",
+        "z-index:1"
+      ].join(";");
+      var lockIcon = document.createElement("div");
+      lockIcon.textContent = "\uD83D\uDD12";
+      lockIcon.style.cssText = "font-size:28px;margin-bottom:6px";
+      lockOverlay.appendChild(lockIcon);
+      var lockText = document.createElement("div");
+      lockText.textContent = reqInfamy + " Infamy";
+      lockText.style.cssText = "font-size:12px;color:" + T.gold + ";font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.5)";
+      lockOverlay.appendChild(lockText);
+      cards[i].appendChild(lockOverlay);
+    } else if (!locked && existingLock) {
+      existingLock.remove();
+    }
+  }
 }
 
 export function hideShipSelectScreen() {

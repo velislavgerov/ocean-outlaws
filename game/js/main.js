@@ -44,11 +44,16 @@ import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from 
 import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButton, updateVolumeSlider } from "./settingsMenu.js";
 import { getQualityConfig, createOrientationPrompt, onQualityChange } from "./mobile.js";
 import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
+import { loadInfamy, addInfamy, calcRunInfamy, getLegendLevel, getLegendProgress } from "./infamy.js";
+import { createInfamyScreen, showInfamyScreen, hideInfamyScreen } from "./infamyScreen.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
 var lastZoneResult = null; // "victory" or "game_over"
 var wasHeld = false; // tracks previous frame hold state for release detection
+var runEnemiesSunk = 0; // enemies sunk during current run
+var runGoldLooted = 0; // gold earned during current run
+var runZonesReached = 0; // zones visited during current run
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -121,6 +126,8 @@ createCrewScreen();
 var techState = loadTechState();
 createTechScreen();
 createPortScreen();
+var infamyState = loadInfamy();
+createInfamyScreen();
 
 setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   spawnPickup(pickupMgr, x, y, z, scene);
@@ -128,6 +135,8 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   var factionMult = getFactionGoldMult(faction);
   var gld = Math.round(GOLD_PER_KILL * factionMult * (1 + techB.salvageBonus));
   addGold(upgrades, gld);
+  runEnemiesSunk++;
+  runGoldLooted += gld;
   playExplosion();
   playKillConfirm();
   var killText = (mpState.username || "You") + " destroyed enemy  +" + gld + " gold";
@@ -226,7 +235,7 @@ createSettingsMenu({
     upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
     setAutofire(true);
     setWeather(weather, "calm");
-    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart();
+    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
     clearVoyageState();
@@ -234,7 +243,7 @@ createSettingsMenu({
     resetTechState(techState);
     techState = loadTechState();
     selectedClass = null;
-    showShipSelectScreen(handleShipSelect, upgrades);
+    showShipSelectScreen(handleShipSelect, upgrades, infamyState);
   }
 });
 
@@ -315,7 +324,7 @@ setLobbyCallbacks({
   onBack: function () {
     leaveRoom(mpState);
     hideLobbyScreen();
-    showShipSelectScreen(handleShipSelect, upgrades);
+    showShipSelectScreen(handleShipSelect, upgrades, infamyState);
   }
 });
 
@@ -535,16 +544,22 @@ function processCombatAction(action) {
       gameFrozen = true;
       upgrades.gold = 0;
       hideBossHud();
+      var mpGoData = awardRunInfamy("defeat");
       fadeOut(0.4, function () {
-        showGameOver(action.wave || waveMgr.wave);
+        showInfamyScreen(mpGoData, function () {
+          showGameOver(action.wave || waveMgr.wave);
+        });
         fadeIn(0.4);
       });
     } else if (action.event === "victory") {
       lastZoneResult = "victory";
       gameFrozen = true;
       hideBossHud();
+      var mpVicData = awardRunInfamy("victory");
       fadeOut(0.4, function () {
-        showVictory(action.wave || waveMgr.wave);
+        showInfamyScreen(mpVicData, function () {
+          showVictory(action.wave || waveMgr.wave);
+        });
         fadeIn(0.4);
       });
     }
@@ -576,16 +591,22 @@ function processCombatAction(action) {
     gameFrozen = true;
     upgrades.gold = 0;
     hideBossHud();
+    var remGoData = awardRunInfamy("defeat");
     fadeOut(0.4, function () {
-      showGameOver(action.wave || waveMgr.wave);
+      showInfamyScreen(remGoData, function () {
+        showGameOver(action.wave || waveMgr.wave);
+      });
       fadeIn(0.4);
     });
   } else if (action.action === "victory" && !mpState.isHost) {
     lastZoneResult = "victory";
     gameFrozen = true;
     hideBossHud();
+    var remVicData = awardRunInfamy("victory");
     fadeOut(0.4, function () {
-      showVictory(action.wave || waveMgr.wave);
+      showInfamyScreen(remVicData, function () {
+        showVictory(action.wave || waveMgr.wave);
+      });
       fadeIn(0.4);
     });
   }
@@ -618,6 +639,9 @@ mpState.onHostMigrated = function (newHostId) {
 };
 
 function startMultiplayerCombat() {
+  runEnemiesSunk = 0;
+  runGoldLooted = 0;
+  runZonesReached = 1;
   // Use the first zone for multiplayer, with shared terrain seed
   selectedClass = mpState.players[mpState.playerId].shipClass || selectedClass || "cruiser";
   var classCfg = getShipClass(selectedClass);
@@ -681,7 +705,7 @@ if (savedGame) {
   if (savedGame.selectedClass) selectedClass = savedGame.selectedClass;
 }
 
-showShipSelectScreen(handleShipSelect, upgrades);
+showShipSelectScreen(handleShipSelect, upgrades, infamyState);
 
 function openTechThenMap() {
   techState = loadTechState();
@@ -719,6 +743,9 @@ function openMap() {
 }
 
 function startZoneCombat(classKey, zoneId) {
+  runEnemiesSunk = 0;
+  runGoldLooted = 0;
+  runZonesReached = (runZonesReached || 0) + 1;
   var classCfg = getShipClass(classKey);
   var zone = getZone(zoneId);
   resetWaveManager(waveMgr, buildZoneWaveConfigs(zone));
@@ -766,6 +793,21 @@ function handleZoneVictory() {
   var stars = calcStars(hpInfo.hp, hpInfo.maxHp);
   mapState = completeZone(mapState, activeZoneId, stars);
   saveMapState(mapState);
+}
+
+function awardRunInfamy(result) {
+  var earned = calcRunInfamy(runGoldLooted, runEnemiesSunk, runZonesReached);
+  addInfamy(infamyState, earned);
+  return {
+    goldLooted: runGoldLooted,
+    enemiesSunk: runEnemiesSunk,
+    zonesReached: runZonesReached,
+    infamyEarned: earned,
+    totalInfamy: infamyState.total,
+    legendLevel: getLegendLevel(infamyState),
+    legendProgress: getLegendProgress(infamyState),
+    result: result
+  };
 }
 
 function performAutoSave() {
@@ -853,7 +895,7 @@ setRestartCallback(function () {
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
   setAutofire(true);
   setWeather(weather, "calm");
-  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart();
+  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
   clearVoyageState();
   activeChart = null; activeVoyageState = null;
   if (isMultiplayerActive(mpState)) {
@@ -1142,8 +1184,11 @@ function animate() {
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
         }
+        var goData = awardRunInfamy("defeat");
         fadeOut(0.4, function () {
-          showGameOver(waveMgr.wave);
+          showInfamyScreen(goData, function () {
+            showGameOver(waveMgr.wave);
+          });
           fadeIn(0.4);
         });
       } else if (event === "victory") {
@@ -1155,10 +1200,11 @@ function animate() {
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
         }
-        // check if voyage chart is complete (reached exit)
-        var voyageComplete = activeVoyageState && activeVoyageState.completed;
+        var vicData = awardRunInfamy("victory");
         fadeOut(0.4, function () {
-          showVictory(waveMgr.wave);
+          showInfamyScreen(vicData, function () {
+            showVictory(waveMgr.wave);
+          });
           fadeIn(0.4);
         });
       } else if (event.indexOf("repair:") === 0) {
