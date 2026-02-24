@@ -120,6 +120,7 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
   scene.add(mesh);
 
   var hpScale = 1 + (zoneDifficulty - 1) * 0.2;
+  var damageMult = 1 + (zoneDifficulty - 1) * 0.15;
 
   return {
     type: bossType,
@@ -130,6 +131,7 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
     heading: Math.atan2(playerX - x, playerZ - z),
     hp: Math.round(def.hp * hpScale),
     maxHp: Math.round(def.hp * hpScale),
+    damageMult: damageMult,
     alive: true,
     hitRadius: def.hitRadius,
     phase: 0,
@@ -443,7 +445,7 @@ function updateBossProjectiles(boss, ship, dt, scene, enemyMgr, terrain) {
     if (pdx * pdx + pdz * pdz < 3.0 * 3.0) {
       hitPlayer = true;
       if (enemyMgr) {
-        var dmg = Math.max(0.2, 2 * (1 - (enemyMgr.playerArmor || 0)));
+        var dmg = Math.max(0.2, 2 * boss.damageMult * (1 - (enemyMgr.playerArmor || 0)));
         enemyMgr.playerHp = Math.max(0, enemyMgr.playerHp - dmg);
       }
     }
@@ -531,7 +533,7 @@ function updateTentacleAttacks(boss, ship, dt, scene, enemyMgr) {
       var tdx = ship.posX - ta.x;
       var tdz = ship.posZ - ta.z;
       if (tdx * tdx + tdz * tdz < ta.radius * ta.radius) {
-        var dmg2 = Math.max(0.3, 3 * (1 - (enemyMgr.playerArmor || 0)));
+        var dmg2 = Math.max(0.3, 3 * boss.damageMult * (1 - (enemyMgr.playerArmor || 0)));
         enemyMgr.playerHp = Math.max(0, enemyMgr.playerHp - dmg2);
         ta.damaged = true;
       }

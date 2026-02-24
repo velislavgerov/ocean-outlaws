@@ -1330,7 +1330,7 @@ function animate() {
         var bossType = event.split(":")[1];
         var zone = getZone(activeZoneId);
         var difficulty = zone ? zone.difficulty :
-          (currentNode ? 1 + Math.floor(currentNode.col * 5 / Math.max(1, 6)) :
+          (currentNode ? 1 + Math.floor(currentNode.col * 5 / Math.max(1, activeChart ? activeChart.columns - 1 : 6)) :
           (waveMgr.currentConfig.bossDifficulty || 1));
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
         setNavBoss(activeBoss);
