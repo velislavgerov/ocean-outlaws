@@ -61,8 +61,13 @@ export function createWeaponState(ship) {
   return {
     ship: ship, turretGroups: turretGroups, activeWeapon: 0,
     projectiles: [], effects: [], cooldown: 0, shotCount: 0,
-    aimWorldPos: new THREE.Vector3(0, 0, 0)
+    aimWorldPos: new THREE.Vector3(0, 0, 0),
+    onNetHitCallback: null  // called with (targetType, targetId, damage) for multiplayer sync
   };
+}
+
+export function setWeaponHitCallback(state, callback) {
+  state.onNetHitCallback = callback;
 }
 
 export function getActiveWeapon(state) {
@@ -247,8 +252,8 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     var hitWater = !cfg.waterLevel && p.mesh.position.y < 0.2;
     var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var outOfRange = dist > cfg.maxRange;
-    var hitEnemy = checkEnemyHit(p, enemies, enemyManager, scene);
-    var hitBoss = !hitEnemy && checkBossHit(p, activeBoss, scene);
+    var hitEnemy = checkEnemyHit(p, enemies, enemyManager, scene, state);
+    var hitBoss = !hitEnemy && checkBossHit(p, activeBoss, scene, state);
 
     if (hitWater || hitTerrain || outOfRange || hitEnemy || hitBoss) {
       if (hitWater || hitTerrain || hitEnemy || hitBoss) {
@@ -340,7 +345,7 @@ function pointInShipOBB(px, pz, shipX, shipZ, heading, hitRadius) {
   return Math.abs(localZ) <= halfL && Math.abs(localX) <= halfW;
 }
 
-function checkEnemyHit(projectile, enemies, enemyManager, scene) {
+function checkEnemyHit(projectile, enemies, enemyManager, scene, weaponState) {
   if (!enemies) return false;
   var pp = projectile.mesh.position;
   var dmg = projectile.damageMult || 1;
@@ -356,13 +361,17 @@ function checkEnemyHit(projectile, enemies, enemyManager, scene) {
     if (distSq > hitRadius * hitRadius) continue;
     if (pointInShipOBB(pp.x, pp.z, ex, ez, enemy.heading, hitRadius)) {
       if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg);
+      // Broadcast hit for multiplayer sync
+      if (weaponState && weaponState.onNetHitCallback) {
+        weaponState.onNetHitCallback("enemy", i, dmg);
+      }
       return true;
     }
   }
   return false;
 }
 
-function checkBossHit(projectile, boss, scene) {
+function checkBossHit(projectile, boss, scene, weaponState) {
   if (!boss || !boss.alive) return false;
   var pp = projectile.mesh.position;
   var dmg = projectile.damageMult || 1;
@@ -372,6 +381,10 @@ function checkBossHit(projectile, boss, scene) {
   if (distSq > hitRadius * hitRadius) return false;
   if (pointInShipOBB(pp.x, pp.z, boss.posX, boss.posZ, boss.heading, hitRadius)) {
     damageBoss(boss, dmg, scene);
+    // Broadcast hit for multiplayer sync
+    if (weaponState && weaponState.onNetHitCallback) {
+      weaponState.onNetHitCallback("boss", 0, dmg);
+    }
     return true;
   }
   return false;

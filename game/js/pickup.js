@@ -80,8 +80,13 @@ function buildPickupMesh(type) {
 // --- pickup manager ---
 export function createPickupManager() {
   return {
-    pickups: []
+    pickups: [],
+    onCollectCallback: null  // called with (index) for multiplayer sync
   };
+}
+
+export function setPickupCollectCallback(manager, callback) {
+  manager.onCollectCallback = callback;
 }
 
 // --- spawn a pickup at position ---
@@ -139,9 +144,12 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
     var dz = ship.posZ - p.posZ;
     var distSq = dx * dx + dz * dz;
 
-    if (distSq < PICKUP_COLLECT_RADIUS * PICKUP_COLLECT_RADIUS) {
+    if (distSq < PICKUP_COLLECT_RADIUS * PICKUP_COLLECT_RADIUS && !p.collected) {
+      p.collected = true;
       collectPickup(p, resources, upgrades);
       scene.remove(p.mesh);
+      // Broadcast pickup claim for multiplayer
+      if (manager.onCollectCallback) manager.onCollectCallback(i);
       continue;
     }
 

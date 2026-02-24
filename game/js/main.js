@@ -8,11 +8,11 @@ import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScree
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
-import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
-import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult } from "./enemy.js";
+import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback } from "./weapon.js";
+import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
-import { createPickupManager, spawnPickup, updatePickups, clearPickups } from "./pickup.js";
+import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
 import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost } from "./upgrade.js";
 import { createUpgradeScreen, showUpgradeScreen, hideUpgradeScreen } from "./upgradeScreen.js";
@@ -26,7 +26,7 @@ import { createVoyageChart, showVoyageChart, hideVoyageChart } from "./voyageCha
 import { generateVoyageChart, createVoyageState, moveToNode, getReachableNodes, getNodeTypes, saveVoyageState, loadVoyageState, clearVoyageState } from "./voyageData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeatherDim, getWeatherFoam, getWeatherCloudShadow, maybeChangeWeather, createRain, createSplashes, updateWeather } from "./weather.js";
 import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness } from "./daynight.js";
-import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot } from "./boss.js";
+import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot, damageBoss } from "./boss.js";
 import { createBossHud, showBossHud, hideBossHud, updateBossHud, showLootBanner } from "./bossHud.js";
 import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewBonuses } from "./crew.js";
 import { createCrewScreen, showCrewScreen, hideCrewScreen } from "./crewScreen.js";
@@ -37,7 +37,8 @@ import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } f
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
-import { sendShipState, sendEnemyState, sendWaveStart, sendPickupClaim, sendFireEvent, sendAbilityEvent, sendGameEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels } from "./netSync.js";
+import { sendShipState, sendEnemyState, sendFireEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels } from "./netSync.js";
+import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies } from "./combatSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
 import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButton, updateVolumeSlider } from "./settingsMenu.js";
@@ -129,8 +130,13 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   addGold(upgrades, gld);
   playExplosion();
   playKillConfirm();
-  addKillFeedEntry("Enemy destroyed  +" + gld + " gold", "#ffcc44");
+  var killText = (mpState.username || "You") + " destroyed enemy  +" + gld + " gold";
+  addKillFeedEntry(killText, "#ffcc44");
   triggerScreenShake(0.3);
+  // Broadcast kill to other players
+  if (isMultiplayerActive(mpState)) {
+    sendKillFeedEntry(mpState, killText, "#ffcc44");
+  }
 });
 
 setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
@@ -210,6 +216,7 @@ createSettingsMenu({
     resetCrew(crew);
     clearRemoteShips(scene);
     resetSendState();
+    resetCombatSync();
     if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
     hideBossHud();
     clearPorts(portMgr, scene);
@@ -249,6 +256,13 @@ var mpState = createMultiplayerState();
 var mpReady = false;
 createLobbyScreen();
 initRemoteLabels();
+
+// Set pickup collection callback for multiplayer sync
+setPickupCollectCallback(pickupMgr, function (index) {
+  if (isMultiplayerActive(mpState)) {
+    sendPickupClaim(mpState, index);
+  }
+});
 
 // inject multiplayer button into ship select overlay directly
 createMultiplayerButton(getShipSelectOverlay(), function () {
@@ -311,13 +325,26 @@ mpState.onBroadcast = function (msg) {
     mpState.hostId = msg.hostId;
     hideLobbyScreen();
     startMultiplayerCombat();
-  } else if (msg.type === "ship_state" || msg.type === "fire") {
+    return;
+  }
+  // Let netSync handle ship_state and fire visuals
+  if (msg.type === "ship_state" || msg.type === "fire") {
     handleBroadcastMessage(msg, scene, mpState);
-  } else if (msg.type === "enemy_state" && !mpState.isHost) {
-    // Non-host clients receive enemy positions from host
-    // (simplified: just update positions of existing enemies)
-  } else if (msg.type === "pickup_claim") {
-    // Another player claimed a pickup — remove it
+    return;
+  }
+  // Enemy state from host — apply positions on non-host clients
+  if (msg.type === "enemy_state" && !mpState.isHost) {
+    applyEnemyStateFromHost(msg, enemyMgr, scene);
+    return;
+  }
+  // Combat sync messages
+  var combat = handleCombatMessage(msg);
+  if (combat) {
+    processCombatAction(combat);
+    return;
+  }
+  // Legacy pickup_claim (backwards compat)
+  if (msg.type === "pickup_claim") {
     if (pickupMgr.pickups && msg.index < pickupMgr.pickups.length) {
       var claimed = pickupMgr.pickups[msg.index];
       if (claimed && !claimed.collected) {
@@ -327,6 +354,150 @@ mpState.onBroadcast = function (msg) {
     }
   }
 };
+
+function processCombatAction(action) {
+  if (action.action === "apply_hit") {
+    // Remote player hit an enemy or boss — apply damage locally
+    if (action.targetType === "enemy") {
+      var enemy = enemyMgr.enemies[action.targetId];
+      if (enemy && enemy.alive) {
+        damageEnemy(enemyMgr, enemy, scene, action.damage);
+      }
+    } else if (action.targetType === "boss" && activeBoss && activeBoss.alive) {
+      damageBoss(activeBoss, action.damage, scene);
+    }
+  } else if (action.action === "enemy_death") {
+    // Host reports enemy death — trigger visual on clients
+    var deadEnemy = enemyMgr.enemies[action.enemyId];
+    if (deadEnemy && deadEnemy.alive) {
+      deadEnemy.alive = false;
+      deadEnemy.sinking = true;
+      deadEnemy.sinkTimer = 0;
+    }
+  } else if (action.action === "update_boss" && !mpState.isHost) {
+    // Non-host: update boss position/state from host
+    if (activeBoss) {
+      activeBoss.posX = action.x;
+      activeBoss.posZ = action.z;
+      activeBoss.heading = action.h;
+      activeBoss.hp = action.hp;
+      activeBoss.maxHp = action.maxHp;
+      activeBoss.phase = action.phase;
+      activeBoss.mesh.position.x = action.x;
+      activeBoss.mesh.position.z = action.z;
+      activeBoss.mesh.rotation.y = action.h;
+    }
+  } else if (action.action === "spawn_boss" && !mpState.isHost) {
+    // Non-host: spawn boss locally when host signals
+    if (!activeBoss) {
+      activeBoss = createBoss(action.bossType, action.x, action.z, scene, 1);
+      if (activeBoss) {
+        setNavBoss(activeBoss);
+        showBossHud(activeBoss.def.name);
+        showBanner("BOSS: " + activeBoss.def.name + "!", 4);
+      }
+    }
+  } else if (action.action === "boss_defeated") {
+    // Boss defeated on all clients
+    if (activeBoss && activeBoss.alive) {
+      activeBoss.hp = 0;
+      activeBoss.alive = false;
+      activeBoss.sinking = true;
+      activeBoss.sinkTimer = 0;
+      activeBoss.defeated = true;
+    }
+  } else if (action.action === "wave_event" && !mpState.isHost) {
+    // Non-host: sync wave state from host
+    if (action.event === "wave_start") {
+      waveMgr.wave = action.wave || waveMgr.wave;
+      waveMgr.state = "SPAWNING";
+      var faction = action.faction || "pirate";
+      showBanner(getFactionAnnounce(faction), 3);
+      addKillFeedEntry("Wave " + waveMgr.wave + " — " + getFactionAnnounce(faction), "#44aaff");
+      playWaveHorn();
+    } else if (action.event === "wave_start_boss") {
+      waveMgr.wave = action.wave || waveMgr.wave;
+      waveMgr.state = "ACTIVE";
+      // Boss spawn handled by boss_spawn message
+    } else if (action.event === "wave_complete") {
+      waveMgr.state = "WAVE_COMPLETE";
+      showBanner("Fleet " + (action.wave || waveMgr.wave) + " defeated!", 2.5);
+      addKillFeedEntry("Fleet " + (action.wave || waveMgr.wave) + " defeated!", "#44dd66");
+      clearPickups(pickupMgr, scene);
+      clearCrates(crateMgr, scene);
+      if (activeBoss) {
+        removeBoss(activeBoss, scene);
+        activeBoss = null;
+        setNavBoss(null);
+        hideBossHud();
+      }
+      // Show upgrade screen (each player upgrades independently)
+      if (waveMgr.wave < waveMgr.maxWave) {
+        upgradeScreenOpen = true;
+        fadeGameAudio();
+        showUpgradeScreen(upgrades, function () {
+          upgradeScreenOpen = false;
+          applyUpgrades();
+          crewScreenOpen = true;
+          showCrewScreen(crew, function () {
+            crewScreenOpen = false;
+            resumeGameAudio();
+          });
+        });
+      }
+    } else if (action.event === "game_over") {
+      lastZoneResult = "game_over";
+      gameFrozen = true;
+      upgrades.gold = 0;
+      hideBossHud();
+      fadeOut(0.4, function () {
+        showGameOver(action.wave || waveMgr.wave);
+        fadeIn(0.4);
+      });
+    } else if (action.event === "victory") {
+      lastZoneResult = "victory";
+      gameFrozen = true;
+      hideBossHud();
+      fadeOut(0.4, function () {
+        showVictory(action.wave || waveMgr.wave);
+        fadeIn(0.4);
+      });
+    }
+  } else if (action.action === "weather_change") {
+    // Sync weather from host
+    setWeather(weather, action.weather);
+  } else if (action.action === "pickup_claim") {
+    // Remove picked-up pickup on other clients
+    if (pickupMgr.pickups && action.index < pickupMgr.pickups.length) {
+      var claimedP = pickupMgr.pickups[action.index];
+      if (claimedP && !claimedP.collected) {
+        claimedP.collected = true;
+        scene.remove(claimedP.mesh);
+      }
+    }
+  } else if (action.action === "kill_feed") {
+    // Show kill feed entry from other player
+    addKillFeedEntry(action.text, action.color || "#ffffff");
+  } else if (action.action === "game_over" && !mpState.isHost) {
+    lastZoneResult = "game_over";
+    gameFrozen = true;
+    upgrades.gold = 0;
+    hideBossHud();
+    fadeOut(0.4, function () {
+      showGameOver(action.wave || waveMgr.wave);
+      fadeIn(0.4);
+    });
+  } else if (action.action === "victory" && !mpState.isHost) {
+    lastZoneResult = "victory";
+    gameFrozen = true;
+    hideBossHud();
+    fadeOut(0.4, function () {
+      showVictory(action.wave || waveMgr.wave);
+      fadeIn(0.4);
+    });
+  }
+}
+
 
 mpState.onDisconnect = function (playerId) {
   addKillFeedEntry("Player disconnected", "#cc6644");
@@ -370,6 +541,9 @@ function startMultiplayerCombat() {
   setPlayerHp(enemyMgr, classCfg.stats.hp);
   setPlayerArmor(enemyMgr, classCfg.stats.armor);
   weapons = createWeaponState(ship);
+  setWeaponHitCallback(weapons, function (targetType, targetId, damage) {
+    sendHitEvent(mpState, targetType, targetId, damage);
+  });
   abilityState = createAbilityState(selectedClass);
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
   resetDrones(droneMgr, scene);
@@ -692,7 +866,14 @@ function animate() {
     // ocean must update before ships so wave height is current-frame
     updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, waveSteps, wp.waterTint, dayNight, cam.camera, wDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
     updateWeather(weather, dt, scene, ship.posX, ship.posZ);
-    maybeChangeWeather(weather);
+    // Weather changes: host-only in multiplayer, broadcast to all
+    var prevWeather = weather.current;
+    if (!isMultiplayerActive(mpState) || mpState.isHost) {
+      maybeChangeWeather(weather);
+    }
+    if (isMultiplayerActive(mpState) && mpState.isHost && weather.current !== prevWeather) {
+      sendWeatherChange(mpState, weather.current);
+    }
     updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults, activeTerrain);
     var speedRatio = getSpeedRatio(ship);
     consumeFuel(resources, speedRatio, dt);
@@ -776,6 +957,12 @@ function animate() {
     var bossAlive = activeBoss && activeBoss.alive;
     var event = updateWaveState(waveMgr, aliveEnemyCount, hpInfo.hp, hpInfo.maxHp, resources, dt, bossAlive);
 
+    // On non-host in multiplayer, skip local wave state — host drives it
+    var mpActive = isMultiplayerActive(mpState);
+    if (mpActive && !mpState.isHost) {
+      event = null; // non-host ignores local wave transitions
+    }
+
     if (event) {
       if (event === "wave_start") {
         var waveFaction = waveMgr.currentConfig.faction;
@@ -783,6 +970,9 @@ function animate() {
         showBanner(waveAnnounce, 3);
         addKillFeedEntry("Wave " + waveMgr.wave + " — " + waveAnnounce, "#44aaff");
         playWaveHorn();
+        if (mpActive && mpState.isHost) {
+          sendWaveEvent(mpState, "wave_start", { wave: waveMgr.wave, faction: waveFaction });
+        }
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
         var zone = getZone(activeZoneId);
@@ -793,6 +983,10 @@ function animate() {
         if (activeBoss) {
           showBossHud(activeBoss.def.name);
           showBanner("BOSS: " + activeBoss.def.name + "!", 4);
+          if (mpActive && mpState.isHost) {
+            sendWaveEvent(mpState, "wave_start_boss", { wave: waveMgr.wave, boss: bossType });
+            sendBossSpawn(mpState, bossType, activeBoss.posX, activeBoss.posZ);
+          }
         } else {
           showBanner("Fleet " + waveMgr.wave + " Approaching!", 3);
         }
@@ -812,6 +1006,9 @@ function animate() {
           showBanner("Officer recruited: " + waveOfficer.portrait + " " + waveOfficer.name, 3);
         }
         performAutoSave();
+        if (mpActive && mpState.isHost) {
+          sendWaveEvent(mpState, "wave_complete", { wave: waveMgr.wave });
+        }
         if (waveMgr.wave < waveMgr.maxWave) {
           upgradeScreenOpen = true;
           fadeGameAudio();
@@ -830,6 +1027,9 @@ function animate() {
         gameFrozen = true;
         upgrades.gold = 0;
         hideBossHud();
+        if (mpActive && mpState.isHost) {
+          sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
+        }
         fadeOut(0.4, function () {
           showGameOver(waveMgr.wave);
           fadeIn(0.4);
@@ -840,6 +1040,9 @@ function animate() {
         performAutoSave();
         gameFrozen = true;
         hideBossHud();
+        if (mpActive && mpState.isHost) {
+          sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
+        }
         // check if voyage chart is complete (reached exit)
         var voyageComplete = activeVoyageState && activeVoyageState.completed;
         fadeOut(0.4, function () {
@@ -919,9 +1122,20 @@ function animate() {
       sendShipState(mpState, ship, hpInfo.hp, hpInfo.maxHp, weapons.activeWeapon, getAutofire());
       updateRemoteShips(dt, weatherWaveHeight, elapsed, scene);
       updateRemoteLabels(cam.camera);
-      // Host sends enemy state to other clients
+      // Host sends enemy state and boss state to other clients
       if (mpState.isHost) {
         sendEnemyState(mpState, enemyMgr.enemies);
+        if (activeBoss && activeBoss.alive) {
+          sendBossState(mpState, activeBoss);
+        }
+        if (activeBoss && activeBoss.defeated && !activeBoss._netDeathSent) {
+          activeBoss._netDeathSent = true;
+          sendBossDefeated(mpState, activeBoss.type);
+        }
+      }
+      // Non-host: dead-reckon enemy positions between host updates
+      if (!mpState.isHost) {
+        deadReckonEnemies(enemyMgr, dt);
       }
     }
 

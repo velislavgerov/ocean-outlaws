@@ -183,17 +183,6 @@ export function sendFireEvent(mpState, weaponKey, originX, originZ, dirX, dirZ) 
   });
 }
 
-// --- send hit event ---
-export function sendHitEvent(mpState, targetType, targetId, damage) {
-  if (!mpState || !mpState.active) return;
-  broadcast(mpState, {
-    type: "hit",
-    targetType: targetType,
-    targetId: targetId,
-    damage: damage
-  });
-}
-
 // --- send enemy state (host only) ---
 export function sendEnemyState(mpState, enemies) {
   if (!mpState || !mpState.active || !mpState.isHost) return;
@@ -211,56 +200,33 @@ export function sendEnemyState(mpState, enemies) {
       x: Math.round(e.posX * 100) / 100,
       z: Math.round(e.posZ * 100) / 100,
       h: Math.round(e.heading * 1000) / 1000,
+      s: Math.round((e.speed || 0) * 100) / 100,
       hp: e.hp,
+      maxHp: e.maxHp,
       alive: e.alive,
-      sinking: e.sinking
+      sinking: e.sinking,
+      faction: e.faction
     });
   }
   broadcast(mpState, { type: "enemy_state", enemies: data });
 }
 
-// --- send wave start (host only) ---
-export function sendWaveStart(mpState, wave, enemyCount) {
-  if (!mpState || !mpState.active || !mpState.isHost) return;
-  broadcast(mpState, { type: "wave_start", wave: wave, enemies: enemyCount });
-}
-
-// --- send pickup claim ---
-export function sendPickupClaim(mpState, pickupIndex) {
-  if (!mpState || !mpState.active) return;
-  broadcast(mpState, { type: "pickup_claim", index: pickupIndex });
-}
-
-// --- send ability activation ---
-export function sendAbilityEvent(mpState, abilityName) {
-  if (!mpState || !mpState.active) return;
-  broadcast(mpState, {
-    type: "ability",
-    ability: abilityName
-  });
-}
-
-// --- send game over / victory ---
-export function sendGameEvent(mpState, eventType, data) {
-  if (!mpState || !mpState.active) return;
-  var msg = { type: eventType };
-  if (data) {
-    for (var k in data) msg[k] = data[k];
-  }
-  broadcast(mpState, msg);
-}
-
 // --- handle incoming broadcast message ---
+// Returns the message type if it was NOT handled here (for combat routing in main.js)
 export function handleBroadcastMessage(msg, scene, mpState) {
-  if (!msg || !msg.senderId) return;
+  if (!msg || !msg.senderId) return null;
 
   if (msg.type === "ship_state") {
     updateRemoteShip(msg.senderId, msg, scene, mpState);
+    return null;
   } else if (msg.type === "game_start") {
-    // Handled in main.js
+    return "game_start";
   } else if (msg.type === "fire") {
     spawnRemoteProjectile(msg, scene);
+    return null;
   }
+  // Return message type for combat sync handling in main.js
+  return msg.type;
 }
 
 // --- spawn a visual projectile from a remote player's fire event ---
