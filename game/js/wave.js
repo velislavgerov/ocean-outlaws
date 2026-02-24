@@ -6,6 +6,7 @@ var BASE_ENEMIES = 3;           // enemies in wave 1
 var ENEMIES_PER_WAVE = 2;       // extra enemies each wave
 var PAUSE_DURATION = 4;         // seconds between waves
 var REPAIR_PER_PART = 2;        // HP restored per part during pause
+var MINI_BOSS_WAVE = 5;         // wave that gets a mini-boss in default configs
 
 // --- states ---
 var STATE_WAITING   = "WAITING";
@@ -19,25 +20,40 @@ var STATE_VICTORY   = "VICTORY";
 var FACTION_ROTATION = ["pirate", "navy", "merchant", "pirate", "navy", "pirate", "merchant", "navy"];
 
 // --- build wave config table ---
-function buildWaveConfigs() {
+function buildWaveConfigs(baseDifficulty) {
+  baseDifficulty = baseDifficulty || 1;
   var configs = [];
   for (var i = 1; i <= MAX_WAVE; i++) {
-    configs.push({
+    var cfg = {
       wave: i,
       enemies: BASE_ENEMIES + ENEMIES_PER_WAVE * (i - 1),
       hpMult: 1.0 + (i - 1) * 0.15,
       speedMult: 1.0 + (i - 1) * 0.08,
       fireRateMult: 1.0 + (i - 1) * 0.1,
       faction: FACTION_ROTATION[(i - 1) % FACTION_ROTATION.length]
-    });
+    };
+    // mini-boss wave: battleship alongside half the normal enemy count
+    if (i === MINI_BOSS_WAVE) {
+      cfg.boss = "battleship";
+      cfg.bossDifficulty = baseDifficulty;
+      cfg.enemies = Math.max(2, Math.floor(cfg.enemies / 2));
+    }
+    // final boss wave: escalated boss type, half enemies
+    if (i === MAX_WAVE) {
+      var finalDifficulty = baseDifficulty + 2;
+      cfg.boss = finalDifficulty >= 5 ? "kraken" : finalDifficulty >= 3 ? "carrier" : "battleship";
+      cfg.bossDifficulty = finalDifficulty;
+      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
+    }
+    configs.push(cfg);
   }
   return configs;
 }
 
 // --- create wave manager ---
-// optionally accepts external configs (e.g. from zone data)
-export function createWaveManager(externalConfigs) {
-  var configs = externalConfigs || buildWaveConfigs();
+// optionally accepts external configs (e.g. from zone data) and base difficulty
+export function createWaveManager(externalConfigs, difficulty) {
+  var configs = externalConfigs || buildWaveConfigs(difficulty);
   var maxWave = configs.length;
   return {
     configs: configs,
@@ -170,9 +186,9 @@ export function getWaveState(mgr) {
 }
 
 // --- reset for restart ---
-// optionally accepts external configs (e.g. from zone data)
-export function resetWaveManager(mgr, externalConfigs) {
-  var configs = externalConfigs || buildWaveConfigs();
+// optionally accepts external configs (e.g. from zone data) and base difficulty
+export function resetWaveManager(mgr, externalConfigs, difficulty) {
+  var configs = externalConfigs || buildWaveConfigs(difficulty);
   mgr.configs = configs;
   mgr.maxWave = configs.length;
   mgr.wave = 1;

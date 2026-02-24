@@ -653,7 +653,7 @@ function startMultiplayerCombat() {
   // Use the first zone for multiplayer, with shared terrain seed
   selectedClass = mpState.players[mpState.playerId].shipClass || selectedClass || "cruiser";
   var classCfg = getShipClass(selectedClass);
-  resetWaveManager(waveMgr);
+  resetWaveManager(waveMgr, null, 1);
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
   resetUpgrades(upgrades);
@@ -1329,7 +1329,9 @@ function animate() {
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
         var zone = getZone(activeZoneId);
-        var difficulty = zone ? zone.difficulty : (currentNode ? 1 + Math.floor(currentNode.col * 5 / Math.max(1, 6)) : 1);
+        var difficulty = zone ? zone.difficulty :
+          (currentNode ? 1 + Math.floor(currentNode.col * 5 / Math.max(1, 6)) :
+          (waveMgr.currentConfig.bossDifficulty || 1));
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
         setNavBoss(activeBoss);
         playWaveHorn();
