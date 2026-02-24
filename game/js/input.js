@@ -10,6 +10,12 @@ var mouse = {
   holdStart: 0
 };
 
+// multi-touch tracking: map from Touch.identifier → { id, x, y, zone }
+var touches = {};
+
+// fire touch state — updated by right-half touch events
+var fireTouch = { active: false, x: 0, y: 0, id: -1 };
+
 // keyboard action queue — consumed once per frame
 var keyActions = [];
 
@@ -43,26 +49,85 @@ function onMouseUp(e) {
   }
 }
 
+// Returns "move" for left half, "fire" for right half (including center line)
+function getTouchZone(clientX) {
+  return clientX < window.innerWidth / 2 ? "move" : "fire";
+}
+
 function onTouchStart(e) {
-  var touch = e.touches[0];
-  mouse.x = touch.clientX;
-  mouse.y = touch.clientY;
-  if (isGameTarget(e)) {
-    mouse.clicked = true;
-    mouse.clickConsumed = false;
-    mouse.held = true;
-    mouse.holdStart = performance.now();
+  e.preventDefault();
+  var changed = e.changedTouches;
+  for (var i = 0; i < changed.length; i++) {
+    var t = changed[i];
+    var zone = getTouchZone(t.clientX);
+    touches[t.identifier] = { id: t.identifier, x: t.clientX, y: t.clientY, zone: zone };
+    if (zone === "move" && isGameTarget(e)) {
+      mouse.x = t.clientX;
+      mouse.y = t.clientY;
+      mouse.clicked = true;
+      mouse.clickConsumed = false;
+      mouse.held = true;
+      mouse.holdStart = performance.now();
+    } else if (zone === "fire" && !fireTouch.active) {
+      fireTouch.active = true;
+      fireTouch.x = t.clientX;
+      fireTouch.y = t.clientY;
+      fireTouch.id = t.identifier;
+    }
   }
 }
 
-function onTouchEnd() {
-  mouse.held = false;
+function onTouchEnd(e) {
+  var changed = e.changedTouches;
+  for (var i = 0; i < changed.length; i++) {
+    var t = changed[i];
+    var stored = touches[t.identifier];
+    if (!stored) continue;
+    var zone = stored.zone;
+    delete touches[t.identifier];
+    if (zone === "move") {
+      // only clear held if no other move touch remains
+      var hasMove = false;
+      var keys = Object.keys(touches);
+      for (var j = 0; j < keys.length; j++) {
+        if (touches[keys[j]].zone === "move") { hasMove = true; break; }
+      }
+      if (!hasMove) mouse.held = false;
+    } else if (zone === "fire" && fireTouch.id === t.identifier) {
+      // reassign to another fire touch if one exists, otherwise deactivate
+      var hasFire = false;
+      var fkeys = Object.keys(touches);
+      for (var fi = 0; fi < fkeys.length; fi++) {
+        if (touches[fkeys[fi]].zone === "fire") {
+          hasFire = true;
+          fireTouch.id = touches[fkeys[fi]].id;
+          fireTouch.x = touches[fkeys[fi]].x;
+          fireTouch.y = touches[fkeys[fi]].y;
+          break;
+        }
+      }
+      if (!hasFire) { fireTouch.active = false; fireTouch.id = -1; }
+    }
+  }
 }
 
 function onTouchMove(e) {
-  var touch = e.touches[0];
-  mouse.x = touch.clientX;
-  mouse.y = touch.clientY;
+  e.preventDefault();
+  var changed = e.changedTouches;
+  for (var i = 0; i < changed.length; i++) {
+    var t = changed[i];
+    var stored = touches[t.identifier];
+    if (!stored) continue;
+    stored.x = t.clientX;
+    stored.y = t.clientY;
+    if (stored.zone === "move") {
+      mouse.x = t.clientX;
+      mouse.y = t.clientY;
+    } else if (stored.zone === "fire" && fireTouch.id === t.identifier) {
+      fireTouch.x = t.clientX;
+      fireTouch.y = t.clientY;
+    }
+  }
 }
 
 function onKeyDown(e) {
@@ -86,8 +151,8 @@ export function initInput(canvas) {
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mousedown", onMouseDown);
   window.addEventListener("mouseup", onMouseUp);
-  window.addEventListener("touchstart", onTouchStart, { passive: true });
-  window.addEventListener("touchmove", onTouchMove, { passive: true });
+  window.addEventListener("touchstart", onTouchStart, { passive: false });
+  window.addEventListener("touchmove", onTouchMove, { passive: false });
   window.addEventListener("touchend", onTouchEnd);
   window.addEventListener("touchcancel", onTouchEnd);
   window.addEventListener("keydown", onKeyDown);
@@ -124,4 +189,8 @@ export function toggleAutofire() {
 
 export function setAutofire(val) {
   autofire = val;
+}
+
+export function getFireTouch() {
+  return fireTouch;
 }

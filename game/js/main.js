@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createOcean, updateOcean, getWaveHeight, setTerrainMap, clearTerrainMap } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern } from "./ship.js";
-import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire } from "./input.js";
+import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire, getFireTouch } from "./input.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setAbilityBarCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
@@ -54,6 +54,7 @@ var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
 var lastZoneResult = null; // "victory" or "game_over"
 var wasHeld = false; // tracks previous frame hold state for release detection
+var wasFireTouchActive = false; // tracks previous frame fire-touch state for transition detection
 var HOLD_THRESHOLD = 200; // ms — presses shorter than this count as click, not hold
 var runEnemiesSunk = 0; // enemies sunk during current run
 var runGoldLooted = 0; // gold earned during current run
@@ -1199,6 +1200,15 @@ function animate() {
     } else if (!mouse.held) {
       wasHeld = false;
     }
+
+    // fire-touch: right-half touch enables enemy targeting and manual fire
+    var fireTouchState = getFireTouch();
+    if (fireTouchState.active && !wasFireTouchActive) {
+      // newly pressed fire touch — attempt enemy targeting at touch position
+      var ftResult = handleClick(fireTouchState.x, fireTouchState.y);
+      if (ftResult === "enemy") clickedEnemy = true;
+    }
+    wasFireTouchActive = fireTouchState.active;
 
     if (abilityState) {
       updateAbility(abilityState, dt);
