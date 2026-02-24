@@ -79,6 +79,8 @@ var particleGeo = null;
 var particleMat = null;
 var enemyProjGeo = null;
 var enemyProjMat = null;
+var flashGeo = null;
+var flashMat = null;
 
 function ensureGeo() {
   if (particleGeo) return;
@@ -86,6 +88,15 @@ function ensureGeo() {
   particleMat = new THREE.MeshBasicMaterial({ color: 0xff6622, transparent: true });
   enemyProjGeo = new THREE.SphereGeometry(0.1, 6, 4);
   enemyProjMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
+  flashGeo = new THREE.SphereGeometry(0.3, 6, 4);
+  flashMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
+}
+
+function spawnEnemyFlash(manager, scene, position) {
+  var mesh = new THREE.Mesh(flashGeo, flashMat.clone());
+  mesh.position.copy(position);
+  scene.add(mesh);
+  manager.effects.push({ mesh: mesh, life: 0.08 });
 }
 
 // --- per-faction PBR material cache ---
@@ -159,7 +170,6 @@ function buildEnemyMesh(faction) {
   var portFP = new THREE.Object3D(); portFP.position.set(-0.5, 0.3, 0.3); group.add(portFP);
   var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.5, 0.3, 0.3); group.add(stbdFP);
   group.userData.firePoints = [portFP, stbdFP];
-  group.userData.turret = portFP; // backward compat alias
 
   var portMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
   var stbdMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -187,7 +197,6 @@ function applyEnemyOverrideAsync(mesh) {
       mesh.add(firePoints[i]);
     }
     mesh.userData.firePoints = firePoints;
-    mesh.userData.turret = firePoints[0] || null;
   }).catch(function () {
     // keep procedural fallback on failure
   });
@@ -207,6 +216,7 @@ export function createEnemyManager() {
     enemies: [],
     projectiles: [],
     particles: [],
+    effects: [],
     spawnTimer: 3,            // first spawn after 3s
     spawnInterval: INITIAL_SPAWN_INTERVAL,
     elapsed: 0,
@@ -230,9 +240,13 @@ export function resetEnemyManager(manager, scene) {
   for (var i = 0; i < manager.particles.length; i++) {
     scene.remove(manager.particles[i].mesh);
   }
+  for (var i = 0; i < (manager.effects || []).length; i++) {
+    scene.remove(manager.effects[i].mesh);
+  }
   manager.enemies = [];
   manager.projectiles = [];
   manager.particles = [];
+  manager.effects = [];
   manager.spawnTimer = 3;
   manager.spawnInterval = INITIAL_SPAWN_INTERVAL;
   manager.playerHp = PLAYER_HP;
@@ -522,6 +536,9 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
   // --- update explosion particles ---
   updateParticles(manager, dt, scene);
+
+  // --- update muzzle flash effects ---
+  updateEnemyEffects(manager, dt, scene);
 }
 
 // --- enemy fires a projectile at player ---
@@ -561,6 +578,7 @@ function enemyFire(manager, enemy, ship, scene) {
   var projMesh = new THREE.Mesh(enemyProjGeo, enemyProjMat);
   projMesh.position.copy(barrelTip);
   scene.add(projMesh);
+  spawnEnemyFlash(manager, scene, barrelTip);
 
   manager.projectiles.push({
     mesh: projMesh,
@@ -628,6 +646,23 @@ function updateEnemyProjectiles(manager, ship, dt, scene, terrain) {
     }
   }
   manager.projectiles = alive;
+}
+
+// --- update muzzle flash effects ---
+function updateEnemyEffects(manager, dt, scene) {
+  var alive = [];
+  for (var i = 0; i < manager.effects.length; i++) {
+    var ef = manager.effects[i];
+    ef.life -= dt;
+    if (ef.life <= 0) {
+      scene.remove(ef.mesh);
+    } else {
+      ef.mesh.material.opacity = ef.life / 0.08;
+      ef.mesh.scale.setScalar(1 + (1 - ef.life / 0.08) * 2);
+      alive.push(ef);
+    }
+  }
+  manager.effects = alive;
 }
 
 // --- spawn explosion particles ---

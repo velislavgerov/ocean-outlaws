@@ -58,11 +58,22 @@ var TILT_DAMPING = 0.2;        // bosses are big, less tilt
 
 var projGeo = null;
 var projMat = null;
+var bossFlashGeo = null;
+var bossFlashMat = null;
 
 function ensureGeo() {
   if (projGeo) return;
   projGeo = new THREE.SphereGeometry(0.2, 6, 4);
   projMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
+  bossFlashGeo = new THREE.SphereGeometry(0.3, 6, 4);
+  bossFlashMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
+}
+
+function spawnBossFlash(boss, scene, position) {
+  var mesh = new THREE.Mesh(bossFlashGeo, bossFlashMat.clone());
+  mesh.position.copy(position);
+  scene.add(mesh);
+  boss.effects.push({ mesh: mesh, life: 0.08 });
 }
 
 function bossSlotForType(type) {
@@ -137,6 +148,7 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
     telegraphs: [],
     droneSpawns: [],
     tentacleAttacks: [],
+    effects: [],
     sinking: false,
     sinkTimer: 0,
     defeated: false,
@@ -235,6 +247,7 @@ function fireBossProjectile(boss, angle, speed, scene) {
   var mesh = new THREE.Mesh(projGeo, projMat.clone());
   mesh.position.copy(origin);
   scene.add(mesh);
+  spawnBossFlash(boss, scene, origin);
 
   boss.projectiles.push({
     mesh: mesh,
@@ -343,6 +356,7 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
     if (boss.sinkTimer >= 5.0) scene.remove(boss.mesh);
     updateBossProjectiles(boss, ship, dt, scene, enemyMgr, terrain);
     updateTelegraphs(boss, dt, scene);
+    updateBossEffects(boss, dt, scene);
     return;
   }
 
@@ -470,6 +484,24 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
   updateTelegraphs(boss, dt, scene);
   updateDroneSpawns(boss, dt, scene);
   updateTentacleAttacks(boss, ship, dt, scene, enemyMgr);
+  updateBossEffects(boss, dt, scene);
+}
+
+// --- update boss muzzle flash effects ---
+function updateBossEffects(boss, dt, scene) {
+  var alive = [];
+  for (var i = 0; i < boss.effects.length; i++) {
+    var ef = boss.effects[i];
+    ef.life -= dt;
+    if (ef.life <= 0) {
+      scene.remove(ef.mesh);
+    } else {
+      ef.mesh.material.opacity = ef.life / 0.08;
+      ef.mesh.scale.setScalar(1 + (1 - ef.life / 0.08) * 2);
+      alive.push(ef);
+    }
+  }
+  boss.effects = alive;
 }
 
 // --- update boss projectiles ---
@@ -607,6 +639,9 @@ export function removeBoss(boss, scene) {
   }
   for (var i = 0; i < boss.tentacleAttacks.length; i++) {
     if (boss.tentacleAttacks[i].mesh) scene.remove(boss.tentacleAttacks[i].mesh);
+  }
+  for (var i = 0; i < (boss.effects || []).length; i++) {
+    scene.remove(boss.effects[i].mesh);
   }
 }
 
