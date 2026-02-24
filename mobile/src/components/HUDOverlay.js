@@ -18,9 +18,7 @@ function JoystickPad() {
   function handleGesture(event) {
     var tx = event.nativeEvent.translationX;
     var ty = event.nativeEvent.translationY;
-    var x = Math.max(-1, Math.min(1, tx / 55));
-    var y = Math.max(-1, Math.min(1, ty / 55));
-    setSteering(x, y);
+    setSteering(Math.max(-1, Math.min(1, tx / 55)), Math.max(-1, Math.min(1, ty / 55)));
   }
 
   function handleState(event) {
@@ -36,6 +34,23 @@ function JoystickPad() {
         <Text style={styles.btnSubText}>Drag to steer</Text>
       </View>
     </PanGestureHandler>
+  );
+}
+
+function TechPanel() {
+  var gold = useGameState(function (state) { return state.gold; });
+  var unlockTechNode = useGameState(function (state) { return state.unlockTechNode; });
+
+  return (
+    <View style={styles.techPanel}>
+      <Text style={styles.techTitle}>Tech Tree (migration slice)</Text>
+      <Text style={styles.techText}>Gold: {gold}</Text>
+      <View style={styles.techRow}>
+        <Pressable style={styles.techBtn} onPress={function () { unlockTechNode('offense', 0); }}><Text style={styles.btnText}>+DMG 40</Text></Pressable>
+        <Pressable style={styles.techBtn} onPress={function () { unlockTechNode('defense', 0); }}><Text style={styles.btnText}>+HP 40</Text></Pressable>
+        <Pressable style={styles.techBtn} onPress={function () { unlockTechNode('utility', 0); }}><Text style={styles.btnText}>+Gold 120</Text></Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -55,6 +70,9 @@ export default function HUDOverlay() {
   var endBoost = useGameState(function (state) { return state.endBoost; });
   var useAbility = useGameState(function (state) { return state.useAbility; });
   var restartRun = useGameState(function (state) { return state.restartRun; });
+  var timeLabel = useGameState(function (state) { return state.timeLabel; });
+  var weatherLabel = useGameState(function (state) { return state.weatherLabel; });
+  var cycleWeatherNow = useGameState(function (state) { return state.cycleWeatherNow; });
 
   var abilityStatus = abilityState.active
     ? 'ACTIVE ' + abilityState.activeTimer.toFixed(1) + 's'
@@ -72,12 +90,16 @@ export default function HUDOverlay() {
         <StatChip label="Enemies" value={String(enemyCount)} />
         <StatChip label="Kills" value={String(totalKills)} />
         <StatChip label="Boost" value={String(boosts)} />
+        <StatChip label="Time" value={timeLabel} />
+        <Pressable onPress={cycleWeatherNow}><StatChip label="Weather" value={weatherLabel} /></Pressable>
       </View>
 
       <View style={styles.centerInfo}>
         <Text style={styles.centerInfoText}>{banner}</Text>
         <Text style={styles.centerInfoText}>{classConfig.ability.name}: {abilityStatus}</Text>
       </View>
+
+      <TechPanel />
 
       {isFinished ? (
         <View style={styles.resultModal}>
@@ -92,7 +114,6 @@ export default function HUDOverlay() {
 
       <View style={styles.bottomRow}>
         <JoystickPad />
-
         <View style={styles.actionButtons}>
           <Pressable style={styles.actionBtn} onPress={fire}><Text style={styles.btnText}>Fire</Text></Pressable>
           <Pressable style={styles.actionBtn} onPress={reload}><Text style={styles.btnText}>Reload</Text></Pressable>
@@ -105,118 +126,26 @@ export default function HUDOverlay() {
 }
 
 var styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'space-between',
-    paddingVertical: 18,
-    paddingHorizontal: 16
-  },
-  topRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignSelf: 'center'
-  },
-  centerInfo: {
-    alignSelf: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(1, 15, 33, 0.55)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8
-  },
-  centerInfoText: {
-    color: '#D3E8FF',
-    fontSize: 13
-  },
-  chip: {
-    backgroundColor: 'rgba(1, 15, 33, 0.75)',
-    borderColor: '#68B0FF',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    minWidth: 70
-  },
-  chipLabel: {
-    color: '#A2CCFF',
-    fontSize: 11
-  },
-  chipValue: {
-    color: '#F0F7FF',
-    fontWeight: '700',
-    fontSize: 14
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end'
-  },
-  leftPad: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(7, 40, 76, 0.7)',
-    borderWidth: 1,
-    borderColor: '#68B0FF',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  actionButtons: {
-    gap: 8,
-    alignItems: 'flex-end'
-  },
-  actionBtn: {
-    width: 150,
-    borderRadius: 12,
-    backgroundColor: 'rgba(7, 40, 76, 0.85)',
-    borderColor: '#68B0FF',
-    borderWidth: 1,
-    paddingVertical: 10,
-    alignItems: 'center'
-  },
-  btnText: {
-    color: '#F0F7FF',
-    fontWeight: '700'
-  },
-  btnSubText: {
-    color: '#A2CCFF',
-    fontSize: 11,
-    marginTop: 4
-  },
-  resultModal: {
-    position: 'absolute',
-    top: '35%',
-    left: '32%',
-    right: '32%',
-    backgroundColor: 'rgba(0, 16, 34, 0.92)',
-    borderColor: '#68B0FF',
-    borderWidth: 1,
-    borderRadius: 12,
-    alignItems: 'center',
-    padding: 16,
-    gap: 8
-  },
-  resultTitle: {
-    color: '#F0F7FF',
-    fontSize: 24,
-    fontWeight: '700'
-  },
-  resultBody: {
-    color: '#cfe2ff',
-    fontSize: 14
-  },
-  modalButton: {
-    marginTop: 8,
-    width: '100%',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(7, 40, 76, 1)',
-    borderColor: '#68B0FF',
-    borderWidth: 1
-  }
+  container: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 16 },
+  topRow: { flexDirection: 'row', gap: 8, alignSelf: 'center' },
+  centerInfo: { alignSelf: 'center', alignItems: 'center', backgroundColor: 'rgba(1, 15, 33, 0.55)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  centerInfoText: { color: '#D3E8FF', fontSize: 13 },
+  chip: { backgroundColor: 'rgba(1, 15, 33, 0.75)', borderColor: '#68B0FF', borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7, minWidth: 64 },
+  chipLabel: { color: '#A2CCFF', fontSize: 11 },
+  chipValue: { color: '#F0F7FF', fontWeight: '700', fontSize: 14 },
+  techPanel: { alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 10, padding: 8, gap: 6 },
+  techTitle: { color: '#d8e8ff', fontWeight: '700' },
+  techText: { color: '#d8e8ff', fontSize: 12 },
+  techRow: { flexDirection: 'row', gap: 8 },
+  techBtn: { borderWidth: 1, borderColor: '#68B0FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(7, 40, 76, 0.85)' },
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  leftPad: { width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(7, 40, 76, 0.7)', borderWidth: 1, borderColor: '#68B0FF', alignItems: 'center', justifyContent: 'center' },
+  actionButtons: { gap: 8, alignItems: 'flex-end' },
+  actionBtn: { width: 150, borderRadius: 12, backgroundColor: 'rgba(7, 40, 76, 0.85)', borderColor: '#68B0FF', borderWidth: 1, paddingVertical: 10, alignItems: 'center' },
+  btnText: { color: '#F0F7FF', fontWeight: '700' },
+  btnSubText: { color: '#A2CCFF', fontSize: 11, marginTop: 4 },
+  resultModal: { position: 'absolute', top: '35%', left: '32%', right: '32%', backgroundColor: 'rgba(0, 16, 34, 0.92)', borderColor: '#68B0FF', borderWidth: 1, borderRadius: 12, alignItems: 'center', padding: 16, gap: 8 },
+  resultTitle: { color: '#F0F7FF', fontSize: 24, fontWeight: '700' },
+  resultBody: { color: '#cfe2ff', fontSize: 14 },
+  modalButton: { marginTop: 8, width: '100%', borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: 'rgba(7, 40, 76, 1)', borderColor: '#68B0FF', borderWidth: 1 }
 });

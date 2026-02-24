@@ -7,7 +7,7 @@ This folder contains the initial iOS-first mobile workspace using Expo SDK 54 + 
 - Expo entrypoint and app config
 - Platform-specific R3F scenes: native uses `@react-three/fiber/native` + `expo-gl`, web uses `@react-three/fiber`
 - React Native HUD overlay layer with joystick + combat actions + run result modal
-- Zustand game state for combat simulation, ability cooldowns, and wave state transitions
+- Zustand game state for combat simulation, ability cooldowns, wave state, and migrated tech/environment systems
 - Shared ship class + wave manager logic extracted for mobile reuse
 - FBX model loading for player/enemy ships from `game/assets/models/ships/*` (with Metro FBX asset config)
 
@@ -50,6 +50,11 @@ npm run web
 - Edge function stubs: `game-center-auth`, `submit-score`, `unlock-achievement`, `verify-iap` under `../supabase/functions/`
 - Mobile client wrappers: `src/services/supabaseClient.js`, `src/game/backend/*`
 
+
+## Migration progress
+
+- Migrated tech tree logic slice (`src/game/logic/techTree.js`) and environment/day-weather cycle (`src/game/logic/weatherCycle.js`).
+- HUD now exposes a lightweight tech panel and weather cycle control to validate migrated systems in runtime.
 
 ## Cross-platform rendering notes
 

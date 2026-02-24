@@ -22,6 +22,8 @@ import {
   stepCombat
 } from '../logic/combatSimulator';
 import { submitScore, unlockAchievement } from '../backend/progressionSync';
+import { canUnlock, createTechState, getTechBonuses, unlockNode } from '../logic/techTree';
+import { createEnvironmentState, cycleWeather, getTimeLabel, getWeatherPreset, tickEnvironment } from '../logic/weatherCycle';
 
 
 function buildScorePayload(state) {
@@ -49,6 +51,8 @@ async function submitRunSummary(state) {
 
 function createInitialState() {
   var selectedClass = 'destroyer';
+  var techState = createTechState();
+  var envState = createEnvironmentState();
 
   return {
     selectedClass: selectedClass,
@@ -60,6 +64,12 @@ function createInitialState() {
     ammo: 24,
     boosts: 2,
     totalKills: 0,
+    gold: 0,
+    techState: techState,
+    techBonuses: getTechBonuses(techState),
+    envState: envState,
+    timeLabel: getTimeLabel(envState),
+    weatherLabel: getWeatherPreset(envState).label,
     pendingFire: false,
     waveBanner: 'Prepare for battle',
     isPaused: false
@@ -124,6 +134,36 @@ export var useGameState = create(function (set, get) {
       });
     },
 
+    unlockTechNode: function (branchKey, nodeIndex) {
+      set(function (state) {
+        var nextTech = { unlocked: { ...state.techState.unlocked } };
+        if (!canUnlock(nextTech, branchKey, nodeIndex, state.gold)) {
+          return state;
+        }
+
+        var spent = unlockNode(nextTech, branchKey, nodeIndex, state.gold);
+        var bonuses = getTechBonuses(nextTech);
+
+        return {
+          techState: nextTech,
+          techBonuses: bonuses,
+          gold: Math.max(0, state.gold - spent),
+          waveBanner: 'Tech upgraded'
+        };
+      });
+    },
+
+    cycleWeatherNow: function () {
+      set(function (state) {
+        var env = { ...state.envState };
+        cycleWeather(env);
+        return {
+          envState: env,
+          weatherLabel: getWeatherPreset(env).label
+        };
+      });
+    },
+
     restartRun: function () {
       set(createInitialState());
     },
@@ -136,6 +176,7 @@ export var useGameState = create(function (set, get) {
 
       var nextAbility = { ...state.abilityState };
       var nextWave = { ...state.waveManager };
+      var nextEnv = { ...state.envState };
       var nextCombat = {
         ...state.combat,
         input: { ...state.combat.input },
@@ -157,7 +198,7 @@ export var useGameState = create(function (set, get) {
       }
 
       if (state.pendingFire) {
-        var damage = nextAbility.active ? 20 : 12;
+        var damage = (nextAbility.active ? 20 : 12) * (1 + state.techBonuses.damage);
         var didFire = firePlayerProjectile(nextCombat, damage, state.ammo > 0);
         if (didFire) {
           set({ ammo: Math.max(0, state.ammo - 1) });
@@ -169,13 +210,19 @@ export var useGameState = create(function (set, get) {
       var nextHealth = Math.max(0, state.health - combatResult.pendingPlayerDamage);
       var event = updateWaveState(nextWave, combatResult.enemyCount, nextHealth, dt);
 
+      tickEnvironment(nextEnv, dt);
+
       var patch = {
         abilityState: nextAbility,
         waveManager: nextWave,
         combat: nextCombat,
         pendingFire: false,
         health: nextHealth,
-        totalKills: state.totalKills + combatResult.kills
+        totalKills: state.totalKills + combatResult.kills,
+        gold: state.gold + Math.round(combatResult.kills * 20 * (1 + state.techBonuses.salvageBonus)),
+        envState: nextEnv,
+        timeLabel: getTimeLabel(nextEnv),
+        weatherLabel: getWeatherPreset(nextEnv).label
       };
 
       if (event === 'wave_start') {
@@ -196,7 +243,8 @@ export var useGameState = create(function (set, get) {
         void submitRunSummary({
           ...state,
           waveManager: nextWave,
-          totalKills: state.totalKills + combatResult.kills
+          totalKills: state.totalKills + combatResult.kills,
+          gold: state.gold + Math.round(combatResult.kills * 20 * (1 + state.techBonuses.salvageBonus))
         });
       }
 
