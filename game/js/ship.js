@@ -64,30 +64,11 @@ function buildShipMesh() {
   bridge.position.set(0, 0.7, -0.6);
   group.add(bridge);
 
-  var turretGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.3, 6);
-  var turretMat = new THREE.MeshToonMaterial({ color: 0x4a6077 });
-  var barrelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.7, 4);
-  var barrelMat = new THREE.MeshToonMaterial({ color: 0x3a5066 });
-
-  var fwdTurret = new THREE.Group();
-  fwdTurret.position.set(0, 0.55, 0.8);
-  fwdTurret.add(new THREE.Mesh(turretGeo, turretMat));
-  var fwdBarrel = new THREE.Mesh(barrelGeo, barrelMat);
-  fwdBarrel.rotation.x = Math.PI / 2;
-  fwdBarrel.position.set(0, 0.1, 0.35);
-  fwdTurret.add(fwdBarrel);
-  group.add(fwdTurret);
-
-  var rearTurret = new THREE.Group();
-  rearTurret.position.set(0, 0.55, -1.4);
-  rearTurret.add(new THREE.Mesh(turretGeo, turretMat));
-  var rearBarrel = new THREE.Mesh(barrelGeo, barrelMat);
-  rearBarrel.rotation.x = Math.PI / 2;
-  rearBarrel.position.set(0, 0.1, 0.35);
-  rearTurret.add(rearBarrel);
-  group.add(rearTurret);
-
-  group.userData.turrets = [fwdTurret, rearTurret];
+  // fire points — invisible hull fire positions (no turret mesh)
+  var portFP = new THREE.Object3D(); portFP.position.set(-0.55, 0.4, 0.3); group.add(portFP);
+  var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.55, 0.4, 0.3); group.add(stbdFP);
+  var bowFP  = new THREE.Object3D(); bowFP.position.set(0, 0.4, 2.0); group.add(bowFP);
+  group.userData.turrets = [portFP, stbdFP, bowFP];
 
   var mastGeo = new THREE.CylinderGeometry(0.02, 0.03, 1.0, 4);
   var mastMat = new THREE.MeshToonMaterial({ color: 0x5a7088 });
@@ -98,51 +79,28 @@ function buildShipMesh() {
   return group;
 }
 
-// --- reposition turrets onto the bounding box of an FBX model ---
-export function placeTurretsFromBounds(mesh, turrets) {
-  if (!turrets || turrets.length === 0) return;
-  var box = new THREE.Box3().setFromObject(mesh);
-  var center = new THREE.Vector3();
-  var size = new THREE.Vector3();
-  box.getCenter(center);
-  box.getSize(size);
-  // convert world-space center to mesh-local space
-  mesh.worldToLocal(center);
-  var topY = center.y + size.y * 0.35;
-  var step = size.z / (turrets.length + 1);
-  var startZ = center.z + size.z * 0.5;
-  for (var i = 0; i < turrets.length; i++) {
-    turrets[i].position.set(center.x, topY, startZ - step * (i + 1));
-  }
-}
-
 // --- async FBX override: replace procedural mesh with Palmov model ---
 function applyShipOverrideAsync(mesh, classKey) {
   var path = getOverridePath(classKey);
   if (!path) return;
   var fitSize = getOverrideSize(classKey) || 8;
-  var turrets = mesh.userData.turrets || [];
+  var firePoints = mesh.userData.turrets || [];
   loadFbxVisual(path, fitSize, true).then(function (visual) {
-    // snapshot children to preserve (turrets handled separately; keep lights like lantern)
+    // snapshot children to preserve (fire points and lights like lantern)
     var keep = [];
     for (var i = 0; i < mesh.children.length; i++) {
       var child = mesh.children[i];
-      if (turrets.indexOf(child) === -1 && child.isLight) {
+      if (firePoints.indexOf(child) !== -1 || child.isLight) {
         keep.push(child);
       }
     }
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
-    placeTurretsFromBounds(mesh, turrets);
-    // re-attach turrets so they move with the ship
-    for (var i = 0; i < turrets.length; i++) {
-      mesh.add(turrets[i]);
-    }
-    mesh.userData.turrets = turrets;
-    // re-attach other children (lantern, etc.)
+    // re-attach fire points and lights so they move with the ship
     for (var i = 0; i < keep.length; i++) {
       mesh.add(keep[i]);
     }
+    mesh.userData.turrets = firePoints;
   }).catch(function () {
     // keep procedural fallback on failure
   });

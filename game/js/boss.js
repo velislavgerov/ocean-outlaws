@@ -6,7 +6,6 @@ import { collideWithTerrain, isLand, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
-import { placeTurretsFromBounds } from "./ship.js";
 
 // --- boss definitions ---
 var BOSS_DEFS = {
@@ -78,19 +77,16 @@ function applyBossOverrideAsync(mesh, bossType) {
   var path = getOverridePath(slot);
   if (!path) return;
   var fit = getOverrideSize(slot) || (bossType === "carrier" ? 18 : 16);
-  var turrets = mesh.userData.turrets || [];
+  var firePoints = mesh.userData.turrets || [];
   var tentacles = mesh.userData.tentacles || [];
   loadFbxVisual(path, fit, true).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
-    // re-attach turrets positioned on the new model
-    if (turrets.length) {
-      placeTurretsFromBounds(mesh, turrets);
-      for (var i = 0; i < turrets.length; i++) {
-        mesh.add(turrets[i]);
-      }
-      mesh.userData.turrets = turrets;
+    // re-attach fire points so they move with the boss
+    for (var i = 0; i < firePoints.length; i++) {
+      mesh.add(firePoints[i]);
     }
+    mesh.userData.turrets = firePoints;
     // re-attach tentacles (kraken)
     for (var i = 0; i < tentacles.length; i++) {
       mesh.add(tentacles[i]);
@@ -212,13 +208,32 @@ function spawnTelegraph(boss, targetX, targetZ, radius, duration, scene) {
   });
 }
 
+// --- pick the boss fire point whose world position is most aligned with the firing angle ---
+function getBossFireOrigin(boss, angle) {
+  var firePoints = boss.mesh.userData.turrets;
+  var dirX = Math.sin(angle);
+  var dirZ = Math.cos(angle);
+  if (firePoints && firePoints.length > 0) {
+    var best = null;
+    var bestDot = -Infinity;
+    var wp = new THREE.Vector3();
+    for (var i = 0; i < firePoints.length; i++) {
+      firePoints[i].getWorldPosition(wp);
+      var dot = (wp.x - boss.posX) * dirX + (wp.z - boss.posZ) * dirZ;
+      if (dot > bestDot) { bestDot = dot; best = wp.clone(); }
+    }
+    if (best) return best;
+  }
+  // fallback: offset from boss centre in firing direction
+  return new THREE.Vector3(boss.posX + dirX * 3, 1.5, boss.posZ + dirZ * 3);
+}
+
 // --- fire a single boss projectile ---
 function fireBossProjectile(boss, angle, speed, scene) {
   ensureGeo();
-  var startX = boss.posX + Math.sin(angle) * 3;
-  var startZ = boss.posZ + Math.cos(angle) * 3;
+  var origin = getBossFireOrigin(boss, angle);
   var mesh = new THREE.Mesh(projGeo, projMat.clone());
-  mesh.position.set(startX, 1.5, startZ);
+  mesh.position.copy(origin);
   scene.add(mesh);
 
   boss.projectiles.push({

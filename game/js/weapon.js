@@ -90,16 +90,7 @@ export function switchWeapon(state, index) {
 
 export function aimWeapons(state, worldTarget) {
   state.aimWorldPos.copy(worldTarget);
-  var ship = state.ship;
-  for (var i = 0; i < state.turretGroups.length; i++) {
-    var turret = state.turretGroups[i];
-    var turretWorld = new THREE.Vector3();
-    turret.getWorldPosition(turretWorld);
-    var dx = worldTarget.x - turretWorld.x;
-    var dz = worldTarget.z - turretWorld.z;
-    var worldAngle = Math.atan2(dx, dz);
-    turret.rotation.y = worldAngle - ship.heading;
-  }
+  // fire points are invisible Object3D markers — no rotation needed
 }
 
 export function fireWeapon(state, scene, resources, upgradeMults) {
@@ -122,9 +113,9 @@ export function fireWeapon(state, scene, resources, upgradeMults) {
   state.shotCount++;
 
   var turretIdx = state.shotCount % state.turretGroups.length;
-  var turret = state.turretGroups[turretIdx];
-  var barrelTip = new THREE.Vector3(0, 0.1, 0.7);
-  turret.localToWorld(barrelTip);
+  var firePoint = state.turretGroups[turretIdx];
+  var barrelTip = new THREE.Vector3();
+  firePoint.getWorldPosition(barrelTip);
 
   var dir = new THREE.Vector3();
   dir.subVectors(state.aimWorldPos, barrelTip);

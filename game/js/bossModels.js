@@ -122,29 +122,19 @@ function buildBattleshipMesh() {
   group.add(mast);
   addBossRadar(group, 0, 3.7, -1.5);
 
-  // broadside turrets (4 total) — larger, more imposing
-  var turretGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.4, 8);
-  var turretMat = new THREE.MeshToonMaterial({ color: 0x5a3420 });
-  var barrelGeo = new THREE.CylinderGeometry(0.06, 0.07, 1.1, 6);
-  var barrelMat = new THREE.MeshToonMaterial({ color: 0x4a2818 });
-
+  // fire points — invisible hull fire positions (no turret mesh)
   var turrets = [];
-  var turretPositions = [
+  var firePositions = [
     [0, 1.1, 3.0],
     [0, 1.1, 1.0],
     [0, 1.1, -0.2],
     [0, 1.1, -3.5]
   ];
-  for (var i = 0; i < turretPositions.length; i++) {
-    var t = new THREE.Group();
-    t.position.set(turretPositions[i][0], turretPositions[i][1], turretPositions[i][2]);
-    t.add(new THREE.Mesh(turretGeo, turretMat));
-    var b = new THREE.Mesh(barrelGeo, barrelMat);
-    b.rotation.x = Math.PI / 2;
-    b.position.set(0, 0.15, 0.55);
-    t.add(b);
-    group.add(t);
-    turrets.push(t);
+  for (var i = 0; i < firePositions.length; i++) {
+    var fp = new THREE.Object3D();
+    fp.position.set(firePositions[i][0], firePositions[i][1], firePositions[i][2]);
+    group.add(fp);
+    turrets.push(fp);
   }
 
   // armor plating (decorative strips along sides)
@@ -242,24 +232,14 @@ function buildCarrierBossMesh() {
     group.add(hangar);
   }
 
-  // defensive turrets
-  var turretGeo = new THREE.CylinderGeometry(0.28, 0.35, 0.3, 8);
-  var turretMat = new THREE.MeshToonMaterial({ color: 0x3a6a3a });
-  var barrelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.8, 6);
-  var barrelMat = new THREE.MeshToonMaterial({ color: 0x2a5a2a });
-
+  // fire points — invisible hull fire positions (no turret mesh)
   var turrets = [];
   var tPos = [[0, 1.1, 3.5], [0, 1.1, -4.0]];
   for (var i = 0; i < tPos.length; i++) {
-    var t = new THREE.Group();
-    t.position.set(tPos[i][0], tPos[i][1], tPos[i][2]);
-    t.add(new THREE.Mesh(turretGeo, turretMat));
-    var b2 = new THREE.Mesh(barrelGeo, barrelMat);
-    b2.rotation.x = Math.PI / 2;
-    b2.position.set(0, 0.1, 0.4);
-    t.add(b2);
-    group.add(t);
-    turrets.push(t);
+    var fp = new THREE.Object3D();
+    fp.position.set(tPos[i][0], tPos[i][1], tPos[i][2]);
+    group.add(fp);
+    turrets.push(fp);
   }
 
   group.userData.turrets = turrets;

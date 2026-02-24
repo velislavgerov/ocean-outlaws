@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import {
   ensureMaterials, getMetalMat, getHullMat, getDeckMat, getBridgeMat,
-  getTurretMat, getBarrelMat, addWaterline, addNavLights, addFlag,
+  addWaterline, addNavLights, addFlag,
   addAnchor, addRadarDish, addBridgeWindows, addSmokestack
 } from "./shipParts.js";
 
@@ -55,31 +55,11 @@ function buildDestroyerMesh() {
   group.add(mast);
   addRadarDish(group, 0, 1.55, -0.4);
 
-  // turrets — two, fore and aft
-  var turretGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.22, 8);
-  var barrelGeo = new THREE.CylinderGeometry(0.03, 0.035, 0.7, 6);
-  var tMat = getTurretMat(0x1e4a7a);
-  var bMat = getBarrelMat(0x1a3e6a);
-
-  var fwdTurret = new THREE.Group();
-  fwdTurret.position.set(0, 0.48, 1.2);
-  fwdTurret.add(new THREE.Mesh(turretGeo, tMat));
-  var fwdBarrel = new THREE.Mesh(barrelGeo, bMat);
-  fwdBarrel.rotation.x = Math.PI / 2;
-  fwdBarrel.position.set(0, 0.08, 0.35);
-  fwdTurret.add(fwdBarrel);
-  group.add(fwdTurret);
-
-  var rearTurret = new THREE.Group();
-  rearTurret.position.set(0, 0.48, -1.4);
-  rearTurret.add(new THREE.Mesh(turretGeo, tMat));
-  var rearBarrel = new THREE.Mesh(barrelGeo, bMat);
-  rearBarrel.rotation.x = Math.PI / 2;
-  rearBarrel.position.set(0, 0.08, 0.35);
-  rearTurret.add(rearBarrel);
-  group.add(rearTurret);
-
-  group.userData.turrets = [fwdTurret, rearTurret];
+  // fire points — invisible hull fire positions (no turret mesh)
+  var portFP = new THREE.Object3D(); portFP.position.set(-0.55, 0.35, 0.4); group.add(portFP);
+  var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.55, 0.35, 0.4); group.add(stbdFP);
+  var bowFP  = new THREE.Object3D(); bowFP.position.set(0, 0.35, 2.5); group.add(bowFP);
+  group.userData.turrets = [portFP, stbdFP, bowFP];
 
   addNavLights(group, 0.55, 0.35, 0.8);
   addFlag(group, 0, 0.35, -2.4);
@@ -141,26 +121,12 @@ function buildCruiserMesh() {
   group.add(mast);
   addRadarDish(group, 0, 2.35, -0.4);
 
-  // three turrets
-  var turretGeo = new THREE.CylinderGeometry(0.22, 0.27, 0.28, 8);
-  var barrelGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.75, 6);
-  var tMat = getTurretMat(0x5a4520);
-  var bMat = getBarrelMat(0x4a3a18);
-
-  var turrets = [];
-  var positions = [[0, 0.6, 1.2], [0, 0.6, -0.1], [0, 0.6, -1.6]];
-  for (var i = 0; i < positions.length; i++) {
-    var t = new THREE.Group();
-    t.position.set(positions[i][0], positions[i][1], positions[i][2]);
-    t.add(new THREE.Mesh(turretGeo, tMat));
-    var b = new THREE.Mesh(barrelGeo, bMat);
-    b.rotation.x = Math.PI / 2;
-    b.position.set(0, 0.1, 0.38);
-    t.add(b);
-    group.add(t);
-    turrets.push(t);
-  }
-  group.userData.turrets = turrets;
+  // fire points — invisible hull fire positions (no turret mesh)
+  var portFP  = new THREE.Object3D(); portFP.position.set(-0.9, 0.5, 0.2); group.add(portFP);
+  var stbdFP  = new THREE.Object3D(); stbdFP.position.set(0.9, 0.5, 0.2); group.add(stbdFP);
+  var bowFP   = new THREE.Object3D(); bowFP.position.set(0, 0.5, 2.0); group.add(bowFP);
+  var sternFP = new THREE.Object3D(); sternFP.position.set(0, 0.5, -2.0); group.add(sternFP);
+  group.userData.turrets = [portFP, stbdFP, bowFP, sternFP];
 
   addNavLights(group, 0.85, 0.5, 1.0);
   addFlag(group, 0, 0.5, -2.6);
@@ -234,31 +200,11 @@ function buildCarrierMesh() {
   group.add(mast);
   addRadarDish(group, 0.75, 2.2, -0.8);
 
-  // defensive turrets
-  var turretGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.22, 8);
-  var barrelGeo = new THREE.CylinderGeometry(0.03, 0.035, 0.6, 6);
-  var tMat = getTurretMat(0x2a5a3a);
-  var bMat = getBarrelMat(0x1e4a2e);
-
-  var fwdTurret = new THREE.Group();
-  fwdTurret.position.set(0, 0.6, 1.5);
-  fwdTurret.add(new THREE.Mesh(turretGeo, tMat));
-  var fwdBarrel = new THREE.Mesh(barrelGeo, bMat);
-  fwdBarrel.rotation.x = Math.PI / 2;
-  fwdBarrel.position.set(0, 0.08, 0.3);
-  fwdTurret.add(fwdBarrel);
-  group.add(fwdTurret);
-
-  var rearTurret = new THREE.Group();
-  rearTurret.position.set(0, 0.6, -2.2);
-  rearTurret.add(new THREE.Mesh(turretGeo, tMat));
-  var rearBarrel = new THREE.Mesh(barrelGeo, bMat);
-  rearBarrel.rotation.x = Math.PI / 2;
-  rearBarrel.position.set(0, 0.08, 0.3);
-  rearTurret.add(rearBarrel);
-  group.add(rearTurret);
-
-  group.userData.turrets = [fwdTurret, rearTurret];
+  // fire points — invisible hull fire positions (no turret mesh)
+  var portFP = new THREE.Object3D(); portFP.position.set(-1.0, 0.55, 0.5); group.add(portFP);
+  var stbdFP = new THREE.Object3D(); stbdFP.position.set(1.0, 0.55, 0.5); group.add(stbdFP);
+  var bowFP  = new THREE.Object3D(); bowFP.position.set(0, 0.55, 2.2); group.add(bowFP);
+  group.userData.turrets = [portFP, stbdFP, bowFP];
 
   addNavLights(group, 1.0, 0.55, 1.2);
   addFlag(group, 0, 0.55, -3.0);
@@ -326,31 +272,11 @@ function buildSubmarineMesh() {
   finAft.position.set(0, 0.15, -1.8);
   group.add(finAft);
 
-  // turrets (low profile)
-  var turretGeo = new THREE.CylinderGeometry(0.14, 0.18, 0.18, 8);
-  var barrelGeo = new THREE.CylinderGeometry(0.025, 0.03, 0.5, 6);
-  var tMat = getTurretMat(0x2a3a4a);
-  var bMat = getBarrelMat(0x1e2e3e);
-
-  var fwdTurret = new THREE.Group();
-  fwdTurret.position.set(0, 0.35, 0.9);
-  fwdTurret.add(new THREE.Mesh(turretGeo, tMat));
-  var fwdBarrel = new THREE.Mesh(barrelGeo, bMat);
-  fwdBarrel.rotation.x = Math.PI / 2;
-  fwdBarrel.position.set(0, 0.06, 0.25);
-  fwdTurret.add(fwdBarrel);
-  group.add(fwdTurret);
-
-  var rearTurret = new THREE.Group();
-  rearTurret.position.set(0, 0.35, -1.3);
-  rearTurret.add(new THREE.Mesh(turretGeo, tMat));
-  var rearBarrel2 = new THREE.Mesh(barrelGeo, bMat);
-  rearBarrel2.rotation.x = Math.PI / 2;
-  rearBarrel2.position.set(0, 0.06, 0.25);
-  rearTurret.add(rearBarrel2);
-  group.add(rearTurret);
-
-  group.userData.turrets = [fwdTurret, rearTurret];
+  // fire points — invisible hull fire positions (no turret mesh)
+  var portFP = new THREE.Object3D(); portFP.position.set(-0.45, 0.25, 0.3); group.add(portFP);
+  var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.45, 0.25, 0.3); group.add(stbdFP);
+  var bowFP  = new THREE.Object3D(); bowFP.position.set(0, 0.25, 2.0); group.add(bowFP);
+  group.userData.turrets = [portFP, stbdFP, bowFP];
 
   addNavLights(group, 0.4, 0.25, 0.6);
   addFlag(group, 0, 0.25, -2.3);

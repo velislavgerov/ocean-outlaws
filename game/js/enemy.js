@@ -10,24 +10,21 @@ import { nextRandom } from "./rng.js";
 var FACTIONS = {
   pirate: {
     label: "Pirate",
-    hullColor: 0xaa2828, deckColor: 0x882020, bridgeColor: 0x993030,
-    turretColor: 0x881818, barrelColor: 0x771010, glassColor: 0x4a1818,
+    hullColor: 0xaa2828, deckColor: 0x882020, bridgeColor: 0x993030, glassColor: 0x4a1818,
     speed: 18, turnSpeed: 2.2, engageDist: 12, fireRange: 25, fireCooldown: 1.2,
     hp: 2, goldMult: 1.0, groupSize: [3, 5],
     announce: "Pirate Fleet Approaching!"
   },
   navy: {
     label: "Royal Navy",
-    hullColor: 0x2a4a88, deckColor: 0x3a5a99, bridgeColor: 0x4a6aaa,
-    turretColor: 0x2a4a77, barrelColor: 0x1a3a66, glassColor: 0x1a3a66,
+    hullColor: 0x2a4a88, deckColor: 0x3a5a99, bridgeColor: 0x4a6aaa, glassColor: 0x1a3a66,
     speed: 12, turnSpeed: 1.4, engageDist: 30, fireRange: 38, fireCooldown: 1.0,
     hp: 5, goldMult: 2.0, groupSize: [2, 4],
     announce: "Royal Navy Patrol!"
   },
   merchant: {
     label: "Merchant",
-    hullColor: 0x886838, deckColor: 0x997848, bridgeColor: 0xaa8858,
-    turretColor: 0x775828, barrelColor: 0x664820, glassColor: 0x4a3820,
+    hullColor: 0x886838, deckColor: 0x997848, bridgeColor: 0xaa8858, glassColor: 0x4a3820,
     speed: 10, turnSpeed: 1.6, engageDist: 50, fireRange: 20, fireCooldown: 2.5,
     hp: 3, goldMult: 3.0, groupSize: [1, 3],
     announce: "Merchant Convoy Spotted!"
@@ -101,8 +98,6 @@ function getFactionMats(faction) {
     hull: new THREE.MeshToonMaterial({ color: f.hullColor }),
     deck: new THREE.MeshToonMaterial({ color: f.deckColor }),
     bridge: new THREE.MeshToonMaterial({ color: f.bridgeColor }),
-    turret: new THREE.MeshToonMaterial({ color: f.turretColor }),
-    barrel: new THREE.MeshToonMaterial({ color: f.barrelColor }),
     glass: new THREE.MeshToonMaterial({ color: f.glassColor })
   };
   return factionMats[faction];
@@ -160,17 +155,11 @@ function buildEnemyMesh(faction) {
   win.position.set(0, 0.52, -0.09);
   group.add(win);
 
-  var turretGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.2, 8);
-  var barrelGeo = new THREE.CylinderGeometry(0.025, 0.03, 0.5, 6);
-  var turret = new THREE.Group();
-  turret.position.set(0, 0.4, 0.6);
-  turret.add(new THREE.Mesh(turretGeo, mats.turret));
-  var barrel = new THREE.Mesh(barrelGeo, mats.barrel);
-  barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0, 0.06, 0.25);
-  turret.add(barrel);
-  group.add(turret);
-  group.userData.turret = turret;
+  // fire points — invisible hull fire positions (no turret mesh)
+  var portFP = new THREE.Object3D(); portFP.position.set(-0.5, 0.3, 0.3); group.add(portFP);
+  var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.5, 0.3, 0.3); group.add(stbdFP);
+  group.userData.firePoints = [portFP, stbdFP];
+  group.userData.turret = portFP; // backward compat alias
 
   var portMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
   var stbdMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -185,29 +174,20 @@ function buildEnemyMesh(faction) {
   return group;
 }
 
-function placeEnemyTurretFromBounds(mesh, turret) {
-  if (!turret) return;
-  var box = new THREE.Box3().setFromObject(mesh);
-  var size = new THREE.Vector3();
-  box.getSize(size);
-  var y = box.min.y + Math.max(0.2, size.y * 0.4);
-  var z = box.max.z - Math.max(0.4, size.z * 0.18);
-  turret.position.set(0, y, z);
-  turret.rotation.set(0, 0, 0);
-  turret.visible = false;
-  if (!turret.parent) mesh.add(turret);
-}
-
 function applyEnemyOverrideAsync(mesh) {
   var path = getOverridePath("enemy_patrol");
   if (!path) return;
   var fitSize = getOverrideSize("enemy_patrol") || 6;
-  var turret = mesh.userData.turret || null;
+  var firePoints = mesh.userData.firePoints || [];
   loadFbxVisual(path, fitSize, true).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
-    placeEnemyTurretFromBounds(mesh, turret);
-    mesh.userData.turret = turret;
+    // re-attach fire points so they move with the ship
+    for (var i = 0; i < firePoints.length; i++) {
+      mesh.add(firePoints[i]);
+    }
+    mesh.userData.firePoints = firePoints;
+    mesh.userData.turret = firePoints[0] || null;
   }).catch(function () {
     // keep procedural fallback on failure
   });
@@ -518,13 +498,6 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       e.mesh.rotation.z = e._smoothRoll;
     }
 
-    // aim turret at player
-    var turret = e.mesh.userData.turret;
-    if (turret) {
-      var localAngle = targetAngle - e.heading;
-      turret.rotation.y = localAngle;
-    }
-
     // --- firing (faction-aware) ---
     var eFireRange = e.fireRange || FIRE_RANGE;
     e.fireTimer -= dt;
@@ -555,11 +528,17 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 function enemyFire(manager, enemy, ship, scene) {
   ensureGeo();
 
-  // barrel tip in world space
-  var turret = enemy.mesh.userData.turret;
-  var barrelTip = new THREE.Vector3(0, 0.08, 0.5);
-  if (turret) {
-    turret.localToWorld(barrelTip);
+  // pick fire point facing the player (port or starboard)
+  var firePoints = enemy.mesh.userData.firePoints;
+  var barrelTip = new THREE.Vector3();
+  if (firePoints && firePoints.length >= 2) {
+    // determine which side faces the player
+    var toPlayerAngle = Math.atan2(ship.posX - enemy.posX, ship.posZ - enemy.posZ);
+    var localAngle = toPlayerAngle - enemy.heading;
+    while (localAngle > Math.PI) localAngle -= 2 * Math.PI;
+    while (localAngle < -Math.PI) localAngle += 2 * Math.PI;
+    var fp = localAngle < 0 ? firePoints[0] : firePoints[1]; // port if left, starboard if right
+    fp.getWorldPosition(barrelTip);
   } else {
     barrelTip.set(enemy.posX, 1.0, enemy.posZ);
   }

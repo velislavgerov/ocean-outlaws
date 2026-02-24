@@ -58,30 +58,9 @@ export function createTurretSystem(ship) {
   };
 }
 
-// --- aim turrets toward a world-space target ---
+// --- aim toward a world-space target (fire points need no visual rotation) ---
 export function aimTurrets(turretState, worldTarget) {
   turretState.aimWorldPos.copy(worldTarget);
-  var ship = turretState.ship;
-
-  for (var i = 0; i < turretState.turretGroups.length; i++) {
-    var turret = turretState.turretGroups[i];
-
-    // get turret world position
-    var turretWorld = new THREE.Vector3();
-    turret.getWorldPosition(turretWorld);
-
-    // direction from turret to target in world space
-    var dx = worldTarget.x - turretWorld.x;
-    var dz = worldTarget.z - turretWorld.z;
-
-    // angle in world space
-    var worldAngle = Math.atan2(dx, dz);
-
-    // subtract ship heading to get local rotation
-    var localAngle = worldAngle - ship.heading;
-
-    turret.rotation.y = localAngle;
-  }
 }
 
 // --- fire projectile from first available turret ---
@@ -107,13 +86,13 @@ export function fire(turretState, scene, resources, upgradeMults) {
   turretState.cooldown = FIRE_COOLDOWN / fireRateMult;
   turretState.shotCount++;
 
-  // alternate turrets
+  // alternate fire points
   var turretIdx = turretState.shotCount % turretState.turretGroups.length;
-  var turret = turretState.turretGroups[turretIdx];
+  var firePoint = turretState.turretGroups[turretIdx];
 
-  // get barrel tip world position (barrel is at local z=0.35, plus half barrel length ~0.35)
-  var barrelTip = new THREE.Vector3(0, 0.1, 0.7);
-  turret.localToWorld(barrelTip);
+  // get fire point world position
+  var barrelTip = new THREE.Vector3();
+  firePoint.getWorldPosition(barrelTip);
 
   // direction toward aim point
   var dir = new THREE.Vector3();

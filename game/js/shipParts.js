@@ -5,8 +5,6 @@ import * as THREE from "three";
 var hullMats = {};
 var deckMats = {};
 var bridgeMats = {};
-var turretMats = {};
-var barrelMats = {};
 var glassMat = null;
 var metalMat = null;
 var radarMat = null;
@@ -46,22 +44,6 @@ export function getBridgeMat(color) {
     bridgeMats[key] = new THREE.MeshToonMaterial({ color: color });
   }
   return bridgeMats[key];
-}
-
-export function getTurretMat(color) {
-  var key = color.toString(16);
-  if (!turretMats[key]) {
-    turretMats[key] = new THREE.MeshToonMaterial({ color: color });
-  }
-  return turretMats[key];
-}
-
-export function getBarrelMat(color) {
-  var key = color.toString(16);
-  if (!barrelMats[key]) {
-    barrelMats[key] = new THREE.MeshToonMaterial({ color: color });
-  }
-  return barrelMats[key];
 }
 
 // --- waterline stripe (dark band at hull base) ---
