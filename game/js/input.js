@@ -55,7 +55,7 @@ function getTouchZone(clientX) {
 }
 
 function onTouchStart(e) {
-  e.preventDefault();
+  if (isGameTarget(e)) e.preventDefault();
   var changed = e.changedTouches;
   for (var i = 0; i < changed.length; i++) {
     var t = changed[i];
@@ -112,7 +112,7 @@ function onTouchEnd(e) {
 }
 
 function onTouchMove(e) {
-  e.preventDefault();
+  if (isGameTarget(e)) e.preventDefault();
   var changed = e.changedTouches;
   for (var i = 0; i < changed.length; i++) {
     var t = changed[i];
