@@ -193,6 +193,11 @@ export function createStars(scene) {
   return { mesh: mesh, material: material };
 }
 
+// set time of day directly (for multiplayer sync)
+export function setTimeOfDay(state, tod) {
+  state.timeOfDay = tod % 1.0;
+}
+
 // compute nightness factor (0 = day, 1 = full night)
 export function getNightness(timeOfDay) {
   if (timeOfDay < 0.2 || timeOfDay > 0.8) return 1.0;

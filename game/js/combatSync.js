@@ -93,6 +93,20 @@ export function sendWeatherChange(mpState, weatherKey) {
   });
 }
 
+// --- send periodic weather + day/night sync (host → all, ~2Hz) ---
+var lastWeatherSyncSend = 0;
+export function sendWeatherSync(mpState, weatherKey, timeOfDay) {
+  if (!mpState || !mpState.active || !mpState.isHost) return;
+  var now = Date.now();
+  if (now - lastWeatherSyncSend < 500) return;
+  lastWeatherSyncSend = now;
+  broadcast(mpState, {
+    type: "weather_sync",
+    weather: weatherKey,
+    timeOfDay: Math.round(timeOfDay * 10000) / 10000
+  });
+}
+
 // --- send pickup claim (any player → host) ---
 export function sendPickupClaim(mpState, pickupIndex, pickupType) {
   if (!mpState || !mpState.active) return;
@@ -213,6 +227,14 @@ export function handleCombatMessage(msg, context) {
     };
   }
 
+  if (msg.type === "weather_sync") {
+    return {
+      action: "weather_sync",
+      weather: msg.weather,
+      timeOfDay: msg.timeOfDay
+    };
+  }
+
   if (msg.type === "pickup_claim") {
     return {
       action: "pickup_claim",
@@ -313,4 +335,5 @@ export function deadReckonEnemies(enemyMgr, dt) {
 // --- reset combat sync state ---
 export function resetCombatSync() {
   lastBossSend = 0;
+  lastWeatherSyncSend = 0;
 }

@@ -25,7 +25,7 @@ import { loadMapState, resetMapState, getZone, calcStars, completeZone, buildZon
 import { createVoyageChart, showVoyageChart, hideVoyageChart } from "./voyageChart.js";
 import { generateVoyageChart, createVoyageState, moveToNode, getReachableNodes, getNodeTypes, saveVoyageState, loadVoyageState, clearVoyageState } from "./voyageData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeatherDim, getWeatherFoam, getWeatherCloudShadow, maybeChangeWeather, createRain, createSplashes, updateWeather } from "./weather.js";
-import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness } from "./daynight.js";
+import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness, setTimeOfDay } from "./daynight.js";
 import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot, damageBoss } from "./boss.js";
 import { createBossHud, showBossHud, hideBossHud, updateBossHud, showLootBanner } from "./bossHud.js";
 import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewBonuses } from "./crew.js";
@@ -38,7 +38,7 @@ import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.j
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
 import { sendShipState, sendEnemyState, sendFireEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels, fadeRemoteShip } from "./netSync.js";
-import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies } from "./combatSync.js";
+import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendWeatherSync, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies } from "./combatSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
 import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButton, updateVolumeSlider } from "./settingsMenu.js";
@@ -376,6 +376,7 @@ mpState.onBroadcast = function (msg) {
       wave: waveMgr.wave,
       waveState: waveMgr.state,
       weather: weather.current,
+      timeOfDay: Math.round(dayNight.timeOfDay * 10000) / 10000,
       enemies: enemySnap,
       boss: bossSnap,
       hostId: mpState.playerId
@@ -393,8 +394,9 @@ mpState.onBroadcast = function (msg) {
     waveMgr.wave = msg.wave || 1;
     waveMgr.state = msg.waveState || "ACTIVE";
     waveMgr.currentConfig = waveMgr.configs[Math.min(waveMgr.wave - 1, waveMgr.configs.length - 1)];
-    // Restore weather
+    // Restore weather and day/night
     if (msg.weather) setWeather(weather, msg.weather);
+    if (msg.timeOfDay !== undefined) setTimeOfDay(dayNight, msg.timeOfDay);
     // Restore boss
     if (msg.boss && !activeBoss) {
       activeBoss = createBoss(msg.boss.type, msg.boss.x, msg.boss.z, scene, 1);
@@ -549,6 +551,14 @@ function processCombatAction(action) {
   } else if (action.action === "weather_change") {
     // Sync weather from host
     setWeather(weather, action.weather);
+  } else if (action.action === "weather_sync" && !mpState.isHost) {
+    // Periodic weather + day/night correction from host
+    if (action.weather && action.weather !== weather.current) {
+      setWeather(weather, action.weather);
+    }
+    if (action.timeOfDay !== undefined) {
+      setTimeOfDay(dayNight, action.timeOfDay);
+    }
   } else if (action.action === "pickup_claim") {
     // Remove picked-up pickup on other clients
     if (pickupMgr.pickups && action.index < pickupMgr.pickups.length) {
@@ -645,6 +655,7 @@ function startMultiplayerCombat() {
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
   resetDrones(droneMgr, scene);
   setWeather(weather, "calm");
+  setTimeOfDay(dayNight, 0.35);
   setEngineClass(selectedClass);
   gameFrozen = false;
   gameStarted = true;
@@ -970,6 +981,10 @@ function animate() {
     }
     if (isMultiplayerActive(mpState) && mpState.isHost && weather.current !== prevWeather) {
       sendWeatherChange(mpState, weather.current);
+    }
+    // Periodic weather + day/night sync from host (~2Hz)
+    if (isMultiplayerActive(mpState) && mpState.isHost) {
+      sendWeatherSync(mpState, weather.current, dayNight.timeOfDay);
     }
     updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults, activeTerrain);
     var speedRatio = getSpeedRatio(ship);
