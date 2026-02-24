@@ -7,7 +7,7 @@ import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVict
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
-import { initNav, updateNav, handleClick, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
+import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
@@ -47,6 +47,7 @@ import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
 var lastZoneResult = null; // "victory" or "game_over"
+var wasHeld = false; // tracks previous frame hold state for release detection
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -649,6 +650,16 @@ function animate() {
       var clickResult = handleClick(mouse.x, mouse.y);
       if (clickResult === "enemy") clickedEnemy = true;
       consumeClick();
+    }
+
+    // press-and-hold: continuously update nav target while pointer is held
+    if (mouse.held) {
+      handleHold(mouse.x, mouse.y);
+      wasHeld = true;
+    } else if (wasHeld) {
+      // pointer just released — stop movement
+      stopHold();
+      wasHeld = false;
     }
 
     if (abilityState) {

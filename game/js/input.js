@@ -5,7 +5,8 @@ var mouse = {
   x: 0,
   y: 0,
   clicked: false,
-  clickConsumed: false
+  clickConsumed: false,
+  held: false
 };
 
 // keyboard action queue — consumed once per frame
@@ -30,6 +31,13 @@ function onMouseDown(e) {
   if (e.button === 0 && isGameTarget(e)) {
     mouse.clicked = true;
     mouse.clickConsumed = false;
+    mouse.held = true;
+  }
+}
+
+function onMouseUp(e) {
+  if (e.button === 0) {
+    mouse.held = false;
   }
 }
 
@@ -40,7 +48,12 @@ function onTouchStart(e) {
   if (isGameTarget(e)) {
     mouse.clicked = true;
     mouse.clickConsumed = false;
+    mouse.held = true;
   }
+}
+
+function onTouchEnd() {
+  mouse.held = false;
 }
 
 function onTouchMove(e) {
@@ -69,8 +82,11 @@ export function initInput(canvas) {
   gameCanvas = canvas || null;
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mousedown", onMouseDown);
+  window.addEventListener("mouseup", onMouseUp);
   window.addEventListener("touchstart", onTouchStart, { passive: true });
   window.addEventListener("touchmove", onTouchMove, { passive: true });
+  window.addEventListener("touchend", onTouchEnd);
+  window.addEventListener("touchcancel", onTouchEnd);
   window.addEventListener("keydown", onKeyDown);
 }
 

@@ -187,6 +187,31 @@ export function handleClick(clientX, clientY) {
   return "nav";
 }
 
+// --- continuously update nav target while pointer is held (press-and-hold movement) ---
+export function handleHold(clientX, clientY) {
+  if (!navShipRef || !navCameraRef) return;
+  var hit = projectToOcean(clientX, clientY, navCameraRef);
+  if (!hit) return;
+
+  var worldX = intersectPoint.x;
+  var worldZ = intersectPoint.z;
+
+  // skip land — don't steer into terrain
+  if (navTerrainRef && isLand(navTerrainRef, worldX, worldZ)) return;
+
+  markerTargetX = worldX;
+  markerTargetZ = worldZ;
+  markerActive = true;
+  marker.visible = true;
+  setNavTarget(navShipRef, worldX, worldZ);
+}
+
+// --- stop hold movement (clear nav target when pointer released) ---
+export function stopHold() {
+  if (!navShipRef) return;
+  navShipRef.navTarget = null;
+}
+
 // --- get current combat target ---
 export function getCombatTarget() {
   // clear dead targets
