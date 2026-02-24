@@ -1,6 +1,7 @@
 // enemy.js — enemy patrol boats: spawn, faction AI, firing, health, destruction
 import * as THREE from "three";
-import { isLand, collideWithTerrain, terrainBlocksLine } from "./terrain.js";
+import { isLand, collideWithTerrain, terrainBlocksLine, getTerrainAvoidance } from "./terrain.js";
+import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
 import { nextRandom } from "./rng.js";
@@ -324,7 +325,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     _smoothY: 0.3,
     _smoothPitch: 0,
     _smoothRoll: 0,
-    _buoyancyInit: false
+    _buoyancyInit: false,
+    _stuckDetector: createStuckDetector()
   };
 
   manager.enemies.push(enemy);
@@ -418,6 +420,32 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       }
     }
 
+    // terrain avoidance — steer away from nearby obstacles
+    if (terrain) {
+      var avoidRange = e.faction === "merchant" ? 25 : 18;
+      var avoid = getTerrainAvoidance(terrain, e.posX, e.posZ, avoidRange);
+      if (avoid.factor > 0.1) {
+        var avoidHeading = Math.atan2(avoid.awayX, avoid.awayZ);
+        var avoidDiff = normalizeAngle(avoidHeading - steerAngle);
+        steerAngle = normalizeAngle(steerAngle + avoidDiff * avoid.factor);
+        moveSpeed *= Math.max(0.2, 1 - avoid.factor * 0.5);
+      }
+      // forward probe: if land ahead, steer perpendicular
+      var probeX = e.posX + Math.sin(e.heading) * 10;
+      var probeZ = e.posZ + Math.cos(e.heading) * 10;
+      if (isLand(terrain, probeX, probeZ)) {
+        var leftProbeX = e.posX + Math.sin(e.heading - Math.PI * 0.5) * 10;
+        var leftProbeZ = e.posZ + Math.cos(e.heading - Math.PI * 0.5) * 10;
+        var rightProbeX = e.posX + Math.sin(e.heading + Math.PI * 0.5) * 10;
+        var rightProbeZ = e.posZ + Math.cos(e.heading + Math.PI * 0.5) * 10;
+        var leftOpen = !isLand(terrain, leftProbeX, leftProbeZ);
+        var rightOpen = !isLand(terrain, rightProbeX, rightProbeZ);
+        if (leftOpen && !rightOpen) steerAngle = normalizeAngle(e.heading - Math.PI * 0.5);
+        else if (rightOpen && !leftOpen) steerAngle = normalizeAngle(e.heading + Math.PI * 0.5);
+        else steerAngle = normalizeAngle(e.heading + Math.PI); // both blocked: reverse
+      }
+    }
+
     var angleDiff = normalizeAngle(steerAngle - e.heading);
     if (Math.abs(angleDiff) < maxTurn) {
       e.heading = steerAngle;
@@ -431,10 +459,26 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
     }
 
     if (terrain) {
-      var ecol = collideWithTerrain(terrain, e.posX, e.posZ, ePrevX, ePrevZ);
+      var ecol = slideCollision(terrain, e.posX, e.posZ, ePrevX, ePrevZ, e.heading, moveSpeed, dt);
       if (ecol.collided) {
         e.posX = ecol.newX;
         e.posZ = ecol.newZ;
+        var eSlideDiff = ecol.slideHeading - e.heading;
+        while (eSlideDiff > Math.PI) eSlideDiff -= 2 * Math.PI;
+        while (eSlideDiff < -Math.PI) eSlideDiff += 2 * Math.PI;
+        e.heading += eSlideDiff * 0.5;
+        moveSpeed = ecol.slideSpeed;
+      }
+    }
+
+    // stuck detection
+    if (e._stuckDetector) {
+      updateStuck(e._stuckDetector, e.posX, e.posZ, dt);
+      if (moveSpeed > 0.1 && isStuck(e._stuckDetector) && terrain) {
+        var eSafe = nudgeToOpenWater(terrain, e.posX, e.posZ);
+        e.posX = eSafe.x;
+        e.posZ = eSafe.z;
+        e._stuckDetector = createStuckDetector();
       }
     }
 

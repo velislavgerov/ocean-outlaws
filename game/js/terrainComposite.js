@@ -477,6 +477,8 @@ export function resolveVisualCollision(terrain, posX, posZ, prevX, prevZ) {
   var nx = posX;
   var nz = posZ;
   var collided = false;
+  var lastNX = 0;
+  var lastNZ = 0;
 
   for (var it = 0; it < 4; it++) {
     var any = false;
@@ -492,15 +494,15 @@ export function resolveVisualCollision(terrain, posX, posZ, prevX, prevZ) {
       var downDist = Math.abs(nz - minZ);
       var upDist = Math.abs(maxZ - nz);
       var minDist = Math.min(leftDist, rightDist, downDist, upDist);
-      if (minDist === leftDist) nx = minX - 0.02;
-      else if (minDist === rightDist) nx = maxX + 0.02;
-      else if (minDist === downDist) nz = minZ - 0.02;
-      else nz = maxZ + 0.02;
+      if (minDist === leftDist) { nx = minX - 0.02; lastNX = -1; lastNZ = 0; }
+      else if (minDist === rightDist) { nx = maxX + 0.02; lastNX = 1; lastNZ = 0; }
+      else if (minDist === downDist) { nz = minZ - 0.02; lastNX = 0; lastNZ = -1; }
+      else { nz = maxZ + 0.02; lastNX = 0; lastNZ = 1; }
     }
     if (!any) break;
   }
   if (!collided) return null;
-  return { collided: true, newX: nx, newZ: nz };
+  return { collided: true, newX: nx, newZ: nz, normalX: lastNX, normalZ: lastNZ };
 }
 
 export function getTerrainAvoidance(terrain, worldX, worldZ, range) {

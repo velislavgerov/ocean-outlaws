@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { buildClassMesh } from "./shipModels.js";
 import { collideWithTerrain, applyEdgeBoundary, getTerrainAvoidance } from "./terrain.js";
+import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
 
@@ -23,7 +24,7 @@ var NAV_SLOW_RADIUS = 15;
 var NAV_TURN_SPEED = 2.5;
 var TERRAIN_AVOID_RANGE = 15;
 var TERRAIN_SLOW_MULT = 0.72;
-var TERRAIN_AVOID_TURN = 4.4;
+var TERRAIN_AVOID_TURN = 5.5;
 
 // --- fallback procedural ship geometry (original design) ---
 function buildShipMesh() {
@@ -186,7 +187,8 @@ export function createShip(classConfig) {
     _smoothY: 0,
     _smoothPitch: 0,
     _smoothRoll: 0,
-    _buoyancyInit: false
+    _buoyancyInit: false,
+    _stuckDetector: createStuckDetector()
   };
 
   return state;
@@ -308,14 +310,30 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
     ship.posZ += rawWindZ * windDampen * dt;
   }
 
-  // terrain collision — bounce/stop when hitting land
+  // terrain collision — slide along surfaces
   if (terrain) {
-    var col = collideWithTerrain(terrain, ship.posX, ship.posZ, prevX, prevZ);
+    var col = slideCollision(terrain, ship.posX, ship.posZ, prevX, prevZ, ship.heading, ship.speed, dt);
     if (col.collided) {
       ship.posX = col.newX;
       ship.posZ = col.newZ;
-      ship.speed *= 0.45;
+      var slideDiff = col.slideHeading - ship.heading;
+      while (slideDiff > Math.PI) slideDiff -= 2 * Math.PI;
+      while (slideDiff < -Math.PI) slideDiff += 2 * Math.PI;
+      ship.heading += slideDiff * 0.5;
+      ship.speed = col.slideSpeed;
       if (ship.speed < 0) ship.speed = 0;
+    }
+  }
+
+  // stuck detection — nudge to open water if ship is stuck for >3s
+  if (ship._stuckDetector) {
+    updateStuck(ship._stuckDetector, ship.posX, ship.posZ, dt);
+    if ((ship.speed > 0.1 || ship.navTarget) && isStuck(ship._stuckDetector) && terrain) {
+      var safe = nudgeToOpenWater(terrain, ship.posX, ship.posZ);
+      ship.posX = safe.x;
+      ship.posZ = safe.z;
+      ship.speed = 0;
+      ship._stuckDetector = createStuckDetector();
     }
   }
 

@@ -219,17 +219,17 @@ export function getTerrainHeight(terrain, worldX, worldZ) {
 }
 
 // --- public: collide a moving entity with terrain ---
-// Returns { collided, newX, newZ } — pushes entity out of land
+// Returns { collided, newX, newZ, normalX, normalZ } — pushes entity out of land
 export function collideWithTerrain(terrain, posX, posZ, prevX, prevZ) {
-  if (!terrain) return { collided: false, newX: posX, newZ: posZ };
+  if (!terrain) return { collided: false, newX: posX, newZ: posZ, normalX: 0, normalZ: 0 };
   if (terrain.useVisualCollision) {
     var vcol = resolveVisualCollision(terrain, posX, posZ, prevX, prevZ);
     if (vcol) return vcol;
-    return { collided: false, newX: posX, newZ: posZ };
+    return { collided: false, newX: posX, newZ: posZ, normalX: 0, normalZ: 0 };
   }
 
   var h = sampleHeight(terrain, posX, posZ);
-  if (h <= SEA_LEVEL) return { collided: false, newX: posX, newZ: posZ };
+  if (h <= SEA_LEVEL) return { collided: false, newX: posX, newZ: posZ, normalX: 0, normalZ: 0 };
 
   // sample gradient to find push direction (away from higher terrain)
   var step = CELL_SIZE;
@@ -244,21 +244,21 @@ export function collideWithTerrain(terrain, posX, posZ, prevX, prevZ) {
 
   if (gradLen > 0.001) {
     // push along negative gradient (downhill = toward water)
-    var pushX = -gradX / gradLen;
-    var pushZ = -gradZ / gradLen;
+    var normalX = -gradX / gradLen;
+    var normalZ = -gradZ / gradLen;
     // push distance proportional to penetration
     var penetration = h - SEA_LEVEL;
     var pushDist = penetration * 2 + 0.5;
-    var newX = posX + pushX * pushDist;
-    var newZ = posZ + pushZ * pushDist;
+    var newX = posX + normalX * pushDist;
+    var newZ = posZ + normalZ * pushDist;
     // verify the pushed position is actually water
     if (sampleHeight(terrain, newX, newZ) <= SEA_LEVEL) {
-      return { collided: true, newX: newX, newZ: newZ };
+      return { collided: true, newX: newX, newZ: newZ, normalX: normalX, normalZ: normalZ };
     }
   }
 
   // fallback: revert to previous position
-  return { collided: true, newX: prevX, newZ: prevZ };
+  return { collided: true, newX: prevX, newZ: prevZ, normalX: 0, normalZ: 0 };
 }
 
 // --- public: check line-of-sight between two points ---

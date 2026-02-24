@@ -2,7 +2,8 @@
 import * as THREE from "three";
 import { buildBossMesh } from "./bossModels.js";
 import { nextRandom } from "./rng.js";
-import { collideWithTerrain, isLand } from "./terrain.js";
+import { collideWithTerrain, isLand, getTerrainAvoidance } from "./terrain.js";
+import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadFbxVisual } from "./fbxVisual.js";
 import { placeTurretsFromBounds } from "./ship.js";
@@ -147,7 +148,8 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
     _smoothY: 0.5,
     _smoothPitch: 0,
     _smoothRoll: 0,
-    _buoyancyInit: false
+    _buoyancyInit: false,
+    _stuckDetector: createStuckDetector()
   };
 }
 
@@ -349,19 +351,49 @@ export function updateBoss(boss, ship, dt, scene, getWaveHeight, elapsed, enemyM
 
   var engageDist = 25;
   var sf = dist < engageDist ? Math.max(0.1, (dist - 5) / (engageDist - 5)) : 1;
+  var bossMoveSpeed = boss.def.speed * sf;
+
+  // terrain avoidance for boss
+  if (terrain) {
+    var bAvoid = getTerrainAvoidance(terrain, boss.posX, boss.posZ, 22);
+    if (bAvoid.factor > 0.1) {
+      var bAvoidHeading = Math.atan2(bAvoid.awayX, bAvoid.awayZ);
+      var bAvoidDiff = bAvoidHeading - boss.heading;
+      while (bAvoidDiff > Math.PI) bAvoidDiff -= 2 * Math.PI;
+      while (bAvoidDiff < -Math.PI) bAvoidDiff += 2 * Math.PI;
+      boss.heading += bAvoidDiff * bAvoid.factor * dt * 2;
+      bossMoveSpeed *= Math.max(0.2, 1 - bAvoid.factor * 0.5);
+    }
+  }
+
   var bossPrevX = boss.posX;
   var bossPrevZ = boss.posZ;
   if (Math.abs(angleDiff) < Math.PI * 0.6) {
-    boss.posX += Math.sin(boss.heading) * boss.def.speed * sf * dt;
-    boss.posZ += Math.cos(boss.heading) * boss.def.speed * sf * dt;
+    boss.posX += Math.sin(boss.heading) * bossMoveSpeed * dt;
+    boss.posZ += Math.cos(boss.heading) * bossMoveSpeed * dt;
   }
 
-  // terrain collision for boss
+  // terrain collision for boss — slide along surfaces
   if (terrain) {
-    var bcol = collideWithTerrain(terrain, boss.posX, boss.posZ, bossPrevX, bossPrevZ);
+    var bcol = slideCollision(terrain, boss.posX, boss.posZ, bossPrevX, bossPrevZ, boss.heading, bossMoveSpeed, dt);
     if (bcol.collided) {
       boss.posX = bcol.newX;
       boss.posZ = bcol.newZ;
+      var bSlideDiff = bcol.slideHeading - boss.heading;
+      while (bSlideDiff > Math.PI) bSlideDiff -= 2 * Math.PI;
+      while (bSlideDiff < -Math.PI) bSlideDiff += 2 * Math.PI;
+      boss.heading += bSlideDiff * 0.5;
+    }
+  }
+
+  // stuck detection for boss
+  if (boss._stuckDetector) {
+    updateStuck(boss._stuckDetector, boss.posX, boss.posZ, dt);
+    if (bossMoveSpeed > 0.1 && isStuck(boss._stuckDetector) && terrain) {
+      var bSafe = nudgeToOpenWater(terrain, boss.posX, boss.posZ);
+      boss.posX = bSafe.x;
+      boss.posZ = bSafe.z;
+      boss._stuckDetector = createStuckDetector();
     }
   }
 
