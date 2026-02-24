@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Ocean Outlaws Mobile",
+    "slug": "ocean-outlaws-mobile",
+    "version": "0.1.0",
+    "orientation": "landscape",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.oceanoutlaws.mobile"
+    },
+    "android": {
+      "package": "com.oceanoutlaws.mobile"
+    }
+  }
+}
