@@ -36,6 +36,7 @@ import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosi
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
+import { createMerchantManager, updateMerchants, clearMerchants, setMerchantPlayerSpeed } from "./merchant.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
 import { sendShipState, sendEnemyState, sendFireEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels, fadeRemoteShip } from "./netSync.js";
 import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendWeatherSync, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies } from "./combatSync.js";
@@ -122,6 +123,7 @@ var resources = createResources();
 var pickupMgr = createPickupManager();
 var portMgr = createPortManager();
 var crateMgr = createCrateManager();
+var merchantMgr = createMerchantManager();
 var enemyMgr = createEnemyManager();
 var droneMgr = createDroneManager();
 var upgrades = createUpgradeState();
@@ -137,6 +139,9 @@ createMainMenu();
 
 setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   spawnPickup(pickupMgr, x, y, z, scene);
+  if (faction === "merchant") {
+    spawnPickup(pickupMgr, x, y, z, scene); // extra drop for merchants
+  }
   var techB = getTechBonuses(techState);
   var factionMult = getFactionGoldMult(faction);
   var gld = Math.round(GOLD_PER_KILL * factionMult * (1 + techB.salvageBonus));
@@ -236,6 +241,7 @@ createSettingsMenu({
     hideBossHud();
     clearPorts(portMgr, scene);
     clearCrates(crateMgr, scene);
+    clearMerchants(merchantMgr, scene);
     if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
     if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
     upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
@@ -527,6 +533,7 @@ function processCombatAction(action) {
       addKillFeedEntry("Fleet " + (action.wave || waveMgr.wave) + " defeated!", "#44dd66");
       clearPickups(pickupMgr, scene);
       clearCrates(crateMgr, scene);
+      clearMerchants(merchantMgr, scene);
       if (activeBoss) {
         removeBoss(activeBoss, scene);
         activeBoss = null;
@@ -653,6 +660,7 @@ function startMultiplayerCombat() {
   // Use the first zone for multiplayer, with shared terrain seed
   selectedClass = mpState.players[mpState.playerId].shipClass || selectedClass || "cruiser";
   var classCfg = getShipClass(selectedClass);
+  setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
   resetWaveManager(waveMgr, null, 1);
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
@@ -673,6 +681,7 @@ function startMultiplayerCombat() {
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
+  clearMerchants(merchantMgr, scene);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -829,7 +838,7 @@ function buildNodeWaveConfigs(nodeType, col, totalCols) {
     waves = Math.max(1, waves - 1);
     enemyBase = Math.max(1, enemyBase - 1);
   }
-  var factions = ["pirate", "navy", "merchant"];
+  var factions = ["pirate", "navy"];
   var configs = [];
   for (var wi = 1; wi <= waves; wi++) {
     var cfg = {
@@ -852,6 +861,7 @@ function buildNodeWaveConfigs(nodeType, col, totalCols) {
 
 function startNodeCombat(node, runSeed) {
   var classCfg = getShipClass(selectedClass);
+  setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
   var waveConfigs = buildNodeWaveConfigs(node.type, node.col, activeChart.columns);
   resetWaveManager(waveMgr, waveConfigs);
   resetResources(resources);
@@ -869,6 +879,7 @@ function startNodeCombat(node, runSeed) {
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
+  clearMerchants(merchantMgr, scene);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -958,6 +969,7 @@ function cleanupCombatScene() {
   resetEnemyManager(enemyMgr, scene);
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
+  clearMerchants(merchantMgr, scene);
   clearPickups(pickupMgr, scene);
   resetDrones(droneMgr, scene);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
@@ -969,6 +981,7 @@ function startZoneCombat(classKey, zoneId) {
   runGoldLooted = 0;
   runZonesReached = (runZonesReached || 0) + 1;
   var classCfg = getShipClass(classKey);
+  setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
   var zone = getZone(zoneId);
   resetWaveManager(waveMgr, buildZoneWaveConfigs(zone));
   resetResources(resources);
@@ -991,6 +1004,7 @@ function startZoneCombat(classKey, zoneId) {
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
+  clearMerchants(merchantMgr, scene);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -1102,6 +1116,7 @@ setRestartCallback(function () {
   hideBossHud();
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
+  clearMerchants(merchantMgr, scene);
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
@@ -1298,6 +1313,7 @@ function animate() {
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass);
     updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene, upgrades);
+    updateMerchants(merchantMgr, ship, dt, scene, activeTerrain, elapsed, weatherWaveHeight, enemyMgr, activeZoneId ? getZone(activeZoneId) : null);
     if (mults.autoRepair) {
       var arHp = getPlayerHp(enemyMgr);
       if (arHp.hp < arHp.maxHp) setPlayerHp(enemyMgr, Math.min(arHp.maxHp, arHp.hp + dt));
@@ -1305,7 +1321,7 @@ function animate() {
     var hpInfo = getPlayerHp(enemyMgr);
     var aliveEnemyCount = 0;
     for (var i = 0; i < enemyMgr.enemies.length; i++) {
-      if (enemyMgr.enemies[i].alive) aliveEnemyCount++;
+      if (enemyMgr.enemies[i].alive && !enemyMgr.enemies[i].ambient) aliveEnemyCount++;
     }
     var bossAlive = activeBoss && activeBoss.alive;
     var event = updateWaveState(waveMgr, aliveEnemyCount, hpInfo.hp, hpInfo.maxHp, resources, dt, bossAlive);
@@ -1350,6 +1366,7 @@ function animate() {
         addKillFeedEntry("Fleet " + waveMgr.wave + " defeated!", "#44dd66");
         clearPickups(pickupMgr, scene);
         clearCrates(crateMgr, scene);
+        clearMerchants(merchantMgr, scene);
         if (activeBoss) {
           removeBoss(activeBoss, scene);
           activeBoss = null; setNavBoss(null);

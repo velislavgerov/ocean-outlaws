@@ -192,7 +192,7 @@ export function getZoneStars(state, zoneId) {
 }
 
 // --- faction rotation per wave ---
-var FACTION_ROTATION = ["pirate", "navy", "merchant", "pirate", "navy", "pirate", "merchant", "navy"];
+var FACTION_ROTATION = ["pirate", "navy", "pirate", "navy", "pirate", "navy", "pirate", "navy"];
 
 // --- build wave configs for a zone (replaces global wave configs) ---
 // Final wave marked as boss wave if zone has a boss

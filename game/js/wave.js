@@ -17,7 +17,7 @@ var STATE_GAME_OVER = "GAME_OVER";
 var STATE_VICTORY   = "VICTORY";
 
 // --- faction rotation for default waves ---
-var FACTION_ROTATION = ["pirate", "navy", "merchant", "pirate", "navy", "pirate", "merchant", "navy"];
+var FACTION_ROTATION = ["pirate", "navy", "pirate", "navy", "pirate", "navy", "pirate", "navy"];
 
 // --- build wave config table ---
 function buildWaveConfigs(baseDifficulty) {

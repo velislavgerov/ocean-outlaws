@@ -25,7 +25,7 @@ var FACTIONS = {
   merchant: {
     label: "Merchant",
     hullColor: 0x886838, deckColor: 0x997848, bridgeColor: 0xaa8858, glassColor: 0x4a3820,
-    speed: 10, turnSpeed: 1.6, engageDist: 50, fireRange: 20, fireCooldown: 2.5,
+    speed: 6, turnSpeed: 1.6, engageDist: 50, fireRange: 20, fireCooldown: 2.5,
     hp: 3, goldMult: 3.0, groupSize: [1, 3],
     announce: "Merchant Convoy Spotted!"
   }
@@ -327,6 +327,48 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
   scene.add(mesh);
 }
 
+// --- spawn an ambient enemy at explicit position (used by merchant system) ---
+export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute) {
+  var fDef = FACTIONS[faction] || FACTIONS.pirate;
+  var mesh = buildEnemyMesh(faction);
+  applyEnemyOverrideAsync(mesh);
+  mesh.position.set(x, 0.3, z);
+  mesh.rotation.y = heading;
+
+  var enemy = {
+    mesh: mesh,
+    faction: faction,
+    hp: fDef.hp,
+    maxHp: fDef.hp,
+    alive: true,
+    hitRadius: 2.0,
+    posX: x,
+    posZ: z,
+    heading: heading,
+    speed: speed,
+    fleeSpeed: speed,
+    turnSpeed: fDef.turnSpeed,
+    engageDist: fDef.engageDist,
+    fireRange: fDef.fireRange,
+    fireCooldown: fDef.fireCooldown * (0.8 + nextRandom() * 0.4),
+    fireTimer: 1 + nextRandom() * 2,
+    sinking: false,
+    sinkTimer: 0,
+    _smoothY: 0.3,
+    _smoothPitch: 0,
+    _smoothRoll: 0,
+    _buoyancyInit: false,
+    _stuckDetector: createStuckDetector(),
+    ambient: true,
+    attacked: false,
+    tradeRoute: tradeRoute || null
+  };
+
+  manager.enemies.push(enemy);
+  scene.add(mesh);
+  return enemy;
+}
+
 // --- update all enemies ---
 // waveMgr: wave manager from wave.js (optional, for spawn gating)
 // waveConfig: current wave config with multipliers (optional)
@@ -397,15 +439,27 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
     var ePrevZ = e.posZ;
 
     if (e.faction === "merchant") {
-      // Merchant AI: flee from player, only fire backward when cornered
-      steerAngle = fleeAngle;
-      if (dist < 15) moveSpeed = e.speed * 1.3; // panic burst
+      if (e.ambient && !e.attacked && e.tradeRoute) {
+        // Ambient trade route AI: sail toward endpoint
+        steerAngle = Math.atan2(e.tradeRoute.endX - e.posX, e.tradeRoute.endZ - e.posZ);
+        moveSpeed = e.speed;
+      } else {
+        // Flee AI: no panic burst, speed already below player max
+        steerAngle = fleeAngle;
+        moveSpeed = e.fleeSpeed || e.speed;
+      }
     } else if (e.faction === "navy") {
-      // Navy AI: hold formation at engagement range, broadside fire
-      if (dist < eEngageDist) {
-        // circle strafe — perpendicular to player
-        steerAngle = normalizeAngle(targetAngle + Math.PI * 0.5);
-        moveSpeed = e.speed * 0.6;
+      if (e.ambient && !e.attacked && e.tradeRoute) {
+        // Convoy escort following trade route
+        steerAngle = Math.atan2(e.tradeRoute.endX - e.posX, e.tradeRoute.endZ - e.posZ);
+        moveSpeed = e.speed;
+      } else {
+        // Navy AI: hold formation at engagement range, broadside fire
+        if (dist < eEngageDist) {
+          // circle strafe — perpendicular to player
+          steerAngle = normalizeAngle(targetAngle + Math.PI * 0.5);
+          moveSpeed = e.speed * 0.6;
+        }
       }
     } else {
       // Pirate AI: aggressive rush, close distance fast
@@ -714,6 +768,18 @@ export function damageEnemy(manager, enemy, scene, damageMult) {
   var dmg = Math.round(1 * (damageMult || 1));
   if (dmg < 1) dmg = 1;
   enemy.hp -= dmg;
+  // mark ambient enemies as attacked (triggers flee/combat AI)
+  if (enemy.ambient && !enemy.attacked) {
+    enemy.attacked = true;
+    // propagate aggro to all convoy members
+    if (enemy.convoyId) {
+      for (var ci = 0; ci < manager.enemies.length; ci++) {
+        if (manager.enemies[ci].convoyId === enemy.convoyId) {
+          manager.enemies[ci].attacked = true;
+        }
+      }
+    }
+  }
   if (manager.onHitCallback) {
     manager.onHitCallback(enemy.posX, enemy.mesh.position.y, enemy.posZ, dmg);
   }
