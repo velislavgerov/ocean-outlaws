@@ -472,6 +472,15 @@ export function removeRemoteShip(playerId, scene) {
   }
 }
 
+// --- start graceful fade-out for a disconnected player's ship ---
+export function fadeRemoteShip(playerId) {
+  var r = remoteShips[playerId];
+  if (r && !r.fading) {
+    r.fading = true;
+    r.fadeTimer = 0;
+  }
+}
+
 // --- reset send state (e.g. on game restart) ---
 export function resetSendState() {
   lastSendTime = 0;

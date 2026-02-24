@@ -37,7 +37,7 @@ import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } f
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
-import { sendShipState, sendEnemyState, sendFireEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels } from "./netSync.js";
+import { sendShipState, sendEnemyState, sendFireEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels, fadeRemoteShip } from "./netSync.js";
 import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies } from "./combatSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
@@ -281,6 +281,14 @@ setLobbyCallbacks({
     joinRoom(mpState, code, selectedClass || "cruiser").then(function () {
       showLobby(mpState.roomCode, false);
       updatePlayerList(mpState.players, mpState.playerId);
+      // Also broadcast rejoin request — if game is in progress, host will respond
+      // with rejoin_state and we'll jump into the game. If still in lobby, nothing happens.
+      broadcast(mpState, {
+        type: "player_rejoin",
+        id: mpState.playerId,
+        username: mpState.username,
+        shipClass: selectedClass || "cruiser"
+      });
     });
   },
   onReady: function () {
@@ -325,6 +333,81 @@ mpState.onBroadcast = function (msg) {
     mpState.hostId = msg.hostId;
     hideLobbyScreen();
     startMultiplayerCombat();
+    return;
+  }
+  // Host migration confirmation from new host
+  if (msg.type === "host_migrated") {
+    mpState.hostId = msg.newHostId;
+    if (msg.newHostId !== mpState.playerId) {
+      // We are not the new host — update our hostId reference
+      mpState.isHost = false;
+    }
+    return;
+  }
+  // Player rejoin request — host sends current game state (only during active game)
+  if (msg.type === "player_rejoin" && mpState.isHost && gameStarted) {
+    var rejoinId = msg.id;
+    var rejoinName = msg.username || "Player";
+    addKillFeedEntry(rejoinName + " rejoined!", "#44dd66");
+    sendKillFeedEntry(mpState, rejoinName + " rejoined!", "#44dd66");
+    // Build enemy snapshot for rejoining player
+    var enemySnap = [];
+    for (var ei = 0; ei < enemyMgr.enemies.length; ei++) {
+      var en = enemyMgr.enemies[ei];
+      if (!en.alive && !en.sinking) continue;
+      enemySnap.push({
+        id: ei, x: en.posX, z: en.posZ, h: en.heading,
+        hp: en.hp, maxHp: en.maxHp, alive: en.alive, sinking: en.sinking, faction: en.faction
+      });
+    }
+    // Build boss snapshot
+    var bossSnap = null;
+    if (activeBoss && activeBoss.alive) {
+      bossSnap = {
+        type: activeBoss.type, x: activeBoss.posX, z: activeBoss.posZ,
+        h: activeBoss.heading, hp: activeBoss.hp, maxHp: activeBoss.maxHp,
+        phase: activeBoss.phase
+      };
+    }
+    broadcast(mpState, {
+      type: "rejoin_state",
+      targetId: rejoinId,
+      terrainSeed: mpState.terrainSeed,
+      wave: waveMgr.wave,
+      waveState: waveMgr.state,
+      weather: weather.current,
+      enemies: enemySnap,
+      boss: bossSnap,
+      hostId: mpState.playerId
+    });
+    return;
+  }
+  // Receive rejoin state from host (only if targeted at us)
+  if (msg.type === "rejoin_state" && msg.targetId === mpState.playerId) {
+    mpState.terrainSeed = msg.terrainSeed;
+    mpState.hostId = msg.hostId;
+    mpState.isHost = false;
+    hideLobbyScreen();
+    startMultiplayerCombat();
+    // Restore wave state from host
+    waveMgr.wave = msg.wave || 1;
+    waveMgr.state = msg.waveState || "ACTIVE";
+    waveMgr.currentConfig = waveMgr.configs[Math.min(waveMgr.wave - 1, waveMgr.configs.length - 1)];
+    // Restore weather
+    if (msg.weather) setWeather(weather, msg.weather);
+    // Restore boss
+    if (msg.boss && !activeBoss) {
+      activeBoss = createBoss(msg.boss.type, msg.boss.x, msg.boss.z, scene, 1);
+      if (activeBoss) {
+        activeBoss.hp = msg.boss.hp;
+        activeBoss.maxHp = msg.boss.maxHp;
+        activeBoss.phase = msg.boss.phase;
+        setNavBoss(activeBoss);
+        showBossHud(activeBoss.def.name);
+      }
+    }
+    showBanner("Rejoined!", 2);
+    addKillFeedEntry("Rejoined the game", "#44dd66");
     return;
   }
   // Let netSync handle ship_state and fire visuals
@@ -499,14 +582,28 @@ function processCombatAction(action) {
 }
 
 
-mpState.onDisconnect = function (playerId) {
-  addKillFeedEntry("Player disconnected", "#cc6644");
+mpState.onDisconnect = function (playerId, username) {
+  var name = username || "Player";
+  addKillFeedEntry(name + " disconnected", "#cc6644");
+  // Start graceful ship fade-out
+  fadeRemoteShip(playerId);
+  // Broadcast disconnect notice to others
+  if (isMultiplayerActive(mpState)) {
+    sendKillFeedEntry(mpState, name + " disconnected", "#cc6644");
+  }
 };
 
 mpState.onHostMigrated = function (newHostId) {
   if (newHostId === mpState.playerId) {
-    showBanner("You are now the host", 3);
-    addKillFeedEntry("Host migrated to you", "#ffcc44");
+    showBanner("HOST MIGRATION", 2);
+    addKillFeedEntry("Host migrated to you — taking over", "#ffcc44");
+    // New host immediately starts running enemy AI / boss / wave / weather
+    // No explicit state transfer needed — new host already has synced enemy positions
+    // and wave state from being a client. The host flag switch in multiplayer.js
+    // means sendEnemyState/sendBossState will now fire from this client.
+  } else {
+    showBanner("HOST MIGRATION", 2);
+    addKillFeedEntry("New host: " + (mpState.players[newHostId] ? mpState.players[newHostId].username : "Player"), "#ffcc44");
   }
 };
 

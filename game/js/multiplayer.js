@@ -78,12 +78,14 @@ export function createMultiplayerState() {
     hostId: null,
     gameStarted: false,
     terrainSeed: 0,
+    migrating: false,
     // callbacks
     onPlayersChanged: null,
     onGameStart: null,
     onBroadcast: null,
     onDisconnect: null,
     onHostMigrated: null,
+    onPlayerRejoin: null,
     // disconnect tracking
     disconnectTimers: {}
   };
@@ -283,7 +285,14 @@ function syncPresence(state, presenceState) {
 
 // --- handle player disconnect ---
 function handlePlayerDisconnect(state, playerId) {
-  // Set a timeout before removing player
+  // Capture username before removal for kill feed
+  var username = state.players[playerId] ? state.players[playerId].username : "Unknown";
+  var wasHost = playerId === state.hostId;
+
+  // Fire disconnect callback immediately so UI can show fade + kill feed
+  if (state.onDisconnect) state.onDisconnect(playerId, username);
+
+  // Set a timeout before cleaning up player data
   state.disconnectTimers[playerId] = setTimeout(function () {
     delete state.players[playerId];
     var idx = state.joinOrder.indexOf(playerId);
@@ -291,11 +300,10 @@ function handlePlayerDisconnect(state, playerId) {
     delete state.disconnectTimers[playerId];
 
     // Host migration if the disconnected player was host
-    if (playerId === state.hostId) {
+    if (wasHost) {
       migrateHost(state);
     }
     if (state.onPlayersChanged) state.onPlayersChanged(state.players);
-    if (state.onDisconnect) state.onDisconnect(playerId);
   }, DISCONNECT_TIMEOUT);
 }
 
@@ -308,6 +316,7 @@ function migrateHost(state) {
       state.hostId = pid;
       if (pid === state.playerId) {
         state.isHost = true;
+        state.migrating = true;
         // Update presence to reflect new host status
         if (channel) {
           channel.track({
@@ -319,7 +328,15 @@ function migrateHost(state) {
             isHost: true
           });
         }
-        console.log("[MP] Host migrated to this client");
+        // Broadcast host_migrated after brief pause for state transfer
+        setTimeout(function () {
+          broadcast(state, {
+            type: "host_migrated",
+            newHostId: state.playerId
+          });
+          state.migrating = false;
+          console.log("[MP] Host migrated to this client");
+        }, HOST_MIGRATE_DELAY);
       }
       state.players[pid].isHost = true;
       if (state.onHostMigrated) state.onHostMigrated(pid);
