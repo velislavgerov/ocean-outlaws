@@ -8,16 +8,12 @@ var MAP_SIZE = 400;           // world units, matches ocean plane
 var GRID_RES = 128;           // heightmap resolution (NxN)
 var CELL_SIZE = MAP_SIZE / GRID_RES;
 var SEA_LEVEL = 0.0;          // threshold: above = land, below = water
-var TERRAIN_HEIGHT = 4;       // max land elevation (lowered for small islands)
-var BEACH_HEIGHT = 0.8;       // height below which land counts as beach
 var NOISE_SCALE = 0.02;       // noise frequency tuned for island-sized features
 var OCTAVES = 4;
 var PERSISTENCE = 0.5;
 var LACUNARITY = 2.0;
 var SPAWN_CLEAR_RADIUS = 40;  // keep center clear for player spawn
 var COLLISION_RADIUS = 1.5;   // ship collision sampling radius
-var BOUNCE_STRENGTH = 8;      // push-back force on collision
-var TERRAIN_VISUAL_Y_OFFSET = 4.0;
 var VISUAL_COLLIDER_PAD = 0.35;
 
 // --- map boundary ---
@@ -207,14 +203,14 @@ function sampleHeight(terrain, worldX, worldZ) {
 // --- public: check if a world position is on land ---
 export function isLand(terrain, worldX, worldZ) {
   if (!terrain) return false;
-  if (terrain.useVisualCollision && pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS)) return true;
+  if (terrain.useVisualCollision) return pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS);
   return sampleHeight(terrain, worldX, worldZ) > SEA_LEVEL;
 }
 
 // --- public: get terrain height at world position ---
 export function getTerrainHeight(terrain, worldX, worldZ) {
   if (!terrain) return -1;
-  if (terrain.useVisualCollision && pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS)) return 1;
+  if (terrain.useVisualCollision) return pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS) ? 1 : -1;
   return sampleHeight(terrain, worldX, worldZ);
 }
 
@@ -296,192 +292,15 @@ export function terrainBlocksLine(terrain, x1, z1, x2, z2) {
   return false;
 }
 
-// --- marching squares: interpolated shoreline vertex along cell edge ---
-// Returns the interpolated position (0..1 fraction) where sea level crosses
-function edgeLerp(hA, hB) {
-  var denom = hA - hB;
-  if (Math.abs(denom) < 0.0001) return 0.5;
-  return Math.max(0, Math.min(1, hA / denom));
-}
-
-// Convert heightmap value to mesh Y with gentle beach slope
-function heightToY(h) {
-  if (h <= SEA_LEVEL) return 0;
-  // gradual beach ramp: ease-in for low heights
-  var beachRamp = Math.min(h / BEACH_HEIGHT, 1.0);
-  beachRamp = beachRamp * beachRamp;  // quadratic ease-in for gentle slope
-  return h * TERRAIN_HEIGHT * (0.3 + 0.7 * beachRamp);
-}
-
-// Edge connectivity: edge 0=bottom(0→1), 1=right(1→2), 2=top(3→2), 3=left(0→3)
-var EDGE_FROM = [0, 1, 3, 0];
-var EDGE_TO   = [1, 2, 2, 3];
-
-// --- build 3D mesh from heightmap using marching squares ---
-// Interpolates shoreline edges for smooth, curved coastlines that match
-// the bilinear-interpolated collision boundary exactly.
-function buildTerrainMesh(heightmap) {
-  var size = heightmap.size;
-  var data = heightmap.data;
-  var half = MAP_SIZE / 2;
-
-  var positions = [];
-  var colors = [];
-
-  var colorLand = new THREE.Color(0x55aa3a);
-  var colorDirt = new THREE.Color(0xaa7a18);
-  var colorBeach = new THREE.Color(0xf0dda8);
-  var colorPeak = new THREE.Color(0x6a6a6a);
-
-  for (var iy = 0; iy < size - 1; iy++) {
-    for (var ix = 0; ix < size - 1; ix++) {
-      var h00 = data[iy * size + ix];
-      var h10 = data[iy * size + ix + 1];
-      var h01 = data[(iy + 1) * size + ix];
-      var h11 = data[(iy + 1) * size + ix + 1];
-
-      // marching squares case index: bit per corner above sea level
-      var caseIdx =
-        (h00 > SEA_LEVEL ? 1 : 0) |
-        (h10 > SEA_LEVEL ? 2 : 0) |
-        (h11 > SEA_LEVEL ? 4 : 0) |
-        (h01 > SEA_LEVEL ? 8 : 0);
-
-      // skip all-water cells
-      if (caseIdx === 0) continue;
-
-      // world-space corners of this cell
-      var x0 = (ix / GRID_RES) * MAP_SIZE - half;
-      var x1 = ((ix + 1) / GRID_RES) * MAP_SIZE - half;
-      var z0 = (iy / GRID_RES) * MAP_SIZE - half;
-      var z1 = ((iy + 1) / GRID_RES) * MAP_SIZE - half;
-
-      // corners: 0=SW(x0,z0) 1=SE(x1,z0) 2=NE(x1,z1) 3=NW(x0,z1)
-      var cx = [x0, x1, x1, x0];
-      var cz = [z0, z0, z1, z1];
-      var ch = [h00, h10, h11, h01];
-      var cy = [heightToY(h00), heightToY(h10), heightToY(h11), heightToY(h01)];
-
-      // interpolated edge crossing points where sea level meets cell edges
-      var ex = [], ez = [], ey = [];
-      for (var e = 0; e < 4; e++) {
-        var a = EDGE_FROM[e], b = EDGE_TO[e];
-        var t = edgeLerp(ch[a], ch[b]);
-        ex[e] = cx[a] + (cx[b] - cx[a]) * t;
-        ez[e] = cz[a] + (cz[b] - cz[a]) * t;
-        ey[e] = 0;  // shoreline vertices at sea level
-      }
-
-      // all-land: full quad, same as before but with beach slopes
-      if (caseIdx === 15) {
-        pushTri(positions, cx[0], cy[0], cz[0], cx[1], cy[1], cz[1], cx[3], cy[3], cz[3]);
-        pushTri(positions, cx[1], cy[1], cz[1], cx[2], cy[2], cz[2], cx[3], cy[3], cz[3]);
-        var avgH1 = (ch[0] + ch[1] + ch[3]) / 3;
-        var avgH2 = (ch[1] + ch[2] + ch[3]) / 3;
-        colorTriangle(colors, avgH1, colorBeach, colorLand, colorDirt, colorPeak);
-        colorTriangle(colors, avgH2, colorBeach, colorLand, colorDirt, colorPeak);
-        continue;
-      }
-
-      // marching squares triangulation for partial cells
-      // Each case emits triangles covering only the land portion
-      var tris = marchTris(caseIdx, cx, cy, cz, ex, ey, ez);
-      for (var ti = 0; ti < tris.length; ti += 9) {
-        positions.push(
-          tris[ti], tris[ti + 1], tris[ti + 2],
-          tris[ti + 3], tris[ti + 4], tris[ti + 5],
-          tris[ti + 6], tris[ti + 7], tris[ti + 8]
-        );
-        // average height of the triangle's source data for coloring
-        var triAvgH = Math.max(0, (tris[ti + 1] + tris[ti + 4] + tris[ti + 7]) / (3 * TERRAIN_HEIGHT));
-        colorTriangle(colors, triAvgH, colorBeach, colorLand, colorDirt, colorPeak);
-      }
-    }
-  }
-
-  var geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
-
-  var material = new THREE.MeshLambertMaterial({
-    vertexColors: true,
-    flatShading: true,
-    side: THREE.DoubleSide
-  });
-
-  var mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = 4;  // raise terrain above max wave height
-  mesh.renderOrder = 2;
-  return mesh;
-}
-
-function pushTri(arr, ax, ay, az, bx, by, bz, cx, cy, cz) {
-  arr.push(ax, ay, az, bx, by, bz, cx, cy, cz);
-}
-
-// Marching squares triangle tables. Corners: 0=SW 1=SE 2=NE 3=NW.
-// Edges: 0=bottom 1=right 2=top 3=left. Negative = edge idx (offset by -1).
-// caseIdx bits: corner0=1, corner1=2, corner2=4, corner3=8.
-var MARCH_TABLE = [];
-MARCH_TABLE[1]  = [0, -1, -4];
-MARCH_TABLE[2]  = [1, -2, -1];
-MARCH_TABLE[4]  = [2, -3, -2];
-MARCH_TABLE[8]  = [3, -4, -3];
-MARCH_TABLE[3]  = [0, 1, -2,  0, -2, -4];
-MARCH_TABLE[6]  = [1, 2, -3,  1, -3, -1];
-MARCH_TABLE[12] = [3, -4, 2,  2, -4, -2];
-MARCH_TABLE[9]  = [0, -1, 3,  3, -1, -3];
-MARCH_TABLE[5]  = [0, -1, -4,  2, -3, -2];
-MARCH_TABLE[10] = [1, -2, -1,  3, -4, -3];
-MARCH_TABLE[14] = [1, 2, 3,  1, 3, -4,  1, -4, -1];
-MARCH_TABLE[13] = [0, -1, 3,  3, -1, -2,  3, -2, 2];
-MARCH_TABLE[11] = [0, 1, -2,  0, -2, -3,  0, -3, 3];
-MARCH_TABLE[7]  = [0, 1, 2,  0, 2, -3,  0, -3, -4];
-
-function marchTris(caseIdx, cx, cy, cz, ex, ey, ez) {
-  var table = MARCH_TABLE[caseIdx];
-  if (!table) return [];
-  var out = [];
-  for (var i = 0; i < table.length; i++) {
-    var v = table[i];
-    if (v >= 0) { out.push(cx[v], cy[v], cz[v]); }
-    else { var e = -v - 1; out.push(ex[e], ey[e], ez[e]); }
-  }
-  return out;
-}
-
-function colorTriangle(colors, avgH, beach, land, dirt, peak) {
-  var c;
-  if (avgH < BEACH_HEIGHT * 0.3) {
-    c = beach;
-  } else if (avgH < BEACH_HEIGHT) {
-    var t = avgH / BEACH_HEIGHT;
-    c = beach.clone().lerp(dirt, t);
-  } else if (avgH < 0.6) {
-    var t = (avgH - BEACH_HEIGHT) / (0.6 - BEACH_HEIGHT);
-    c = dirt.clone().lerp(land, t);
-  } else {
-    var t = Math.min(1, (avgH - 0.6) / 0.4);
-    c = land.clone().lerp(peak, t);
-  }
-  for (var i = 0; i < 3; i++) {
-    colors.push(c.r, c.g, c.b);
-  }
-}
-
 // --- public: create terrain for a zone ---
 export function createTerrain(seed, difficulty) {
   var heightmap = generateHeightmap(seed, difficulty);
   ensureNavigable(heightmap);
 
-  var baseMesh = buildTerrainMesh(heightmap);
   var mesh = new THREE.Group();
-  mesh.add(baseMesh);
 
   var terrain = {
     mesh: mesh,
-    baseMesh: baseMesh,
     heightmap: heightmap,
     seed: seed,
     difficulty: difficulty,
@@ -504,12 +323,10 @@ export function createTerrain(seed, difficulty) {
       addTieredIslandFieldVisual(mesh, terrain, heightmap, seed).then(function (placed) {
         terrain.placedModelCount = placed;
         terrain.useVisualCollision = placed > 0;
-        baseMesh.visible = placed <= 0;
       });
       return;
     }
     terrain.useVisualCollision = true;
-    baseMesh.visible = false;
   });
 
   return terrain;
