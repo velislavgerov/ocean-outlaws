@@ -5,7 +5,7 @@ import { getRepairCost } from "./upgrade.js";
 import { sampleHeightmap, isHeightmapLand, isLand } from "./terrain.js";
 import { nextRandom } from "./rng.js";
 import { loadGlbVisual } from "./glbVisual.js";
-import { ensureAssetRoles, getRoleVariants } from "./assetRoles.js";
+import { ensureAssetRoles, getRoleVariants, pickRoleVariant } from "./assetRoles.js";
 
 // --- tuning ---
 var PORT_COUNT = 3;              // ports per map
@@ -295,20 +295,20 @@ function buildPortMesh(themeKey) {
 
 function pickPortTheme(themeKey) {
   var normalizedKey = normalizeThemeKey(themeKey);
-  var themedRole = normalizedKey ? getRoleVariants("port.themes." + normalizedKey) : null;
-  var roleThemes = getRoleVariants("port.themes");
-  var themes = themedRole && themedRole.length
-    ? themedRole
-    : roleThemes && roleThemes.length
-      ? roleThemes
-      : getFallbackThemes(normalizedKey);
-  var idx = Math.floor(nextRandom() * themes.length);
-  if (idx < 0 || idx >= themes.length) idx = 0;
-  return themes[idx];
+  var themedKey = normalizedKey ? "port.themes." + normalizedKey : null;
+  var modules = themedKey ? pickRoleVariant(themedKey, null, nextRandom) : null;
+  if (!modules) modules = pickRoleVariant("port.themes", null, nextRandom);
+  if (modules) return modules;
+
+  var fallback = getFallbackThemes(normalizedKey);
+  var idx = Math.floor(nextRandom() * fallback.length);
+  if (idx < 0 || idx >= fallback.length) idx = 0;
+  return fallback[idx];
 }
 
 function hydratePortVisual(group, themeKey) {
   var modules = pickPortTheme(themeKey);
+  if (!Array.isArray(modules) || modules.length === 0) return;
   var visualRoot = new THREE.Group();
   group.add(visualRoot);
 

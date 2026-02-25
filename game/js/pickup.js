@@ -4,7 +4,7 @@ import { addAmmo, addFuel, addParts } from "./resource.js";
 import { addGold } from "./upgrade.js";
 import { nextRandom } from "./rng.js";
 import { loadGlbVisual } from "./glbVisual.js";
-import { ensureAssetRoles, getRoleVariants } from "./assetRoles.js";
+import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 
 // --- tuning ---
 var PICKUP_FLOAT_OFFSET = 0.8;
@@ -77,12 +77,7 @@ var GLOW_COLORS = {
 };
 
 function pickPickupModel(type) {
-  var rolePool = getRoleVariants("pickup." + type);
-  var pool = rolePool && rolePool.length ? rolePool : PICKUP_MODEL_POOLS[type];
-  if (!pool || pool.length === 0) return null;
-  var idx = Math.floor(nextRandom() * pool.length);
-  if (idx < 0 || idx >= pool.length) idx = 0;
-  return pool[idx];
+  return pickRoleVariant("pickup." + type, PICKUP_MODEL_POOLS[type], nextRandom);
 }
 
 // --- build pickup mesh ---

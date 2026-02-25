@@ -4,7 +4,7 @@ import { isLand, collideWithTerrain, terrainBlocksLine, getTerrainAvoidance } fr
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
-import { ensureAssetRoles, getRoleVariants } from "./assetRoles.js";
+import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 import { nextRandom } from "./rng.js";
 
 // --- faction definitions ---
@@ -147,12 +147,7 @@ function getEnemyOverrideSpec(enemy) {
 
 function pickAmbientModelVariant(faction) {
   var key = faction || "merchant";
-  var rolePool = getRoleVariants("ambient." + key);
-  var pool = rolePool && rolePool.length ? rolePool : AMBIENT_MODEL_POOLS[key];
-  if (!pool || pool.length === 0) return null;
-  var idx = Math.floor(nextRandom() * pool.length);
-  if (idx < 0 || idx >= pool.length) idx = 0;
-  return pool[idx];
+  return pickRoleVariant("ambient." + key, AMBIENT_MODEL_POOLS[key], nextRandom);
 }
 
 function applyEnemyOverrideAsync(mesh, enemy) {
