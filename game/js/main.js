@@ -51,6 +51,7 @@ import { loadInfamy, addInfamy, calcRunInfamy, getLegendLevel, getLegendProgress
 import { createInfamyScreen, showInfamyScreen, hideInfamyScreen } from "./infamyScreen.js";
 import { createMainMenu, showMainMenu, hideMainMenu } from "./mainMenu.js";
 import { createRunState, saveRunState as saveRun, loadRunState, hasActiveRun, clearRunState } from "./runState.js";
+import { getRolePickStats, resetRolePickStats } from "./assetRoles.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -1735,3 +1736,11 @@ function animate() {
 }
 
 animate();
+
+// Debug helpers for tuning weighted role entries during playtests.
+window.get_role_pick_stats = function () {
+  return getRolePickStats();
+};
+window.reset_role_pick_stats = function () {
+  resetRolePickStats();
+};

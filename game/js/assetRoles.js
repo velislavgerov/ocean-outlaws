@@ -3,6 +3,7 @@
 var ASSET_ROLE_REGISTRY_PATH = "data/assetRoleRegistry.json";
 var _assetRoles = null;
 var _assetRolesPromise = null;
+var _rolePickStats = {};
 
 function loadAssetRoles() {
   if (_assetRolesPromise) return _assetRolesPromise;
@@ -77,9 +78,51 @@ function pickFromPool(pool, rngFn) {
   return unwrapEntry(pool[pool.length - 1]);
 }
 
+function getPickLabel(pick) {
+  if (pick === null || pick === undefined) return "null";
+  if (typeof pick === "string" || typeof pick === "number" || typeof pick === "boolean") {
+    return String(pick);
+  }
+  if (Array.isArray(pick)) {
+    if (pick.length && pick[0] && typeof pick[0] === "object" && typeof pick[0].path === "string") {
+      return "modules:" + pick[0].path;
+    }
+    return "array(" + pick.length + ")";
+  }
+  if (typeof pick === "object") {
+    if (typeof pick.path === "string") return pick.path;
+    if (typeof pick.key === "string") return "key:" + pick.key;
+    if (typeof pick.value === "string") return "value:" + pick.value;
+  }
+  return "object";
+}
+
+function trackRolePick(roleKey, pick) {
+  if (!roleKey) return;
+  var bucket = _rolePickStats[roleKey];
+  if (!bucket) {
+    bucket = { total: 0, picks: {} };
+    _rolePickStats[roleKey] = bucket;
+  }
+  bucket.total += 1;
+  var label = getPickLabel(pick);
+  if (!bucket.picks[label]) bucket.picks[label] = 0;
+  bucket.picks[label] += 1;
+}
+
 export function pickRoleVariant(roleKey, fallbackPool, rngFn) {
   var rolePool = getRoleVariants(roleKey);
   var pool = rolePool && rolePool.length ? rolePool : fallbackPool;
   if (!Array.isArray(pool)) return null;
-  return pickFromPool(pool, rngFn);
+  var picked = pickFromPool(pool, rngFn);
+  trackRolePick(roleKey, picked);
+  return picked;
+}
+
+export function getRolePickStats() {
+  return JSON.parse(JSON.stringify(_rolePickStats));
+}
+
+export function resetRolePickStats() {
+  _rolePickStats = {};
 }
