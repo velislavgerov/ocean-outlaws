@@ -17,7 +17,6 @@ var GLOW_PULSE_SPEED = 3.0;
 var GLOW_PULSE_MIN = 0.5;
 var SPAWN_DIST_MIN = 30;         // min distance from player
 var SPAWN_DIST_MAX = 100;        // max distance from player
-var MAP_HALF = 200;
 var MAX_CRATES = 8;              // max concurrent crates on map
 
 // crate drop amounts (slightly less than port, more than enemy drops)
@@ -105,9 +104,6 @@ function findCrateSpawnPosition(ship, terrain) {
     var dist = SPAWN_DIST_MIN + nextRandom() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN);
     var x = ship.posX + Math.sin(angle) * dist;
     var z = ship.posZ + Math.cos(angle) * dist;
-
-    // keep within map bounds
-    if (Math.abs(x) > MAP_HALF - 20 || Math.abs(z) > MAP_HALF - 20) continue;
 
     // must be on water
     if (terrain && isLand(terrain, x, z)) continue;

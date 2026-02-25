@@ -34,7 +34,7 @@ import { createCrewPickupManager, spawnCrewPickup, updateCrewPickups, clearCrewP
 import { createCrewSwap, showCrewSwap, hideCrewSwap } from "./crewSwap.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
-import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor, getTerrainMinimapMarkers } from "./terrain.js";
+import { createTerrain, removeTerrain, getTerrainMinimapMarkers, updateTerrainStreaming, shiftTerrainOrigin } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
@@ -51,6 +51,7 @@ import { loadInfamy, addInfamy, calcRunInfamy, getLegendLevel, getLegendProgress
 import { createInfamyScreen, showInfamyScreen, hideInfamyScreen } from "./infamyScreen.js";
 import { createMainMenu, showMainMenu, hideMainMenu } from "./mainMenu.js";
 import { createRunState, saveRunState as saveRun, loadRunState, hasActiveRun, clearRunState } from "./runState.js";
+import { createWorldDebugView, updateWorldDebugView, toggleWorldDebugView, isWorldDebugVisible, zoomWorldDebugView, getWorldDebugState } from "./worldDebugView.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -153,7 +154,11 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   }
   var techB = getTechBonuses(techState);
   var factionMult = getFactionGoldMult(faction);
-  var gld = Math.round(GOLD_PER_KILL * factionMult * (1 + techB.salvageBonus));
+  var lootMult = 1;
+  if (activeTerrain && activeTerrain.getDensityAt) {
+    lootMult = activeTerrain.getDensityAt(x, z).lootMult;
+  }
+  var gld = Math.round(GOLD_PER_KILL * factionMult * (1 + techB.salvageBonus) * lootMult);
   addGold(upgrades, gld);
   runEnemiesSunk++;
   runGoldLooted += gld;
@@ -184,6 +189,7 @@ setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
 var waveMgr = createWaveManager();
 initInput(renderer.domElement);
 createHUD();
+createWorldDebugView();
 
 var audioUnlockHandler = function () {
   unlockAudio();
@@ -1227,21 +1233,187 @@ window.addEventListener("resize", function () {
   resizeCamera(cam, window.innerWidth / window.innerHeight);
 });
 
+var ROLLING_ORIGIN_THRESHOLD = 2200;
+var rollingOriginShifts = 0;
+
+function shiftMeshXZ(mesh, shiftX, shiftZ) {
+  if (!mesh) return;
+  mesh.position.x -= shiftX;
+  mesh.position.z -= shiftZ;
+}
+
+function shiftPosXZ(obj, shiftX, shiftZ) {
+  if (!obj) return;
+  if (obj.posX !== undefined) obj.posX -= shiftX;
+  if (obj.posZ !== undefined) obj.posZ -= shiftZ;
+  if (obj.x !== undefined) obj.x -= shiftX;
+  if (obj.z !== undefined) obj.z -= shiftZ;
+  shiftMeshXZ(obj.mesh, shiftX, shiftZ);
+}
+
+function applyRollingOriginShift(shiftX, shiftZ) {
+  if ((!shiftX && !shiftZ) || !ship) return;
+
+  // player + camera anchors
+  ship.posX -= shiftX;
+  ship.posZ -= shiftZ;
+  if (ship.navTarget) {
+    ship.navTarget.x -= shiftX;
+    ship.navTarget.z -= shiftZ;
+  }
+  shiftMeshXZ(ship.mesh, shiftX, shiftZ);
+  cam.target.x -= shiftX;
+  cam.target.z -= shiftZ;
+  cam.camera.position.x -= shiftX;
+  cam.camera.position.z -= shiftZ;
+
+  // enemies + projectiles + effects
+  for (var ei = 0; ei < enemyMgr.enemies.length; ei++) {
+    var en = enemyMgr.enemies[ei];
+    shiftPosXZ(en, shiftX, shiftZ);
+    if (en.tradeRoute) {
+      if (en.tradeRoute.startX !== undefined) en.tradeRoute.startX -= shiftX;
+      if (en.tradeRoute.startZ !== undefined) en.tradeRoute.startZ -= shiftZ;
+      if (en.tradeRoute.endX !== undefined) en.tradeRoute.endX -= shiftX;
+      if (en.tradeRoute.endZ !== undefined) en.tradeRoute.endZ -= shiftZ;
+    }
+    if (en.routeCenterX !== undefined) en.routeCenterX -= shiftX;
+    if (en.routeCenterZ !== undefined) en.routeCenterZ -= shiftZ;
+  }
+  for (var ep = 0; ep < enemyMgr.projectiles.length; ep++) {
+    var eproj = enemyMgr.projectiles[ep];
+    shiftMeshXZ(eproj.mesh, shiftX, shiftZ);
+    if (eproj.origin) {
+      eproj.origin.x -= shiftX;
+      eproj.origin.z -= shiftZ;
+    }
+  }
+  for (var epa = 0; epa < enemyMgr.particles.length; epa++) shiftMeshXZ(enemyMgr.particles[epa].mesh, shiftX, shiftZ);
+  for (var efe = 0; efe < (enemyMgr.effects || []).length; efe++) shiftMeshXZ(enemyMgr.effects[efe].mesh, shiftX, shiftZ);
+
+  // player weapons and effects
+  if (weapons) {
+    for (var wp = 0; wp < weapons.projectiles.length; wp++) {
+      var p = weapons.projectiles[wp];
+      shiftMeshXZ(p.mesh, shiftX, shiftZ);
+      if (p.origin) {
+        p.origin.x -= shiftX;
+        p.origin.z -= shiftZ;
+      }
+    }
+    for (var we = 0; we < weapons.effects.length; we++) shiftMeshXZ(weapons.effects[we].mesh, shiftX, shiftZ);
+  }
+
+  // boss
+  if (activeBoss) {
+    shiftPosXZ(activeBoss, shiftX, shiftZ);
+    for (var bp = 0; bp < activeBoss.projectiles.length; bp++) shiftMeshXZ(activeBoss.projectiles[bp].mesh, shiftX, shiftZ);
+    for (var bt = 0; bt < activeBoss.telegraphs.length; bt++) shiftMeshXZ(activeBoss.telegraphs[bt].mesh, shiftX, shiftZ);
+    for (var bd = 0; bd < activeBoss.droneSpawns.length; bd++) shiftPosXZ(activeBoss.droneSpawns[bd], shiftX, shiftZ);
+    for (var bta = 0; bta < activeBoss.tentacleAttacks.length; bta++) shiftPosXZ(activeBoss.tentacleAttacks[bta], shiftX, shiftZ);
+    for (var bfx = 0; bfx < activeBoss.effects.length; bfx++) shiftMeshXZ(activeBoss.effects[bfx].mesh, shiftX, shiftZ);
+  }
+
+  // pickups / crates / crew pickups
+  for (var pi = 0; pi < pickupMgr.pickups.length; pi++) shiftPosXZ(pickupMgr.pickups[pi], shiftX, shiftZ);
+  for (var ci = 0; ci < crateMgr.crates.length; ci++) shiftPosXZ(crateMgr.crates[ci], shiftX, shiftZ);
+  for (var cpi = 0; cpi < crewPickupMgr.pickups.length; cpi++) shiftPosXZ(crewPickupMgr.pickups[cpi], shiftX, shiftZ);
+
+  // ports
+  for (var por = 0; por < portMgr.ports.length; por++) shiftPosXZ(portMgr.ports[por], shiftX, shiftZ);
+
+  // drones
+  for (var dr = 0; dr < droneMgr.drones.length; dr++) shiftPosXZ(droneMgr.drones[dr], shiftX, shiftZ);
+  for (var dp = 0; dp < droneMgr.projectiles.length; dp++) shiftMeshXZ(droneMgr.projectiles[dp].mesh, shiftX, shiftZ);
+
+  // streamed terrain chunks
+  if (activeTerrain) shiftTerrainOrigin(activeTerrain, shiftX, shiftZ);
+
+  rollingOriginShifts++;
+  console.log("[WORLD] rolling-origin shift", {
+    shiftX: shiftX,
+    shiftZ: shiftZ,
+    shifts: rollingOriginShifts
+  });
+}
+
+function maybeApplyRollingOrigin() {
+  if (!ship || !activeTerrain || isMultiplayerActive(mpState)) return;
+  var dist = Math.sqrt(ship.posX * ship.posX + ship.posZ * ship.posZ);
+  if (dist < ROLLING_ORIGIN_THRESHOLD) return;
+  var shiftX = Math.round(ship.posX);
+  var shiftZ = Math.round(ship.posZ);
+  applyRollingOriginShift(shiftX, shiftZ);
+}
+
 var clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  var dt = Math.min(clock.getDelta(), 0.1);
-  var elapsed = clock.getElapsedTime();
+var simElapsed = 0;
+
+function buildWorldDebugSnapshot() {
+  var terrainState = activeTerrain && activeTerrain.getDebugState ? activeTerrain.getDebugState() : null;
+  var chunkSize = terrainState && terrainState.chunkSize ? terrainState.chunkSize : 400;
+  var chunks = [];
+  if (activeTerrain && activeTerrain.chunks && activeTerrain.chunks.forEach) {
+    activeTerrain.chunks.forEach(function (chunk) {
+      if (!chunk) return;
+      chunks.push({
+        key: chunk.key,
+        cx: chunk.cx,
+        cy: chunk.cy,
+        state: chunk.state,
+        ready: !!chunk.ready,
+        placedModelCount: chunk.placedModelCount || 0,
+        minimapMarkerCount: chunk.minimapMarkers ? chunk.minimapMarkers.length : 0
+      });
+    });
+  }
+
+  var markers = activeTerrain ? getTerrainMinimapMarkers(activeTerrain) : [];
+  var enemies = [];
+  for (var i = 0; i < enemyMgr.enemies.length; i++) {
+    var e = enemyMgr.enemies[i];
+    if (!e || !e.alive) continue;
+    enemies.push({ x: e.posX, z: e.posZ });
+  }
+
+  return {
+    chunkSize: chunkSize,
+    simElapsed: simElapsed,
+    player: ship ? { x: ship.posX, z: ship.posZ, heading: ship.heading } : null,
+    chunks: chunks,
+    markers: markers,
+    enemies: enemies,
+    terrain: terrainState
+  };
+}
+
+function runFrame(dt) {
+  dt = Math.min(dt || 0, 0.1);
+  simElapsed += dt;
+  var elapsed = simElapsed;
   var input = getInput();
   var mouse = getMouse();
+  var actions = getKeyActions();
+  var combatActions = [];
+  for (var ai = 0; ai < actions.length; ai++) {
+    var action = actions[ai];
+    if (action === "worldDebugToggle") {
+      toggleWorldDebugView();
+    } else if (action === "worldDebugZoomIn") {
+      zoomWorldDebugView(1.15);
+    } else if (action === "worldDebugZoomOut") {
+      zoomWorldDebugView(1 / 1.15);
+    } else {
+      combatActions.push(action);
+    }
+  }
 
   if (!gameFrozen && !cardPickerOpen && !crewSwapOpen && !techScreenOpen && !portScreenOpen && !isSettingsOpen() && gameStarted) {
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
 
     // process keyboard actions (QWER ability bar)
-    var actions = getKeyActions();
-    for (var ki = 0; ki < actions.length; ki++) {
-      var act = actions[ki];
+    for (var ki = 0; ki < combatActions.length; ki++) {
+      var act = combatActions[ki];
       if (act === "slot0" || act === "slot1" || act === "slot2") {
         var slotIdx = parseInt(act.charAt(4));
         if (weapons) {
@@ -1316,11 +1488,6 @@ function animate() {
     var wDim = getWeatherDim(weather);
     var lightDim = weather.lightningActive ? 3.0 : wDim;
     applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, lightDim);
-    // edge fog: increase fog density as ship approaches map boundary
-    var edgeFog = getEdgeFactor(ship.posX, ship.posZ);
-    if (edgeFog > 0) {
-      scene.fog.density += edgeFog * 0.04;  // layer on top of day/night fog
-    }
     updateStars(stars, dayNight.timeOfDay);
     updateShipLantern(ship, getNightness(dayNight.timeOfDay));
     // ocean must update before ships so wave height is current-frame
@@ -1339,6 +1506,10 @@ function animate() {
       sendWeatherSync(mpState, weather.current, dayNight.timeOfDay);
     }
     updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults, activeTerrain);
+    if (activeTerrain) {
+      updateTerrainStreaming(activeTerrain, ship.posX, ship.posZ, ship.heading, ship.speed);
+    }
+    maybeApplyRollingOrigin();
     var speedRatio = getSpeedRatio(ship);
     consumeFuel(resources, speedRatio, dt);
     updateNav(ship, elapsed);
@@ -1701,7 +1872,110 @@ function animate() {
     updateUIEffects(dt);
   }
 
+  if (isWorldDebugVisible()) {
+    updateWorldDebugView(buildWorldDebugSnapshot());
+  }
+
   renderer.render(scene, cam.camera);
 }
+
+function animate() {
+  requestAnimationFrame(animate);
+  runFrame(Math.min(clock.getDelta(), 0.1));
+}
+
+window.advanceTime = function (ms) {
+  var add = Number(ms) || 0;
+  if (add <= 0) return Promise.resolve();
+  var steps = Math.max(1, Math.round(add / (1000 / 60)));
+  var dt = (add / 1000) / steps;
+  for (var i = 0; i < steps; i++) {
+    runFrame(dt);
+  }
+  return Promise.resolve();
+};
+
+window.render_game_to_text = function () {
+  var hp = getPlayerHp(enemyMgr);
+  var terrainState = activeTerrain && activeTerrain.getDebugState ? activeTerrain.getDebugState() : null;
+  var aliveEnemies = [];
+  var enemyPlaceholders = 0;
+  var enemyModeled = 0;
+  for (var i = 0; i < enemyMgr.enemies.length; i++) {
+    var e = enemyMgr.enemies[i];
+    if (!e.alive) continue;
+    var isPlaceholder = false;
+    if (e.mesh && e.mesh.children && e.mesh.children.length > 0) {
+      var head = e.mesh.children[0];
+      if (head.isMesh && head.material && head.material.color && head.material.color.getHex) {
+        var hex = head.material.color.getHex();
+        isPlaceholder = (hex === 0xff00ff || hex === 0x446688) && head.geometry && head.geometry.type === "BoxGeometry";
+      }
+    }
+    if (isPlaceholder) enemyPlaceholders++;
+    else enemyModeled++;
+
+    aliveEnemies.push({
+      x: Math.round(e.posX * 10) / 10,
+      z: Math.round(e.posZ * 10) / 10,
+      hp: e.hp,
+      modelLoaded: !isPlaceholder
+    });
+    if (aliveEnemies.length >= 12) break;
+  }
+
+  var visualChunkCount = 0;
+  var visualModelCount = 0;
+  var terrainMarkerCount = 0;
+  if (activeTerrain && activeTerrain.chunks && activeTerrain.chunks.forEach) {
+    activeTerrain.chunks.forEach(function (chunk) {
+      if (!chunk || chunk.state !== "active") return;
+      if ((chunk.placedModelCount || 0) > 0) {
+        visualChunkCount++;
+        visualModelCount += chunk.placedModelCount || 0;
+      }
+      if (chunk.minimapMarkers && chunk.minimapMarkers.length) {
+        terrainMarkerCount += chunk.minimapMarkers.length;
+      }
+    });
+  }
+
+  var payload = {
+    coordinateSystem: "X right/east, Z forward/south, Y up. Values are current rebased world coordinates.",
+    mode: gameStarted ? (gameFrozen ? "frozen" : "combat") : "menu",
+    weather: weather ? weather.current : "calm",
+    player: ship ? {
+      x: Math.round(ship.posX * 10) / 10,
+      z: Math.round(ship.posZ * 10) / 10,
+      heading: Math.round(ship.heading * 100) / 100,
+      speed: Math.round(ship.speed * 100) / 100,
+      hp: Math.round(hp.hp * 100) / 100,
+      maxHp: Math.round(hp.maxHp * 100) / 100,
+      navTarget: ship.navTarget ? {
+        x: Math.round(ship.navTarget.x * 10) / 10,
+        z: Math.round(ship.navTarget.z * 10) / 10
+      } : null
+    } : null,
+    enemies: aliveEnemies,
+    pickups: pickupMgr && pickupMgr.pickups ? pickupMgr.pickups.length : 0,
+    crates: crateMgr && crateMgr.crates ? crateMgr.crates.length : 0,
+    ports: portMgr && portMgr.ports ? portMgr.ports.length : 0,
+    enemyModels: {
+      modeled: enemyModeled,
+      placeholders: enemyPlaceholders
+    },
+    terrain: terrainState,
+    terrainVisuals: {
+      activeVisualChunks: visualChunkCount,
+      placedModels: visualModelCount,
+      minimapMarkers: terrainMarkerCount
+    },
+    worldDebug: getWorldDebugState(),
+    rollingOriginShifts: rollingOriginShifts,
+    simElapsed: Math.round(simElapsed * 100) / 100
+  };
+
+  return JSON.stringify(payload);
+};
 
 animate();

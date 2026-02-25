@@ -135,7 +135,16 @@ function onKeyDown(e) {
   var tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
   var key = e.key;
-  if (key === "q" || key === "Q") {
+  if (key === "F2") {
+    keyActions.push("worldDebugToggle");
+    e.preventDefault();
+  } else if (key === "+" || key === "=") {
+    keyActions.push("worldDebugZoomIn");
+    e.preventDefault();
+  } else if (key === "-" || key === "_") {
+    keyActions.push("worldDebugZoomOut");
+    e.preventDefault();
+  } else if (key === "q" || key === "Q") {
     keyActions.push("slot0");
   } else if (key === "w" || key === "W") {
     keyActions.push("slot1");

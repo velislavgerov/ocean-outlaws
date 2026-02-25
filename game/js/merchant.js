@@ -16,22 +16,25 @@ var CONVOY_CHANCE = 0.2;         // 20% chance a spawn is a convoy
 var CONVOY_SIZE_MIN = 2;
 var CONVOY_SIZE_MAX = 3;
 var ESCORT_FACTION = "navy";
-var MAP_HALF = 200;
+var ROUTE_HALF_SPAN = 220;
 var TRADE_ROUTE_MARGIN = 30;     // inset from map edge for spawn/destination points
-var DESPAWN_MARGIN = 15;         // extra buffer past map edge before despawn
+var DESPAWN_DISTANCE = 340;      // despawn when far off the spawned trade lane bubble
 
 // --- edge helpers ---
 // Returns a point on the given edge (0=north, 1=east, 2=south, 3=west).
 // t is 0..1 along the edge.
-function edgePoint(edge, t) {
+function edgePoint(edge, t, originX, originZ) {
   var margin = TRADE_ROUTE_MARGIN;
-  var limit = MAP_HALF - margin;
+  var half = ROUTE_HALF_SPAN;
+  var limit = half - margin;
+  var ox = originX || 0;
+  var oz = originZ || 0;
   switch (edge) {
-    case 0: return { x: -limit + t * limit * 2, z: -MAP_HALF + margin }; // north
-    case 1: return { x:  MAP_HALF - margin,      z: -limit + t * limit * 2 }; // east
-    case 2: return { x: -limit + t * limit * 2, z:  MAP_HALF - margin }; // south
-    case 3: return { x: -MAP_HALF + margin,      z: -limit + t * limit * 2 }; // west
-    default: return { x: 0, z: 0 };
+    case 0: return { x: ox - limit + t * limit * 2, z: oz - half + margin }; // north
+    case 1: return { x: ox + half - margin,         z: oz - limit + t * limit * 2 }; // east
+    case 2: return { x: ox - limit + t * limit * 2, z: oz + half - margin }; // south
+    case 3: return { x: ox - half + margin,         z: oz - limit + t * limit * 2 }; // west
+    default: return { x: ox, z: oz };
   }
 }
 
@@ -40,9 +43,9 @@ function oppositeEdge(edge) {
 }
 
 // Pick a spawn point on an edge avoiding land.
-function pickEdgeSpawn(edge, terrain) {
+function pickEdgeSpawn(edge, terrain, originX, originZ) {
   for (var attempt = 0; attempt < 20; attempt++) {
-    var pt = edgePoint(edge, nextRandom());
+    var pt = edgePoint(edge, nextRandom(), originX, originZ);
     if (!terrain || !isLand(terrain, pt.x, pt.z)) return pt;
   }
   return null;
@@ -70,15 +73,18 @@ export function getMerchantCount(mgr) {
 }
 
 // --- spawn a merchant group (solo or convoy) ---
-function spawnMerchantGroup(mgr, scene, terrain, enemyMgr) {
+function spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr) {
   if (mgr.merchants.length >= MAX_MERCHANTS) return;
+  if (!ship) return;
 
   // pick trade route: start on one edge, destination on opposite edge
   var startEdge = Math.floor(nextRandom() * 4);
   var endEdge = oppositeEdge(startEdge);
-  var startPt = pickEdgeSpawn(startEdge, terrain);
+  var originX = ship.posX;
+  var originZ = ship.posZ;
+  var startPt = pickEdgeSpawn(startEdge, terrain, originX, originZ);
   if (!startPt) return;
-  var endPt = edgePoint(endEdge, nextRandom());
+  var endPt = edgePoint(endEdge, nextRandom(), originX, originZ);
 
   // compute speeds relative to player
   var playerSpeed = mgr.playerMaxSpeed || 10;
@@ -86,7 +92,11 @@ function spawnMerchantGroup(mgr, scene, terrain, enemyMgr) {
   var merchantSpeed = Math.max(SPEED_FLOOR, playerSpeed * ratio);
   var fleeSpeed = Math.max(SPEED_FLOOR, playerSpeed * FLEE_SPEED_RATIO);
 
-  var route = { startX: startPt.x, startZ: startPt.z, endX: endPt.x, endZ: endPt.z };
+  var route = {
+    startX: startPt.x, startZ: startPt.z,
+    endX: endPt.x, endZ: endPt.z,
+    centerX: originX, centerZ: originZ
+  };
   var heading = Math.atan2(endPt.x - startPt.x, endPt.z - startPt.z);
 
   var isConvoy = nextRandom() < CONVOY_CHANCE;
@@ -113,6 +123,8 @@ function spawnMerchantGroup(mgr, scene, terrain, enemyMgr) {
     if (enemy) {
       enemy.fleeSpeed = fleeSpeed;
       enemy.lifetime = 0;
+      enemy.routeCenterX = route.centerX;
+      enemy.routeCenterZ = route.centerZ;
       if (convoyId) enemy.convoyId = convoyId;
       mgr.merchants.push(enemy);
     }
@@ -136,6 +148,8 @@ function spawnMerchantGroup(mgr, scene, terrain, enemyMgr) {
     if (escort) {
       escort.fleeSpeed = escortSpeed;
       escort.lifetime = 0;
+      escort.routeCenterX = route.centerX;
+      escort.routeCenterZ = route.centerZ;
       escort.convoyId = convoyId;
       mgr.merchants.push(escort);
     }
@@ -162,7 +176,7 @@ export function updateMerchants(mgr, ship, dt, scene, terrain, elapsed, getWaveH
 
   mgr.spawnTimer -= dt;
   if (mgr.spawnTimer <= 0) {
-    spawnMerchantGroup(mgr, scene, terrain, enemyMgr);
+    spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr);
     mgr.spawnTimer = interval;
   }
 
@@ -182,9 +196,11 @@ export function updateMerchants(mgr, ship, dt, scene, terrain, elapsed, getWaveH
 
     m.lifetime = (m.lifetime || 0) + dt;
 
-    // despawn when off-map or lifetime expired
-    var offMap = Math.abs(m.posX) > MAP_HALF + DESPAWN_MARGIN || Math.abs(m.posZ) > MAP_HALF + DESPAWN_MARGIN;
-    if (m.lifetime > MERCHANT_LIFETIME || offMap) {
+    // despawn when route-lane bounds are exceeded or lifetime expires
+    var rcx = m.routeCenterX !== undefined ? m.routeCenterX : ship.posX;
+    var rcz = m.routeCenterZ !== undefined ? m.routeCenterZ : ship.posZ;
+    var offRoute = Math.abs(m.posX - rcx) > DESPAWN_DISTANCE || Math.abs(m.posZ - rcz) > DESPAWN_DISTANCE;
+    if (m.lifetime > MERCHANT_LIFETIME || offRoute) {
       if (m.mesh) scene.remove(m.mesh);
       m.alive = false;
       continue;
