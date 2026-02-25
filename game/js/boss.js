@@ -82,7 +82,7 @@ function bossSlotForType(type) {
   return null;
 }
 
-function applyBossOverrideAsync(mesh, bossType) {
+function applyBossOverrideAsync(mesh, bossType, boss) {
   var slot = bossSlotForType(bossType);
   if (!slot) return;
   var path = getOverridePath(slot);
@@ -90,7 +90,7 @@ function applyBossOverrideAsync(mesh, bossType) {
   var fit = getOverrideSize(slot) || (bossType === "carrier" ? 18 : 16);
   var firePoints = mesh.userData.turrets || [];
   var tentacles = mesh.userData.tentacles || [];
-  loadGlbVisual(path, fit, true).then(function (visual) {
+  loadGlbVisual(path, fit, true, { noDecimate: true }).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
     // re-attach fire points so they move with the boss
@@ -102,6 +102,7 @@ function applyBossOverrideAsync(mesh, bossType) {
     for (var i = 0; i < tentacles.length; i++) {
       mesh.add(tentacles[i]);
     }
+    updateBossHitbox(boss, visual);
   }).catch(function () {
     console.error("Failed to load boss model: " + path);
     while (mesh.children.length) mesh.remove(mesh.children[0]);
@@ -116,7 +117,21 @@ function applyBossOverrideAsync(mesh, bossType) {
     for (var j = 0; j < tentacles.length; j++) {
       mesh.add(tentacles[j]);
     }
+    updateBossHitbox(boss, mesh);
   });
+}
+
+
+function updateBossHitbox(boss, sourceObj) {
+  if (!boss || !sourceObj) return;
+  sourceObj.updateMatrixWorld(true);
+  var box = new THREE.Box3().setFromObject(sourceObj);
+  if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
+  var size = new THREE.Vector3();
+  box.getSize(size);
+  boss.hitHalfL = Math.max(2.4, size.z * 0.5 * 0.85);
+  boss.hitHalfW = Math.max(1.6, size.x * 0.5 * 0.8);
+  boss.hitRadius = Math.max(boss.hitRadius || 4.0, Math.sqrt(boss.hitHalfL * boss.hitHalfL + boss.hitHalfW * boss.hitHalfW));
 }
 
 // --- get boss definition ---
@@ -131,7 +146,6 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
   if (!def) return null;
 
   var mesh = buildBossMesh(bossType);
-  applyBossOverrideAsync(mesh, bossType);
   var spawnDist = 80;
   var angle = nextRandom() * Math.PI * 2;
   var x = playerX + Math.sin(angle) * spawnDist;
@@ -142,7 +156,7 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
   var hpScale = 1 + (zoneDifficulty - 1) * 0.2;
   var damageMult = 1 + (zoneDifficulty - 1) * 0.15;
 
-  return {
+  var boss = {
     type: bossType,
     def: def,
     mesh: mesh,
@@ -171,6 +185,10 @@ export function createBoss(bossType, playerX, playerZ, scene, zoneDifficulty) {
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector()
   };
+
+  updateBossHitbox(boss, mesh);
+  applyBossOverrideAsync(mesh, bossType, boss);
+  return boss;
 }
 
 // --- get current phase index ---

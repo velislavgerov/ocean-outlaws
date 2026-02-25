@@ -80,7 +80,7 @@ function createPreviewEntry(classKey, canvas) {
     var path = getOverridePath(classKey);
     var size = getOverrideSize(classKey) || 6;
     if (!path) return;
-    loadGlbVisual(path, size, true).then(function (visual) {
+    loadGlbVisual(path, size, true, { noDecimate: true }).then(function (visual) {
       entry.model = visual;
       scene.add(visual);
     }).catch(function () {});
