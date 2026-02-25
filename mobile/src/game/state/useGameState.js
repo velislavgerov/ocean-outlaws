@@ -9,6 +9,7 @@ import {
   consumeSpawn,
   createWaveManager,
   updateWaveState,
+  WAVE_STATE_WAITING,
   WAVE_STATE_GAME_OVER,
   WAVE_STATE_SPAWNING,
   WAVE_STATE_VICTORY
@@ -25,6 +26,7 @@ import { submitScore, unlockAchievement } from '../backend/progressionSync';
 import { canUnlock, createTechState, getTechBonuses, unlockNode } from '../logic/techTree';
 import { createEnvironmentState, cycleWeather, getTimeLabel, getWeatherPreset, tickEnvironment } from '../logic/weatherCycle';
 
+var SAILING_ONLY_MODE = true;
 
 function buildScorePayload(state) {
   return {
@@ -171,6 +173,45 @@ export var useGameState = create(function (set, get) {
     tick: function (dt) {
       var state = get();
       if (state.isPaused) {
+        return null;
+      }
+
+      if (SAILING_ONLY_MODE) {
+        var sailAbility = { ...state.abilityState };
+        var sailEnv = { ...state.envState };
+        var sailWave = {
+          ...state.waveManager,
+          state: WAVE_STATE_WAITING,
+          pauseTimer: 3,
+          enemiesToSpawn: 0,
+          enemiesAlive: 0
+        };
+        var sailCombat = {
+          ...state.combat,
+          input: { ...state.combat.input },
+          player: { ...state.combat.player },
+          enemies: [],
+          projectiles: [],
+          spawnCooldown: 0,
+          pendingPlayerDamage: 0,
+          killsThisTick: 0
+        };
+
+        updateAbility(sailAbility, dt);
+        stepCombat(sailCombat, dt);
+        tickEnvironment(sailEnv, dt);
+
+        set({
+          abilityState: sailAbility,
+          waveManager: sailWave,
+          combat: sailCombat,
+          pendingFire: false,
+          health: 100,
+          envState: sailEnv,
+          timeLabel: getTimeLabel(sailEnv),
+          weatherLabel: getWeatherPreset(sailEnv).label,
+          waveBanner: 'Sailing mode: movement + waves'
+        });
         return null;
       }
 

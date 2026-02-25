@@ -1,13 +1,15 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { getDefaultConfig } from 'expo/metro-config.js';
 
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
+var projectRoot = process.cwd();
 
-var config = getDefaultConfig(__dirname);
+var config = getDefaultConfig(projectRoot);
+var threePath = path.resolve(projectRoot, 'node_modules/three');
 
-config.watchFolders = [path.resolve(__dirname, '..')];
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  three: threePath
+};
 
 if (!config.resolver.assetExts.includes('fbx')) {
   config.resolver.assetExts.push('fbx');

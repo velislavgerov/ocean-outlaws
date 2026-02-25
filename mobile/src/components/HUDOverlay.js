@@ -1,6 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import React, { useMemo, useState } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useGameState } from '../game/state/useGameState';
 
 function StatChip(props) {
@@ -14,36 +13,54 @@ function StatChip(props) {
 
 function JoystickPad() {
   var setSteering = useGameState(function (state) { return state.setSteering; });
-
-  function handleGesture(event) {
-    var tx = event.nativeEvent.translationX;
-    var ty = event.nativeEvent.translationY;
-    setSteering(Math.max(-1, Math.min(1, tx / 55)), Math.max(-1, Math.min(1, ty / 55)));
-  }
-
-  function handleState(event) {
-    if (event.nativeEvent.state === State.END || event.nativeEvent.state === State.CANCELLED || event.nativeEvent.state === State.FAILED) {
-      setSteering(0, 0);
-    }
-  }
+  var panResponder = useMemo(function () {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: function () { return true; },
+      onMoveShouldSetPanResponder: function () { return true; },
+      onPanResponderMove: function (_, gesture) {
+        setSteering(
+          Math.max(-1, Math.min(1, gesture.dx / 55)),
+          Math.max(-1, Math.min(1, gesture.dy / 55))
+        );
+      },
+      onPanResponderRelease: function () {
+        setSteering(0, 0);
+      },
+      onPanResponderTerminate: function () {
+        setSteering(0, 0);
+      }
+    });
+  }, [setSteering]);
 
   return (
-    <PanGestureHandler onGestureEvent={handleGesture} onHandlerStateChange={handleState}>
-      <View style={styles.leftPad}>
-        <Text style={styles.btnText}>Joystick</Text>
-        <Text style={styles.btnSubText}>Drag to steer</Text>
-      </View>
-    </PanGestureHandler>
+    <View style={styles.leftPad} {...panResponder.panHandlers}>
+      <Text style={styles.btnText}>Joystick</Text>
+      <Text style={styles.btnSubText}>Drag to steer</Text>
+    </View>
   );
 }
 
 function TechPanel() {
+  var [expanded, setExpanded] = useState(false);
   var gold = useGameState(function (state) { return state.gold; });
   var unlockTechNode = useGameState(function (state) { return state.unlockTechNode; });
 
+  if (!expanded) {
+    return (
+      <Pressable style={styles.techPanelCollapsed} onPress={function () { setExpanded(true); }}>
+        <Text style={styles.techTitle}>Tech Tree</Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View style={styles.techPanel}>
-      <Text style={styles.techTitle}>Tech Tree (migration slice)</Text>
+      <View style={styles.techHeaderRow}>
+        <Text style={styles.techTitle}>Tech Tree (migration slice)</Text>
+        <Pressable onPress={function () { setExpanded(false); }}>
+          <Text style={styles.techCollapse}>Hide</Text>
+        </Pressable>
+      </View>
       <Text style={styles.techText}>Gold: {gold}</Text>
       <View style={styles.techRow}>
         <Pressable style={styles.techBtn} onPress={function () { unlockTechNode('offense', 0); }}><Text style={styles.btnText}>+DMG 40</Text></Pressable>
@@ -62,6 +79,9 @@ export default function HUDOverlay() {
   var abilityState = useGameState(function (state) { return state.abilityState; });
   var waveManager = useGameState(function (state) { return state.waveManager; });
   var enemyCount = useGameState(function (state) { return state.combat.enemies.length; });
+  var playerSpeed = useGameState(function (state) { return state.combat.player.speed; });
+  var playerX = useGameState(function (state) { return state.combat.player.x; });
+  var playerZ = useGameState(function (state) { return state.combat.player.z; });
   var totalKills = useGameState(function (state) { return state.totalKills; });
   var banner = useGameState(function (state) { return state.waveBanner; });
   var fire = useGameState(function (state) { return state.fire; });
@@ -81,7 +101,7 @@ export default function HUDOverlay() {
   var isFinished = waveManager.state === 'GAME_OVER' || waveManager.state === 'VICTORY';
 
   return (
-    <View pointerEvents="box-none" style={styles.container}>
+    <View pointerEvents="auto" style={styles.container}>
       <View style={styles.topRow}>
         <StatChip label="Ship" value={classConfig.name} />
         <StatChip label="Hull" value={health.toFixed(0) + '%'} />
@@ -89,6 +109,8 @@ export default function HUDOverlay() {
         <StatChip label="Wave" value={String(waveManager.wave)} />
         <StatChip label="Enemies" value={String(enemyCount)} />
         <StatChip label="Kills" value={String(totalKills)} />
+        <StatChip label="Speed" value={playerSpeed.toFixed(1)} />
+        <StatChip label="Pos" value={playerX.toFixed(1) + ',' + playerZ.toFixed(1)} />
         <StatChip label="Boost" value={String(boosts)} />
         <StatChip label="Time" value={timeLabel} />
         <Pressable onPress={cycleWeatherNow}><StatChip label="Weather" value={weatherLabel} /></Pressable>
@@ -126,15 +148,18 @@ export default function HUDOverlay() {
 }
 
 var styles = StyleSheet.create({
-  container: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 16 },
-  topRow: { flexDirection: 'row', gap: 8, alignSelf: 'center' },
+  container: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 16, zIndex: 20, elevation: 20 },
+  topRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignSelf: 'center', justifyContent: 'center' },
   centerInfo: { alignSelf: 'center', alignItems: 'center', backgroundColor: 'rgba(1, 15, 33, 0.55)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   centerInfoText: { color: '#D3E8FF', fontSize: 13 },
   chip: { backgroundColor: 'rgba(1, 15, 33, 0.75)', borderColor: '#68B0FF', borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7, minWidth: 64 },
   chipLabel: { color: '#A2CCFF', fontSize: 11 },
   chipValue: { color: '#F0F7FF', fontWeight: '700', fontSize: 14 },
+  techPanelCollapsed: { alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 10, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#68B0FF' },
   techPanel: { alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 10, padding: 8, gap: 6 },
+  techHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   techTitle: { color: '#d8e8ff', fontWeight: '700' },
+  techCollapse: { color: '#9dcaff', fontSize: 12, fontWeight: '700' },
   techText: { color: '#d8e8ff', fontSize: 12 },
   techRow: { flexDirection: 'row', gap: 8 },
   techBtn: { borderWidth: 1, borderColor: '#68B0FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(7, 40, 76, 0.85)' },
