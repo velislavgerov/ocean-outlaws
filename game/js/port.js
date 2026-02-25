@@ -181,6 +181,16 @@ function normalizeThemeKey(value) {
   return key || null;
 }
 
+function parsePortFactionRole(entry) {
+  if (typeof entry === "string") return normalizeThemeKey(entry);
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+  if (typeof entry.value === "string") return normalizeThemeKey(entry.value);
+  if (typeof entry.variant === "string") return normalizeThemeKey(entry.variant);
+  if (typeof entry.faction === "string") return normalizeThemeKey(entry.faction);
+  if (typeof entry.key === "string") return normalizeThemeKey(entry.key);
+  return null;
+}
+
 function normalizeRoleToken(value) {
   if (value === null || value === undefined) return null;
   var text = String(value).trim().toLowerCase();
@@ -195,12 +205,20 @@ function getPortThemeKeys() {
 
   var keys = [];
   for (var i = 0; i < roleKeys.length; i++) {
-    var key = normalizeThemeKey(roleKeys[i]);
+    var key = parsePortFactionRole(roleKeys[i]);
     if (!key) continue;
     if (keys.indexOf(key) >= 0) continue;
     keys.push(key);
   }
   return keys.length ? keys : PORT_THEME_ORDER;
+}
+
+function pickPortThemeKey(fallbackKeys, fallbackIdx) {
+  var picked = pickRoleVariant("port.factions", null, nextRandom);
+  var weightedKey = parsePortFactionRole(picked);
+  if (weightedKey) return weightedKey;
+  if (!fallbackKeys || fallbackKeys.length === 0) return null;
+  return fallbackKeys[fallbackIdx % fallbackKeys.length];
 }
 
 function getFallbackThemes(themeKey) {
@@ -380,7 +398,7 @@ export function initPorts(manager, terrain, scene, roleContext) {
   var themeOffset = themeKeys.length ? Math.floor(nextRandom() * themeKeys.length) : 0;
 
   for (var i = 0; i < positions.length; i++) {
-    var themeKey = themeKeys.length ? themeKeys[(themeOffset + i) % themeKeys.length] : null;
+    var themeKey = pickPortThemeKey(themeKeys, themeOffset + i);
     var mesh = buildPortMesh(themeKey, roleContext);
     mesh.position.set(positions[i].x, 0, positions[i].z);
     scene.add(mesh);

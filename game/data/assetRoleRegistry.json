@@ -1,7 +1,11 @@
 {
   "version": 1,
   "roles": {
-    "port.factions": ["neutral", "merchant", "pirate"],
+    "port.factions": [
+      { "value": "neutral", "weight": 1.2 },
+      { "value": "merchant", "weight": 1.0 },
+      { "value": "pirate", "weight": 1.1 }
+    ],
     "port.themes": [
       [
         { "path": "assets/models/environment/wooden-piers/wooden-pier.glb", "fit": 8, "x": 0, "y": 0, "z": 0, "ry": 0 },
