@@ -181,6 +181,14 @@ function normalizeThemeKey(value) {
   return key || null;
 }
 
+function normalizeRoleToken(value) {
+  if (value === null || value === undefined) return null;
+  var text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  text = text.replace(/[^a-z0-9_\-]/g, "_");
+  return text || null;
+}
+
 function getPortThemeKeys() {
   var roleKeys = getRoleVariants("port.factions");
   if (!roleKeys || !roleKeys.length) return PORT_THEME_ORDER;
@@ -225,7 +233,7 @@ function findDockCandidate(baseX, baseZ, baseAngle, minDist, maxDist, step, isWa
 }
 
 // --- build dock mesh ---
-function buildPortMesh(themeKey) {
+function buildPortMesh(themeKey, roleContext) {
   var group = new THREE.Group();
 
   // pier platform
@@ -288,14 +296,32 @@ function buildPortMesh(themeKey) {
   group.userData.themeKey = themeKey || "neutral";
 
   // async GLB dock dressing; keep primitive base as resilient fallback
-  hydratePortVisual(group, themeKey);
+  hydratePortVisual(group, themeKey, roleContext);
 
   return group;
 }
 
-function pickPortTheme(themeKey) {
+function pickPortTheme(themeKey, roleContext) {
   var normalizedKey = normalizeThemeKey(themeKey);
   var themedKey = normalizedKey ? "port.themes." + normalizedKey : null;
+  var zoneId = roleContext ? normalizeRoleToken(roleContext.zoneId || roleContext.id) : null;
+  var condition = roleContext ? normalizeRoleToken(roleContext.condition) : null;
+  var difficulty = roleContext ? normalizeRoleToken(roleContext.difficulty) : null;
+  var candidates = [];
+  if (themedKey) {
+    if (zoneId) candidates.push(themedKey + ".zone." + zoneId);
+    if (condition) candidates.push(themedKey + ".condition." + condition);
+    if (difficulty) candidates.push(themedKey + ".difficulty." + difficulty);
+  }
+  if (zoneId) candidates.push("port.themes.zone." + zoneId);
+  if (condition) candidates.push("port.themes.condition." + condition);
+  if (difficulty) candidates.push("port.themes.difficulty." + difficulty);
+
+  for (var i = 0; i < candidates.length; i++) {
+    var contextualPick = pickRoleVariant(candidates[i], null, nextRandom);
+    if (contextualPick) return contextualPick;
+  }
+
   var modules = themedKey ? pickRoleVariant(themedKey, null, nextRandom) : null;
   if (!modules) modules = pickRoleVariant("port.themes", null, nextRandom);
   if (modules) return modules;
@@ -306,8 +332,8 @@ function pickPortTheme(themeKey) {
   return fallback[idx];
 }
 
-function hydratePortVisual(group, themeKey) {
-  var modules = pickPortTheme(themeKey);
+function hydratePortVisual(group, themeKey, roleContext) {
+  var modules = pickPortTheme(themeKey, roleContext);
   if (!Array.isArray(modules) || modules.length === 0) return;
   var visualRoot = new THREE.Group();
   group.add(visualRoot);
@@ -347,7 +373,7 @@ export function createPortManager() {
 }
 
 // --- initialize ports for a zone ---
-export function initPorts(manager, terrain, scene) {
+export function initPorts(manager, terrain, scene, roleContext) {
   clearPorts(manager, scene);
   var positions = findCoastlinePositions(terrain);
   var themeKeys = getPortThemeKeys();
@@ -355,7 +381,7 @@ export function initPorts(manager, terrain, scene) {
 
   for (var i = 0; i < positions.length; i++) {
     var themeKey = themeKeys.length ? themeKeys[(themeOffset + i) % themeKeys.length] : null;
-    var mesh = buildPortMesh(themeKey);
+    var mesh = buildPortMesh(themeKey, roleContext);
     mesh.position.set(positions[i].x, 0, positions[i].z);
     scene.add(mesh);
 

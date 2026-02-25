@@ -745,8 +745,9 @@ function startMultiplayerCombat() {
   seedRNG(seed);
   activeTerrain = createTerrain(seed, 2);
   scene.add(activeTerrain.mesh);
+  var mpPortRoleContext = { zoneId: "multiplayer", condition: "calm", difficulty: 2 };
   clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene);
+  initPorts(portMgr, activeTerrain, scene, mpPortRoleContext);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
   if (ship && ship.mesh) scene.remove(ship.mesh);
@@ -961,10 +962,18 @@ function startNodeCombat(node, runSeed) {
   var terrainSeed = runSeed + node.id * 1000 + 7;
   seedRNG(terrainSeed);
   var terrainDiff = 1 + Math.floor(node.col * 5 / Math.max(1, activeChart.columns - 1));
+  var weatherPreset = "calm";
+  if (node.type === "storm_crossing") weatherPreset = "storm";
+  else if (node.col >= 5) weatherPreset = "rough";
+  var nodePortRoleContext = {
+    zoneId: "run_node_" + node.id,
+    condition: weatherPreset === "storm" ? "stormy" : weatherPreset,
+    difficulty: Math.min(terrainDiff, 6)
+  };
   activeTerrain = createTerrain(terrainSeed, Math.min(terrainDiff, 6));
   scene.add(activeTerrain.mesh);
   clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene);
+  initPorts(portMgr, activeTerrain, scene, nodePortRoleContext);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
   if (ship && ship.mesh) scene.remove(ship.mesh);
@@ -984,9 +993,6 @@ function startNodeCombat(node, runSeed) {
   abilityState = createAbilityState(selectedClass);
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
   resetDrones(droneMgr, scene);
-  var weatherPreset = "calm";
-  if (node.type === "storm_crossing") weatherPreset = "storm";
-  else if (node.col >= 5) weatherPreset = "rough";
   setWeather(weather, weatherPreset);
   setEngineClass(selectedClass);
   gameFrozen = false;
@@ -1088,8 +1094,13 @@ function startZoneCombat(classKey, zoneId) {
   seedRNG(terrainSeed);
   activeTerrain = createTerrain(terrainSeed, zone.difficulty);
   scene.add(activeTerrain.mesh);
+  var zonePortRoleContext = {
+    zoneId: zoneId,
+    condition: zone.condition || "calm",
+    difficulty: zone.difficulty
+  };
   clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene);
+  initPorts(portMgr, activeTerrain, scene, zonePortRoleContext);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
   if (ship && ship.mesh) scene.remove(ship.mesh);
