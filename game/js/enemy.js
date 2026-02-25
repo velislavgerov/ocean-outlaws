@@ -163,14 +163,45 @@ function getEnemyOverrideSpec(enemy) {
   };
 }
 
-function pickAmbientModelVariant(faction) {
-  var key = faction || "merchant";
-  return pickRoleVariant("ambient." + key, AMBIENT_MODEL_POOLS[key], nextRandom);
+function normalizeRoleToken(value) {
+  if (value === null || value === undefined) return null;
+  var text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  text = text.replace(/[^a-z0-9_\-]/g, "_");
+  return text || null;
 }
 
-function pickCombatModelVariant(faction) {
+function pickFactionRoleVariant(rolePrefix, faction, fallbackPools, roleContext) {
   var key = faction || "pirate";
-  return pickRoleVariant("enemy." + key, ENEMY_MODEL_POOLS[key], nextRandom);
+  var baseRole = rolePrefix + "." + key;
+  var tried = {};
+  var candidates = [];
+  if (roleContext) {
+    var zoneId = normalizeRoleToken(roleContext.zoneId || roleContext.id);
+    var condition = normalizeRoleToken(roleContext.condition);
+    var difficulty = normalizeRoleToken(roleContext.difficulty);
+    if (zoneId) candidates.push(baseRole + ".zone." + zoneId);
+    if (condition) candidates.push(baseRole + ".condition." + condition);
+    if (difficulty) candidates.push(baseRole + ".difficulty." + difficulty);
+  }
+  for (var i = 0; i < candidates.length; i++) {
+    var roleKey = candidates[i];
+    if (tried[roleKey]) continue;
+    tried[roleKey] = true;
+    var contextualPick = pickRoleVariant(roleKey, null, nextRandom);
+    if (contextualPick) return contextualPick;
+  }
+  return pickRoleVariant(baseRole, fallbackPools[key], nextRandom);
+}
+
+function pickAmbientModelVariant(faction, roleContext) {
+  var key = faction || "merchant";
+  return pickFactionRoleVariant("ambient", key, AMBIENT_MODEL_POOLS, roleContext);
+}
+
+function pickCombatModelVariant(faction, roleContext) {
+  var key = faction || "pirate";
+  return pickFactionRoleVariant("enemy", key, ENEMY_MODEL_POOLS, roleContext);
 }
 
 function applyEnemyOverrideAsync(mesh, enemy) {
@@ -302,7 +333,7 @@ export function setPlayerHp(manager, hp) {
 }
 
 // --- spawn a single enemy at map edge with wave multipliers ---
-function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
+function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleContext) {
   if (manager.enemies.length >= MAX_ENEMIES) return;
 
   var hpMult = waveConfig ? waveConfig.hpMult : 1;
@@ -352,7 +383,7 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
-    visualOverride: pickCombatModelVariant(faction)
+    visualOverride: pickCombatModelVariant(faction, roleContext)
   };
 
   updateEnemyHitbox(enemy, mesh);
@@ -362,12 +393,12 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
 }
 
 // --- spawn an ambient enemy at explicit position (used by merchant system) ---
-export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute) {
+export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute, roleContext) {
   var fDef = FACTIONS[faction] || FACTIONS.pirate;
   var mesh = buildEnemyPlaceholder();
   mesh.position.set(x, 0.3, z);
   mesh.rotation.y = heading;
-  var ambientVisual = pickAmbientModelVariant(faction);
+  var ambientVisual = pickAmbientModelVariant(faction, roleContext);
 
   var enemy = {
     mesh: mesh,
@@ -409,7 +440,7 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
 // --- update all enemies ---
 // waveMgr: wave manager from wave.js (optional, for spawn gating)
 // waveConfig: current wave config with multipliers (optional)
-export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig, terrain) {
+export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig, terrain, roleContext) {
   manager.elapsed = elapsed;
 
   // --- spawning gated by wave manager ---
@@ -421,7 +452,7 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
   manager.spawnTimer -= dt;
   if (manager.spawnTimer <= 0 && shouldSpawn) {
-    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig, terrain);
+    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig, terrain, roleContext);
     if (waveMgr) waveMgr.enemiesToSpawn--;
     // transition wave state if all spawned
     if (waveMgr && waveMgr.enemiesToSpawn <= 0) {
