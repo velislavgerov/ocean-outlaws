@@ -2,1205 +2,1205 @@
   "ship": [
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/boats/boat 1",
-      "path": "assets/models/ships-palmov/boats/boat-1.fbx",
+      "path": "assets/models/ships-palmov/boats/boat-1.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/boats/boat 2",
-      "path": "assets/models/ships-palmov/boats/boat-2.fbx",
+      "path": "assets/models/ships-palmov/boats/boat-2.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/boats/boat 3",
-      "path": "assets/models/ships-palmov/boats/boat-3.fbx",
+      "path": "assets/models/ships-palmov/boats/boat-3.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/boats/boat 4",
-      "path": "assets/models/ships-palmov/boats/boat-4.fbx",
+      "path": "assets/models/ships-palmov/boats/boat-4.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/boats/chinese boat",
-      "path": "assets/models/ships-palmov/boats/chinese-boat.fbx",
+      "path": "assets/models/ships-palmov/boats/chinese-boat.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/chinese ship large",
-      "path": "assets/models/ships-palmov/large/chinese-ship-large.fbx",
+      "path": "assets/models/ships-palmov/large/chinese-ship-large.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/pirate ship large 1",
-      "path": "assets/models/ships-palmov/large/pirate-ship-large-1.fbx",
+      "path": "assets/models/ships-palmov/large/pirate-ship-large-1.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/pirate ship large 2",
-      "path": "assets/models/ships-palmov/large/pirate-ship-large-2.fbx",
+      "path": "assets/models/ships-palmov/large/pirate-ship-large-2.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/ship large 1",
-      "path": "assets/models/ships-palmov/large/ship-large-1.fbx",
+      "path": "assets/models/ships-palmov/large/ship-large-1.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/ship large 2",
-      "path": "assets/models/ships-palmov/large/ship-large-2.fbx",
+      "path": "assets/models/ships-palmov/large/ship-large-2.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/ship large 3",
-      "path": "assets/models/ships-palmov/large/ship-large-3.fbx",
+      "path": "assets/models/ships-palmov/large/ship-large-3.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/ship large 4",
-      "path": "assets/models/ships-palmov/large/ship-large-4.fbx",
+      "path": "assets/models/ships-palmov/large/ship-large-4.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships large/ship large 5",
-      "path": "assets/models/ships-palmov/large/ship-large-5.fbx",
+      "path": "assets/models/ships-palmov/large/ship-large-5.glb",
       "fit": 12
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/chinese ship medium",
-      "path": "assets/models/ships-palmov/medium/chinese-ship-medium.fbx",
+      "path": "assets/models/ships-palmov/medium/chinese-ship-medium.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/pirate ship medium",
-      "path": "assets/models/ships-palmov/medium/pirate-ship-medium.fbx",
+      "path": "assets/models/ships-palmov/medium/pirate-ship-medium.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/ship medium 1",
-      "path": "assets/models/ships-palmov/medium/ship-medium-1.fbx",
+      "path": "assets/models/ships-palmov/medium/ship-medium-1.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/ship medium 2",
-      "path": "assets/models/ships-palmov/medium/ship-medium-2.fbx",
+      "path": "assets/models/ships-palmov/medium/ship-medium-2.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/ship medium 3",
-      "path": "assets/models/ships-palmov/medium/ship-medium-3.fbx",
+      "path": "assets/models/ships-palmov/medium/ship-medium-3.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/ship medium 4",
-      "path": "assets/models/ships-palmov/medium/ship-medium-4.fbx",
+      "path": "assets/models/ships-palmov/medium/ship-medium-4.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/ship medium 5",
-      "path": "assets/models/ships-palmov/medium/ship-medium-5.fbx",
+      "path": "assets/models/ships-palmov/medium/ship-medium-5.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships medium/ship medium 6",
-      "path": "assets/models/ships-palmov/medium/ship-medium-6.fbx",
+      "path": "assets/models/ships-palmov/medium/ship-medium-6.glb",
       "fit": 10
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/chinese ship small",
-      "path": "assets/models/ships-palmov/small/chinese-ship-small.fbx",
+      "path": "assets/models/ships-palmov/small/chinese-ship-small.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/pirate ship small",
-      "path": "assets/models/ships-palmov/small/pirate-ship-small.fbx",
+      "path": "assets/models/ships-palmov/small/pirate-ship-small.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 1",
-      "path": "assets/models/ships-palmov/small/ship-small-1.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-1.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 2",
-      "path": "assets/models/ships-palmov/small/ship-small-2.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-2.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 3",
-      "path": "assets/models/ships-palmov/small/ship-small-3.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-3.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 4",
-      "path": "assets/models/ships-palmov/small/ship-small-4.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-4.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 5",
-      "path": "assets/models/ships-palmov/small/ship-small-5.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-5.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 6",
-      "path": "assets/models/ships-palmov/small/ship-small-6.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-6.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/ships small/ship small 7",
-      "path": "assets/models/ships-palmov/small/ship-small-7.fbx",
+      "path": "assets/models/ships-palmov/small/ship-small-7.glb",
       "fit": 8
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/viking ships/viking ship 1",
-      "path": "assets/models/ships-palmov/viking/viking-ship-1.fbx",
+      "path": "assets/models/ships-palmov/viking/viking-ship-1.glb",
       "fit": 9
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/viking ships/viking ship 2",
-      "path": "assets/models/ships-palmov/viking/viking-ship-2.fbx",
+      "path": "assets/models/ships-palmov/viking/viking-ship-2.glb",
       "fit": 9
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/viking ships/viking ship 3",
-      "path": "assets/models/ships-palmov/viking/viking-ship-3.fbx",
+      "path": "assets/models/ships-palmov/viking/viking-ship-3.glb",
       "fit": 9
     },
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/viking ships/viking ship 4",
-      "path": "assets/models/ships-palmov/viking/viking-ship-4.fbx",
+      "path": "assets/models/ships-palmov/viking/viking-ship-4.glb",
       "fit": 9
     }
   ],
   "tree": [
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Flowers/flowers",
-      "path": "assets/models/plants/flowers/flowers.fbx",
+      "path": "assets/models/plants/flowers/flowers.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Flowers/flowers 2",
-      "path": "assets/models/plants/flowers/flowers-2.fbx",
+      "path": "assets/models/plants/flowers/flowers-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/plant",
-      "path": "assets/models/plants/plant.fbx",
+      "path": "assets/models/plants/plant.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Shrubs/shrub",
-      "path": "assets/models/plants/shrubs/shrub.fbx",
+      "path": "assets/models/plants/shrubs/shrub.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Shrubs/shrub 2",
-      "path": "assets/models/plants/shrubs/shrub-2.fbx",
+      "path": "assets/models/plants/shrubs/shrub-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Shrubs/shrub 3",
-      "path": "assets/models/plants/shrubs/shrub-3.fbx",
+      "path": "assets/models/plants/shrubs/shrub-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Shrubs/shrub 4",
-      "path": "assets/models/plants/shrubs/shrub-4.fbx",
+      "path": "assets/models/plants/shrubs/shrub-4.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Plants/Shrubs/shrub 5",
-      "path": "assets/models/plants/shrubs/shrub-5.fbx",
+      "path": "assets/models/plants/shrubs/shrub-5.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Fir trees/fir tree large",
-      "path": "assets/models/trees/fir/fir-tree-large.fbx",
+      "path": "assets/models/trees/fir/fir-tree-large.glb",
       "fit": 12
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Fir trees/fir tree medium",
-      "path": "assets/models/trees/fir/fir-tree-medium.fbx",
+      "path": "assets/models/trees/fir/fir-tree-medium.glb",
       "fit": 12
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Fir trees/fir tree small",
-      "path": "assets/models/trees/fir/fir-tree-small.fbx",
+      "path": "assets/models/trees/fir/fir-tree-small.glb",
       "fit": 12
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree bent",
-      "path": "assets/models/trees/palm/palm-tree-bent.fbx",
+      "path": "assets/models/trees/palm/palm-tree-bent.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree bent 2",
-      "path": "assets/models/trees/palm/palm-tree-bent-2.fbx",
+      "path": "assets/models/trees/palm/palm-tree-bent-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree bent 3",
-      "path": "assets/models/trees/palm/palm-tree-bent-3.fbx",
+      "path": "assets/models/trees/palm/palm-tree-bent-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree large",
-      "path": "assets/models/trees/palm/palm-tree-large.fbx",
+      "path": "assets/models/trees/palm/palm-tree-large.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree large 2",
-      "path": "assets/models/trees/palm/palm-tree-large-2.fbx",
+      "path": "assets/models/trees/palm/palm-tree-large-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree large 3",
-      "path": "assets/models/trees/palm/palm-tree-large-3.fbx",
+      "path": "assets/models/trees/palm/palm-tree-large-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree small",
-      "path": "assets/models/trees/palm/palm-tree-small.fbx",
+      "path": "assets/models/trees/palm/palm-tree-small.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree small 2",
-      "path": "assets/models/trees/palm/palm-tree-small-2.fbx",
+      "path": "assets/models/trees/palm/palm-tree-small-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree small 3",
-      "path": "assets/models/trees/palm/palm-tree-small-3.fbx",
+      "path": "assets/models/trees/palm/palm-tree-small-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree tilted",
-      "path": "assets/models/trees/palm/palm-tree-tilted.fbx",
+      "path": "assets/models/trees/palm/palm-tree-tilted.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree tilted 2",
-      "path": "assets/models/trees/palm/palm-tree-tilted-2.fbx",
+      "path": "assets/models/trees/palm/palm-tree-tilted-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/Palm trees/palm tree tilted 3",
-      "path": "assets/models/trees/palm/palm-tree-tilted-3.fbx",
+      "path": "assets/models/trees/palm/palm-tree-tilted-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/tree",
-      "path": "assets/models/trees/tree.fbx",
+      "path": "assets/models/trees/tree.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/tree 2",
-      "path": "assets/models/trees/tree-2.fbx",
+      "path": "assets/models/trees/tree-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/tree 3",
-      "path": "assets/models/trees/tree-3.fbx",
+      "path": "assets/models/trees/tree-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/tree 4",
-      "path": "assets/models/trees/tree-4.fbx",
+      "path": "assets/models/trees/tree-4.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Trees/tree 5",
-      "path": "assets/models/trees/tree-5.fbx",
+      "path": "assets/models/trees/tree-5.glb",
       "fit": 10
     }
   ],
   "island": [
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Islands/island lighthouse pier",
-      "path": "assets/models/islands/island-lighthouse-pier.fbx",
+      "path": "assets/models/islands/island-lighthouse-pier.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Islands/island mountain arch",
-      "path": "assets/models/islands/island-mountain-arch.fbx",
+      "path": "assets/models/islands/island-mountain-arch.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Islands/island mountain arch 2",
-      "path": "assets/models/islands/island-mountain-arch-2.fbx",
+      "path": "assets/models/islands/island-mountain-arch-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Islands/island mountain arch 3",
-      "path": "assets/models/islands/island-mountain-arch-3.fbx",
+      "path": "assets/models/islands/island-mountain-arch-3.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Lands/land mysterious place",
-      "path": "assets/models/lands/land-mysterious-place.fbx",
+      "path": "assets/models/lands/land-mysterious-place.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Lands/land pirate seaport",
-      "path": "assets/models/lands/land-pirate-seaport.fbx",
+      "path": "assets/models/lands/land-pirate-seaport.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Lands/land sea monster attack",
-      "path": "assets/models/lands/land-sea-monster-attack.fbx",
+      "path": "assets/models/lands/land-sea-monster-attack.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Lands/land secret Island",
-      "path": "assets/models/lands/land-secret-island.fbx",
+      "path": "assets/models/lands/land-secret-island.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Lands/land ship Island",
-      "path": "assets/models/lands/land-ship-island.fbx",
+      "path": "assets/models/lands/land-ship-island.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Lands/land trade port",
-      "path": "assets/models/lands/land-trade-port.fbx",
+      "path": "assets/models/lands/land-trade-port.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Mountains/mountain",
-      "path": "assets/models/mountains/mountain.fbx",
+      "path": "assets/models/mountains/mountain.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Mountains/mountain 2",
-      "path": "assets/models/mountains/mountain-2.fbx",
+      "path": "assets/models/mountains/mountain-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Mountains/mountain arch",
-      "path": "assets/models/mountains/mountain-arch.fbx",
+      "path": "assets/models/mountains/mountain-arch.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Mountains/mountain arch 2",
-      "path": "assets/models/mountains/mountain-arch-2.fbx",
+      "path": "assets/models/mountains/mountain-arch-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone",
-      "path": "assets/models/stones/ancient/ancient-stone.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 10",
-      "path": "assets/models/stones/ancient/ancient-stone-10.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-10.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 11",
-      "path": "assets/models/stones/ancient/ancient-stone-11.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-11.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 12",
-      "path": "assets/models/stones/ancient/ancient-stone-12.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-12.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 13",
-      "path": "assets/models/stones/ancient/ancient-stone-13.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-13.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 2",
-      "path": "assets/models/stones/ancient/ancient-stone-2.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 3",
-      "path": "assets/models/stones/ancient/ancient-stone-3.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-3.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 4",
-      "path": "assets/models/stones/ancient/ancient-stone-4.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-4.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 5",
-      "path": "assets/models/stones/ancient/ancient-stone-5.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-5.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 6",
-      "path": "assets/models/stones/ancient/ancient-stone-6.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-6.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 7",
-      "path": "assets/models/stones/ancient/ancient-stone-7.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-7.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 8",
-      "path": "assets/models/stones/ancient/ancient-stone-8.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-8.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Ancient stone/ancient stone 9",
-      "path": "assets/models/stones/ancient/ancient-stone-9.fbx",
+      "path": "assets/models/stones/ancient/ancient-stone-9.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Green stones/green stone",
-      "path": "assets/models/stones/green/green-stone.fbx",
+      "path": "assets/models/stones/green/green-stone.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Green stones/green stone 2",
-      "path": "assets/models/stones/green/green-stone-2.fbx",
+      "path": "assets/models/stones/green/green-stone-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Green stones/green stone 3",
-      "path": "assets/models/stones/green/green-stone-3.fbx",
+      "path": "assets/models/stones/green/green-stone-3.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Green stones/green stone 4",
-      "path": "assets/models/stones/green/green-stone-4.fbx",
+      "path": "assets/models/stones/green/green-stone-4.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Green stones/green stone 5",
-      "path": "assets/models/stones/green/green-stone-5.fbx",
+      "path": "assets/models/stones/green/green-stone-5.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Green stones/green stone 6",
-      "path": "assets/models/stones/green/green-stone-6.fbx",
+      "path": "assets/models/stones/green/green-stone-6.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones large/stone large",
-      "path": "assets/models/stones/large/stone-large.fbx",
+      "path": "assets/models/stones/large/stone-large.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones large/stone large 2",
-      "path": "assets/models/stones/large/stone-large-2.fbx",
+      "path": "assets/models/stones/large/stone-large-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones large/stone large 3",
-      "path": "assets/models/stones/large/stone-large-3.fbx",
+      "path": "assets/models/stones/large/stone-large-3.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones large/stone large 4",
-      "path": "assets/models/stones/large/stone-large-4.fbx",
+      "path": "assets/models/stones/large/stone-large-4.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones large/stone large 5",
-      "path": "assets/models/stones/large/stone-large-5.fbx",
+      "path": "assets/models/stones/large/stone-large-5.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small",
-      "path": "assets/models/stones/small/stone-small.fbx",
+      "path": "assets/models/stones/small/stone-small.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 10",
-      "path": "assets/models/stones/small/stone-small-10.fbx",
+      "path": "assets/models/stones/small/stone-small-10.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 11",
-      "path": "assets/models/stones/small/stone-small-11.fbx",
+      "path": "assets/models/stones/small/stone-small-11.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 12",
-      "path": "assets/models/stones/small/stone-small-12.fbx",
+      "path": "assets/models/stones/small/stone-small-12.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 13",
-      "path": "assets/models/stones/small/stone-small-13.fbx",
+      "path": "assets/models/stones/small/stone-small-13.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 2",
-      "path": "assets/models/stones/small/stone-small-2.fbx",
+      "path": "assets/models/stones/small/stone-small-2.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 3",
-      "path": "assets/models/stones/small/stone-small-3.fbx",
+      "path": "assets/models/stones/small/stone-small-3.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 4",
-      "path": "assets/models/stones/small/stone-small-4.fbx",
+      "path": "assets/models/stones/small/stone-small-4.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 5",
-      "path": "assets/models/stones/small/stone-small-5.fbx",
+      "path": "assets/models/stones/small/stone-small-5.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 6",
-      "path": "assets/models/stones/small/stone-small-6.fbx",
+      "path": "assets/models/stones/small/stone-small-6.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 7",
-      "path": "assets/models/stones/small/stone-small-7.fbx",
+      "path": "assets/models/stones/small/stone-small-7.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 8",
-      "path": "assets/models/stones/small/stone-small-8.fbx",
+      "path": "assets/models/stones/small/stone-small-8.glb",
       "fit": 20
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Stones/Stones small/stone small 9",
-      "path": "assets/models/stones/small/stone-small-9.fbx",
+      "path": "assets/models/stones/small/stone-small-9.glb",
       "fit": 20
     }
   ],
   "port": [
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Bags grain/bag grain",
-      "path": "assets/models/environment/bags/bag-grain.fbx",
+      "path": "assets/models/environment/bags/bag-grain.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Bags grain/bag grain 2",
-      "path": "assets/models/environment/bags/bag-grain-2.fbx",
+      "path": "assets/models/environment/bags/bag-grain-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Barrels/barrel",
-      "path": "assets/models/environment/barrels/barrel.fbx",
+      "path": "assets/models/environment/barrels/barrel.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Barrels/barrel 2",
-      "path": "assets/models/environment/barrels/barrel-2.fbx",
+      "path": "assets/models/environment/barrels/barrel-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Barrels/barrel 3",
-      "path": "assets/models/environment/barrels/barrel-3.fbx",
+      "path": "assets/models/environment/barrels/barrel-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Barrels/barrel stand",
-      "path": "assets/models/environment/barrels/barrel-stand.fbx",
+      "path": "assets/models/environment/barrels/barrel-stand.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/basket",
-      "path": "assets/models/environment/basket.fbx",
+      "path": "assets/models/environment/basket.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/bench",
-      "path": "assets/models/environment/bench.fbx",
+      "path": "assets/models/environment/bench.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boards/board",
-      "path": "assets/models/environment/boards/board.fbx",
+      "path": "assets/models/environment/boards/board.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boards/board 2",
-      "path": "assets/models/environment/boards/board-2.fbx",
+      "path": "assets/models/environment/boards/board-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boards/board 3",
-      "path": "assets/models/environment/boards/board-3.fbx",
+      "path": "assets/models/environment/boards/board-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boards/board 4",
-      "path": "assets/models/environment/boards/board-4.fbx",
+      "path": "assets/models/environment/boards/board-4.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Bottles/bottle",
-      "path": "assets/models/environment/bottles/bottle.fbx",
+      "path": "assets/models/environment/bottles/bottle.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Bottles/bottle 2",
-      "path": "assets/models/environment/bottles/bottle-2.fbx",
+      "path": "assets/models/environment/bottles/bottle-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Bottles/bottle 3",
-      "path": "assets/models/environment/bottles/bottle-3.fbx",
+      "path": "assets/models/environment/bottles/bottle-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boxs/box",
-      "path": "assets/models/environment/boxes/box.fbx",
+      "path": "assets/models/environment/boxes/box.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boxs/box 2",
-      "path": "assets/models/environment/boxes/box-2.fbx",
+      "path": "assets/models/environment/boxes/box-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Boxs/box 3",
-      "path": "assets/models/environment/boxes/box-3.fbx",
+      "path": "assets/models/environment/boxes/box-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Chairs/chair",
-      "path": "assets/models/environment/chairs/chair.fbx",
+      "path": "assets/models/environment/chairs/chair.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Chairs/fishing chair",
-      "path": "assets/models/environment/chairs/fishing-chair.fbx",
+      "path": "assets/models/environment/chairs/fishing-chair.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/core",
-      "path": "assets/models/environment/core.fbx",
+      "path": "assets/models/environment/core.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/destroyed wooden pier",
-      "path": "assets/models/environment/destroyed-wooden-pier.fbx",
+      "path": "assets/models/environment/destroyed-wooden-pier.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/drying fish",
-      "path": "assets/models/environment/drying-fish.fbx",
+      "path": "assets/models/environment/drying-fish.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fences/Stone fences/stone fence large",
-      "path": "assets/models/environment/fences/stone/stone-fence-large.fbx",
+      "path": "assets/models/environment/fences/stone/stone-fence-large.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fences/Stone fences/stone fence medium",
-      "path": "assets/models/environment/fences/stone/stone-fence-medium.fbx",
+      "path": "assets/models/environment/fences/stone/stone-fence-medium.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fences/Stone fences/stone fence small",
-      "path": "assets/models/environment/fences/stone/stone-fence-small.fbx",
+      "path": "assets/models/environment/fences/stone/stone-fence-small.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fences/Untreated fences/untreated fence",
-      "path": "assets/models/environment/fences/untreated/untreated-fence.fbx",
+      "path": "assets/models/environment/fences/untreated/untreated-fence.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fences/Untreated fences/untreated left",
-      "path": "assets/models/environment/fences/untreated/untreated-left.fbx",
+      "path": "assets/models/environment/fences/untreated/untreated-left.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/fire vase",
-      "path": "assets/models/environment/fire-vase.fbx",
+      "path": "assets/models/environment/fire-vase.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fires/fire",
-      "path": "assets/models/environment/fires/fire.fbx",
+      "path": "assets/models/environment/fires/fire.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Fires/fire 2",
-      "path": "assets/models/environment/fires/fire-2.fbx",
+      "path": "assets/models/environment/fires/fire-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/fish",
-      "path": "assets/models/environment/fish.fbx",
+      "path": "assets/models/environment/fish.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food tents/food tent",
-      "path": "assets/models/environment/food-tents/food-tent.fbx",
+      "path": "assets/models/environment/food-tents/food-tent.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food tents/food tent 2",
-      "path": "assets/models/environment/food-tents/food-tent-2.fbx",
+      "path": "assets/models/environment/food-tents/food-tent-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food tents/food tent 3",
-      "path": "assets/models/environment/food-tents/food-tent-3.fbx",
+      "path": "assets/models/environment/food-tents/food-tent-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food tents/food tent 4",
-      "path": "assets/models/environment/food-tents/food-tent-4.fbx",
+      "path": "assets/models/environment/food-tents/food-tent-4.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/bread",
-      "path": "assets/models/environment/food/bread.fbx",
+      "path": "assets/models/environment/food/bread.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/carrot",
-      "path": "assets/models/environment/food/carrot.fbx",
+      "path": "assets/models/environment/food/carrot.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/carrot 2",
-      "path": "assets/models/environment/food/carrot-2.fbx",
+      "path": "assets/models/environment/food/carrot-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Cheeses/cheese",
-      "path": "assets/models/environment/food/cheeses/cheese.fbx",
+      "path": "assets/models/environment/food/cheeses/cheese.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Cheeses/cheese 2",
-      "path": "assets/models/environment/food/cheeses/cheese-2.fbx",
+      "path": "assets/models/environment/food/cheeses/cheese-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Cheeses/piece cheese",
-      "path": "assets/models/environment/food/cheeses/piece-cheese.fbx",
+      "path": "assets/models/environment/food/cheeses/piece-cheese.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/eggplant",
-      "path": "assets/models/environment/food/eggplant.fbx",
+      "path": "assets/models/environment/food/eggplant.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Fruits/garnet",
-      "path": "assets/models/environment/food/fruits/garnet.fbx",
+      "path": "assets/models/environment/food/fruits/garnet.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Fruits/grape",
-      "path": "assets/models/environment/food/fruits/grape.fbx",
+      "path": "assets/models/environment/food/fruits/grape.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Fruits/mango",
-      "path": "assets/models/environment/food/fruits/mango.fbx",
+      "path": "assets/models/environment/food/fruits/mango.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Fruits/orange",
-      "path": "assets/models/environment/food/fruits/orange.fbx",
+      "path": "assets/models/environment/food/fruits/orange.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Fruits/watermelon",
-      "path": "assets/models/environment/food/fruits/watermelon.fbx",
+      "path": "assets/models/environment/food/fruits/watermelon.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Fruits/watermelon 2",
-      "path": "assets/models/environment/food/fruits/watermelon-2.fbx",
+      "path": "assets/models/environment/food/fruits/watermelon-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/garlic",
-      "path": "assets/models/environment/food/garlic.fbx",
+      "path": "assets/models/environment/food/garlic.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/meat",
-      "path": "assets/models/environment/food/meat.fbx",
+      "path": "assets/models/environment/food/meat.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Pumpkins/pumpkin 2 brown",
-      "path": "assets/models/environment/food/pumpkins/pumpkin-2-brown.fbx",
+      "path": "assets/models/environment/food/pumpkins/pumpkin-2-brown.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Pumpkins/pumpkin 2 orange",
-      "path": "assets/models/environment/food/pumpkins/pumpkin-2-orange.fbx",
+      "path": "assets/models/environment/food/pumpkins/pumpkin-2-orange.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Pumpkins/pumpkin 2 yellow",
-      "path": "assets/models/environment/food/pumpkins/pumpkin-2-yellow.fbx",
+      "path": "assets/models/environment/food/pumpkins/pumpkin-2-yellow.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Pumpkins/pumpkin brown",
-      "path": "assets/models/environment/food/pumpkins/pumpkin-brown.fbx",
+      "path": "assets/models/environment/food/pumpkins/pumpkin-brown.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Pumpkins/pumpkin orange",
-      "path": "assets/models/environment/food/pumpkins/pumpkin-orange.fbx",
+      "path": "assets/models/environment/food/pumpkins/pumpkin-orange.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/Pumpkins/pumpkin yellow",
-      "path": "assets/models/environment/food/pumpkins/pumpkin-yellow.fbx",
+      "path": "assets/models/environment/food/pumpkins/pumpkin-yellow.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/tomato",
-      "path": "assets/models/environment/food/tomato.fbx",
+      "path": "assets/models/environment/food/tomato.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Food/turnip",
-      "path": "assets/models/environment/food/turnip.fbx",
+      "path": "assets/models/environment/food/turnip.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/lamppost",
-      "path": "assets/models/environment/lamppost.fbx",
+      "path": "assets/models/environment/lamppost.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/mug",
-      "path": "assets/models/environment/mug.fbx",
+      "path": "assets/models/environment/mug.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/pillar",
-      "path": "assets/models/environment/pillar.fbx",
+      "path": "assets/models/environment/pillar.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/smoke black",
-      "path": "assets/models/environment/smoke-black.fbx",
+      "path": "assets/models/environment/smoke-black.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/smoke white",
-      "path": "assets/models/environment/smoke-white.fbx",
+      "path": "assets/models/environment/smoke-white.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/spray",
-      "path": "assets/models/environment/spray.fbx",
+      "path": "assets/models/environment/spray.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Steps/steps",
-      "path": "assets/models/environment/steps/steps.fbx",
+      "path": "assets/models/environment/steps/steps.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Steps/steps 2",
-      "path": "assets/models/environment/steps/steps-2.fbx",
+      "path": "assets/models/environment/steps/steps-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Steps/steps 3",
-      "path": "assets/models/environment/steps/steps-3.fbx",
+      "path": "assets/models/environment/steps/steps-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tables/table",
-      "path": "assets/models/environment/tables/table.fbx",
+      "path": "assets/models/environment/tables/table.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tables/table 2",
-      "path": "assets/models/environment/tables/table-2.fbx",
+      "path": "assets/models/environment/tables/table-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tentacles/tentacles",
-      "path": "assets/models/environment/tentacles/tentacles.fbx",
+      "path": "assets/models/environment/tentacles/tentacles.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tentacles/tentacles 2",
-      "path": "assets/models/environment/tentacles/tentacles-2.fbx",
+      "path": "assets/models/environment/tentacles/tentacles-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tentacles/tentacles 3",
-      "path": "assets/models/environment/tentacles/tentacles-3.fbx",
+      "path": "assets/models/environment/tentacles/tentacles-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tentacles/tentacles 4",
-      "path": "assets/models/environment/tentacles/tentacles-4.fbx",
+      "path": "assets/models/environment/tentacles/tentacles-4.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tentacles/tentacles 5",
-      "path": "assets/models/environment/tentacles/tentacles-5.fbx",
+      "path": "assets/models/environment/tentacles/tentacles-5.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Tentacles/tentacles 6",
-      "path": "assets/models/environment/tentacles/tentacles-6.fbx",
+      "path": "assets/models/environment/tentacles/tentacles-6.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden piers/wooden pier",
-      "path": "assets/models/environment/wooden-piers/wooden-pier.fbx",
+      "path": "assets/models/environment/wooden-piers/wooden-pier.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden piers/wooden pier 2",
-      "path": "assets/models/environment/wooden-piers/wooden-pier-2.fbx",
+      "path": "assets/models/environment/wooden-piers/wooden-pier-2.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden piers/wooden pier 3",
-      "path": "assets/models/environment/wooden-piers/wooden-pier-3.fbx",
+      "path": "assets/models/environment/wooden-piers/wooden-pier-3.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden piers/wooden pier 4",
-      "path": "assets/models/environment/wooden-piers/wooden-pier-4.fbx",
+      "path": "assets/models/environment/wooden-piers/wooden-pier-4.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden piers/wooden pier 5",
-      "path": "assets/models/environment/wooden-piers/wooden-pier-5.fbx",
+      "path": "assets/models/environment/wooden-piers/wooden-pier-5.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden platforms/wooden platform",
-      "path": "assets/models/environment/wooden-platforms/wooden-platform.fbx",
+      "path": "assets/models/environment/wooden-platforms/wooden-platform.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden platforms/wooden platform 2",
-      "path": "assets/models/environment/wooden-platforms/wooden-platform-2.fbx",
+      "path": "assets/models/environment/wooden-platforms/wooden-platform-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden posts/wooden post",
-      "path": "assets/models/environment/wooden-posts/wooden-post.fbx",
+      "path": "assets/models/environment/wooden-posts/wooden-post.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden posts/wooden post 2",
-      "path": "assets/models/environment/wooden-posts/wooden-post-2.fbx",
+      "path": "assets/models/environment/wooden-posts/wooden-post-2.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Environment/Wooden posts/wooden post 3",
-      "path": "assets/models/environment/wooden-posts/wooden-post-3.fbx",
+      "path": "assets/models/environment/wooden-posts/wooden-post-3.glb",
       "fit": 10
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/house",
-      "path": "assets/models/houses/house.fbx",
+      "path": "assets/models/houses/house.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/lighthouse",
-      "path": "assets/models/houses/lighthouse.fbx",
+      "path": "assets/models/houses/lighthouse.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/mysterious house",
-      "path": "assets/models/houses/mysterious-house.fbx",
+      "path": "assets/models/houses/mysterious-house.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Pirate houses/pirate house",
-      "path": "assets/models/houses/pirate/pirate-house.fbx",
+      "path": "assets/models/houses/pirate/pirate-house.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Pirate houses/pirate house 2",
-      "path": "assets/models/houses/pirate/pirate-house-2.fbx",
+      "path": "assets/models/houses/pirate/pirate-house-2.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Pirate houses/pirate house 3",
-      "path": "assets/models/houses/pirate/pirate-house-3.fbx",
+      "path": "assets/models/houses/pirate/pirate-house-3.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Secret houses/secret house",
-      "path": "assets/models/houses/secret/secret-house.fbx",
+      "path": "assets/models/houses/secret/secret-house.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Secret houses/secret house 2",
-      "path": "assets/models/houses/secret/secret-house-2.fbx",
+      "path": "assets/models/houses/secret/secret-house-2.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Trading houses/trading house",
-      "path": "assets/models/houses/trading/trading-house.fbx",
+      "path": "assets/models/houses/trading/trading-house.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Houses/Trading houses/trading house 2",
-      "path": "assets/models/houses/trading/trading-house-2.fbx",
+      "path": "assets/models/houses/trading/trading-house-2.glb",
       "fit": 16
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/boat",
-      "path": "assets/models/vehicles/boat.fbx",
+      "path": "assets/models/vehicles/boat.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Destroyed ships/back ship",
-      "path": "assets/models/vehicles/destroyed/back-ship.fbx",
+      "path": "assets/models/vehicles/destroyed/back-ship.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Destroyed ships/destroyed ship",
-      "path": "assets/models/vehicles/destroyed/destroyed-ship.fbx",
+      "path": "assets/models/vehicles/destroyed/destroyed-ship.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Destroyed ships/destroyed ship 2",
-      "path": "assets/models/vehicles/destroyed/destroyed-ship-2.fbx",
+      "path": "assets/models/vehicles/destroyed/destroyed-ship-2.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Destroyed ships/front ship",
-      "path": "assets/models/vehicles/destroyed/front-ship.fbx",
+      "path": "assets/models/vehicles/destroyed/front-ship.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Pirate ships/pirate ship",
-      "path": "assets/models/vehicles/pirate-ships/pirate-ship.fbx",
+      "path": "assets/models/vehicles/pirate-ships/pirate-ship.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Pirate ships/pirate ship 2",
-      "path": "assets/models/vehicles/pirate-ships/pirate-ship-2.fbx",
+      "path": "assets/models/vehicles/pirate-ships/pirate-ship-2.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Pirate ships/pirate ship 3",
-      "path": "assets/models/vehicles/pirate-ships/pirate-ship-3.fbx",
+      "path": "assets/models/vehicles/pirate-ships/pirate-ship-3.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Sailing boats/sailboat",
-      "path": "assets/models/vehicles/sailboats/sailboat.fbx",
+      "path": "assets/models/vehicles/sailboats/sailboat.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Sailing boats/sailboat 2",
-      "path": "assets/models/vehicles/sailboats/sailboat-2.fbx",
+      "path": "assets/models/vehicles/sailboats/sailboat-2.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Sailing boats/sailboat 3",
-      "path": "assets/models/vehicles/sailboats/sailboat-3.fbx",
+      "path": "assets/models/vehicles/sailboats/sailboat-3.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/Sailing boats/sailboat 4",
-      "path": "assets/models/vehicles/sailboats/sailboat-4.fbx",
+      "path": "assets/models/vehicles/sailboats/sailboat-4.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/ship",
-      "path": "assets/models/vehicles/ship.fbx",
+      "path": "assets/models/vehicles/ship.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/ship 2",
-      "path": "assets/models/vehicles/ship-2.fbx",
+      "path": "assets/models/vehicles/ship-2.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/ship 3",
-      "path": "assets/models/vehicles/ship-3.fbx",
+      "path": "assets/models/vehicles/ship-3.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/ship 4",
-      "path": "assets/models/vehicles/ship-4.fbx",
+      "path": "assets/models/vehicles/ship-4.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/ship 5",
-      "path": "assets/models/vehicles/ship-5.fbx",
+      "path": "assets/models/vehicles/ship-5.glb",
       "fit": 11
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Vehicles/ship 6",
-      "path": "assets/models/vehicles/ship-6.fbx",
+      "path": "assets/models/vehicles/ship-6.glb",
       "fit": 11
     }
   ],
   "water": [
     {
       "label": "Sailing/Low Poly Cartoon Sailing Ships/Models/water",
-      "path": "assets/models/ships-palmov/water.fbx",
+      "path": "assets/models/ships-palmov/water.glb",
       "fit": 40
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location ancient artifacts",
-      "path": "assets/models/waters/water-location-ancient-artifacts.fbx",
+      "path": "assets/models/waters/water-location-ancient-artifacts.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location lighthouse pier",
-      "path": "assets/models/waters/water-location-lighthouse-pier.fbx",
+      "path": "assets/models/waters/water-location-lighthouse-pier.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location mountain arch",
-      "path": "assets/models/waters/water-location-mountain-arch.fbx",
+      "path": "assets/models/waters/water-location-mountain-arch.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location mysterious place",
-      "path": "assets/models/waters/water-location-mysterious-place.fbx",
+      "path": "assets/models/waters/water-location-mysterious-place.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location pirate seaport",
-      "path": "assets/models/waters/water-location-pirate-seaport.fbx",
+      "path": "assets/models/waters/water-location-pirate-seaport.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location pirates battle",
-      "path": "assets/models/waters/water-location-pirates-battle.fbx",
+      "path": "assets/models/waters/water-location-pirates-battle.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location sea monster attack",
-      "path": "assets/models/waters/water-location-sea-monster-attack.fbx",
+      "path": "assets/models/waters/water-location-sea-monster-attack.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location secret Island",
-      "path": "assets/models/waters/water-location-secret-island.fbx",
+      "path": "assets/models/waters/water-location-secret-island.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location ship Island",
-      "path": "assets/models/waters/water-location-ship-island.fbx",
+      "path": "assets/models/waters/water-location-ship-island.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/water location trade port",
-      "path": "assets/models/waters/water-location-trade-port.fbx",
+      "path": "assets/models/waters/water-location-trade-port.glb",
       "fit": 42
     },
     {
       "label": "Sea/Low Poly Sea Locations Pack/Models/Waters/waterfall",
-      "path": "assets/models/waters/waterfall.fbx",
+      "path": "assets/models/waters/waterfall.glb",
       "fit": 42
     }
   ]

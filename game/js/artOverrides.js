@@ -1,4 +1,4 @@
-// artOverrides.js — maps ship/enemy/boss keys to FBX model paths via manifest
+// artOverrides.js — maps ship/enemy/boss keys to GLB model paths via manifest
 var _manifest = null;
 var _manifestPromise = null;
 

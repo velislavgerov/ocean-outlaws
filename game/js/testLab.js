@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
-import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
 var STORAGE_KEY = "ocean_outlaws_test_lab_v1";
 var CATALOG_URL = "data/testLabModelCatalog.json";
@@ -18,37 +19,37 @@ var SHIP_SLOT_FALLBACK = [
 
 var LIB = {
   ship: [
-    { label: "Ship Small 3", path: "assets/models/ships-palmov/small/ship-small-3.fbx", fit: 8 },
-    { label: "Ship Medium 2", path: "assets/models/ships-palmov/medium/ship-medium-2.fbx", fit: 10 },
-    { label: "Ship Large 2", path: "assets/models/ships-palmov/large/ship-large-2.fbx", fit: 12 },
-    { label: "Pirate Large 1", path: "assets/models/ships-palmov/large/pirate-ship-large-1.fbx", fit: 13 },
-    { label: "Pirate Large 2", path: "assets/models/ships-palmov/large/pirate-ship-large-2.fbx", fit: 13 }
+    { label: "Ship Small 3", path: "assets/models/ships-palmov/small/ship-small-3.glb", fit: 8 },
+    { label: "Ship Medium 2", path: "assets/models/ships-palmov/medium/ship-medium-2.glb", fit: 10 },
+    { label: "Ship Large 2", path: "assets/models/ships-palmov/large/ship-large-2.glb", fit: 12 },
+    { label: "Pirate Large 1", path: "assets/models/ships-palmov/large/pirate-ship-large-1.glb", fit: 13 },
+    { label: "Pirate Large 2", path: "assets/models/ships-palmov/large/pirate-ship-large-2.glb", fit: 13 }
   ],
   tree: [
-    { label: "Palm Large", path: "assets/models/trees/palm/palm-tree-large.fbx", fit: 11 },
-    { label: "Palm Bent", path: "assets/models/trees/palm/palm-tree-bent.fbx", fit: 9 },
-    { label: "Palm Small", path: "assets/models/trees/palm/palm-tree-small.fbx", fit: 7 }
+    { label: "Palm Large", path: "assets/models/trees/palm/palm-tree-large.glb", fit: 11 },
+    { label: "Palm Bent", path: "assets/models/trees/palm/palm-tree-bent.glb", fit: 9 },
+    { label: "Palm Small", path: "assets/models/trees/palm/palm-tree-small.glb", fit: 7 }
   ],
   island: [
-    { label: "Stone Large 2", path: "assets/models/stones/large/stone-large-2.fbx", fit: 10 },
-    { label: "Stone Small 6", path: "assets/models/stones/small/stone-small-6.fbx", fit: 6 },
-    { label: "Island Arch", path: "assets/models/islands/island-mountain-arch.fbx", fit: 20 },
-    { label: "Island Lighthouse Pier", path: "assets/models/islands/island-lighthouse-pier.fbx", fit: 22 }
+    { label: "Stone Large 2", path: "assets/models/stones/large/stone-large-2.glb", fit: 10 },
+    { label: "Stone Small 6", path: "assets/models/stones/small/stone-small-6.glb", fit: 6 },
+    { label: "Island Arch", path: "assets/models/islands/island-mountain-arch.glb", fit: 20 },
+    { label: "Island Lighthouse Pier", path: "assets/models/islands/island-lighthouse-pier.glb", fit: 22 }
   ],
   port: [
-    { label: "Trade Port Land", path: "assets/models/lands/land-trade-port.fbx", fit: 18 },
-    { label: "Pirate Seaport Land", path: "assets/models/lands/land-pirate-seaport.fbx", fit: 18 },
-    { label: "Wooden Pier", path: "assets/models/environment/wooden-piers/wooden-pier.fbx", fit: 18 },
-    { label: "Wooden Pier 2", path: "assets/models/environment/wooden-piers/wooden-pier-2.fbx", fit: 18 },
-    { label: "Wooden Pier 3", path: "assets/models/environment/wooden-piers/wooden-pier-3.fbx", fit: 18 },
-    { label: "Wooden Pier 4", path: "assets/models/environment/wooden-piers/wooden-pier-4.fbx", fit: 18 },
-    { label: "Wooden Pier 5", path: "assets/models/environment/wooden-piers/wooden-pier-5.fbx", fit: 18 },
-    { label: "Destroyed Wooden Pier", path: "assets/models/environment/destroyed-wooden-pier.fbx", fit: 18 }
+    { label: "Trade Port Land", path: "assets/models/lands/land-trade-port.glb", fit: 18 },
+    { label: "Pirate Seaport Land", path: "assets/models/lands/land-pirate-seaport.glb", fit: 18 },
+    { label: "Wooden Pier", path: "assets/models/environment/wooden-piers/wooden-pier.glb", fit: 18 },
+    { label: "Wooden Pier 2", path: "assets/models/environment/wooden-piers/wooden-pier-2.glb", fit: 18 },
+    { label: "Wooden Pier 3", path: "assets/models/environment/wooden-piers/wooden-pier-3.glb", fit: 18 },
+    { label: "Wooden Pier 4", path: "assets/models/environment/wooden-piers/wooden-pier-4.glb", fit: 18 },
+    { label: "Wooden Pier 5", path: "assets/models/environment/wooden-piers/wooden-pier-5.glb", fit: 18 },
+    { label: "Destroyed Wooden Pier", path: "assets/models/environment/destroyed-wooden-pier.glb", fit: 18 }
   ],
   water: [
-    { label: "Cartoon Water", path: "assets/models/ships-palmov/water.fbx", fit: 26 },
-    { label: "Trade Port Water", path: "assets/models/waters/water-location-trade-port.fbx", fit: 26 },
-    { label: "Pirate Seaport Water", path: "assets/models/waters/water-location-pirate-seaport.fbx", fit: 26 }
+    { label: "Cartoon Water", path: "assets/models/ships-palmov/water.glb", fit: 26 },
+    { label: "Trade Port Water", path: "assets/models/waters/water-location-trade-port.glb", fit: 26 },
+    { label: "Pirate Seaport Water", path: "assets/models/waters/water-location-pirate-seaport.glb", fit: 26 }
   ]
 };
 
@@ -145,15 +146,18 @@ function remapTextureUrl(url, sourcePath) {
   return "assets/textures/locations.png";
 }
 
+var _tlDracoLoader = new DRACOLoader();
+_tlDracoLoader.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/");
+var _tlLoader = new GLTFLoader();
+_tlLoader.setDRACOLoader(_tlDracoLoader);
+
 var cache = {};
 function loadTemplate(path) {
   if (cache[path]) return cache[path];
   cache[path] = new Promise(function (resolve, reject) {
-    var loader = new FBXLoader();
-    loader.manager.setURLModifier(function (url) {
-      return remapTextureUrl(url, path);
-    });
-    loader.load(encodeURI(path), resolve, undefined, reject);
+    _tlLoader.load(encodeURI(path), function (gltf) {
+      resolve(gltf.scene);
+    }, undefined, reject);
   });
   return cache[path];
 }

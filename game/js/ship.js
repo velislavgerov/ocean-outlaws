@@ -4,7 +4,7 @@ import { buildClassMesh } from "./shipModels.js";
 import { collideWithTerrain, applyEdgeBoundary, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
-import { loadFbxVisual } from "./fbxVisual.js";
+import { loadGlbVisual } from "./glbVisual.js";
 
 // --- default physics tuning (used as fallback) ---
 var DEFAULT_MAX_SPEED = 10;
@@ -79,13 +79,13 @@ function buildShipMesh() {
   return group;
 }
 
-// --- async FBX override: replace procedural mesh with Palmov model ---
+// --- async GLB override: replace procedural mesh with Palmov model ---
 function applyShipOverrideAsync(mesh, classKey) {
   var path = getOverridePath(classKey);
   if (!path) return;
   var fitSize = getOverrideSize(classKey) || 8;
   var firePoints = mesh.userData.turrets || [];
-  loadFbxVisual(path, fitSize, true).then(function (visual) {
+  loadGlbVisual(path, fitSize, true).then(function (visual) {
     // snapshot children to preserve (fire points and lights like lantern)
     var keep = [];
     for (var i = 0; i < mesh.children.length; i++) {
@@ -116,7 +116,7 @@ export function createShip(classConfig) {
     mesh = buildShipMesh();
   }
 
-  // attempt to load FBX model override (async, falls back to procedural)
+  // attempt to load GLB model override (async, falls back to procedural)
   if (classConfig && classConfig.key) {
     applyShipOverrideAsync(mesh, classConfig.key);
   }

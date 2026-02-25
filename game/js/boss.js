@@ -5,7 +5,7 @@ import { nextRandom } from "./rng.js";
 import { collideWithTerrain, isLand, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
-import { loadFbxVisual } from "./fbxVisual.js";
+import { loadGlbVisual } from "./glbVisual.js";
 
 // --- boss definitions ---
 var BOSS_DEFS = {
@@ -90,7 +90,7 @@ function applyBossOverrideAsync(mesh, bossType) {
   var fit = getOverrideSize(slot) || (bossType === "carrier" ? 18 : 16);
   var firePoints = mesh.userData.turrets || [];
   var tentacles = mesh.userData.tentacles || [];
-  loadFbxVisual(path, fit, true).then(function (visual) {
+  loadGlbVisual(path, fit, true).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
     // re-attach fire points so they move with the boss

@@ -5,7 +5,7 @@ import { getTotalSpent, respecUpgrades } from "./upgrade.js";
 import { isMobile } from "./mobile.js";
 import { T, FONT, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
 import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
-import { loadFbxVisual } from "./fbxVisual.js";
+import { loadGlbVisual } from "./glbVisual.js";
 import { isShipUnlocked, getShipInfamyReq, getTotalInfamy, getLegendLevel } from "./infamy.js";
 
 var overlay = null;
@@ -80,7 +80,7 @@ function createPreviewEntry(classKey, canvas) {
     var path = getOverridePath(classKey);
     var size = getOverrideSize(classKey) || 6;
     if (!path) return;
-    loadFbxVisual(path, size, true).then(function (visual) {
+    loadGlbVisual(path, size, true).then(function (visual) {
       entry.model = visual;
       scene.add(visual);
     }).catch(function () {});

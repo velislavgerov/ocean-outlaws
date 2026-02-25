@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { loadFbxVisual } from "./fbxVisual.js";
+import { loadGlbVisual } from "./glbVisual.js";
 
 var ui = {
   presetFile: document.getElementById("presetFile"),
@@ -161,7 +161,7 @@ async function loadCompositeByIndex(idx) {
     var item = items[i];
     try {
       var fit = (item.type === "island") ? 20 : (item.type === "port" ? 14 : 10);
-      var visual = await loadFbxVisual(item.modelPath, fit, true);
+      var visual = await loadGlbVisual(item.modelPath, fit, true);
       var g = new THREE.Group();
       g.add(visual);
       g.position.set(item.x || 0, item.y || 0, item.z || 0);

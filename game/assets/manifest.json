@@ -1,17 +1,17 @@
 {
   "version": 1,
   "ships": {
-    "sloop": { "model": "models/ships/sloop.fbx", "size": 6 },
-    "destroyer": { "model": "models/ships/sloop.fbx", "size": 6 },
-    "brigantine": { "model": "models/ships/brigantine.fbx", "size": 7 },
-    "cruiser": { "model": "models/ships/brigantine.fbx", "size": 7 },
-    "galleon": { "model": "models/ships/galleon.fbx", "size": 8 },
-    "carrier": { "model": "models/ships/galleon.fbx", "size": 8 },
-    "manowar": { "model": "models/ships/manowar.fbx", "size": 9 },
-    "submarine": { "model": "models/ships/manowar.fbx", "size": 9 },
-    "enemy_patrol": { "model": "models/ships/enemy-patrol.fbx", "size": 6 },
-    "boss_battleship": { "model": "models/ships/boss-blackthorn.fbx", "size": 16 },
-    "boss_carrier": { "model": "models/ships/boss-widow.fbx", "size": 18 }
+    "sloop": { "model": "models/ships/sloop.glb", "size": 6 },
+    "destroyer": { "model": "models/ships/sloop.glb", "size": 6 },
+    "brigantine": { "model": "models/ships/brigantine.glb", "size": 7 },
+    "cruiser": { "model": "models/ships/brigantine.glb", "size": 7 },
+    "galleon": { "model": "models/ships/galleon.glb", "size": 8 },
+    "carrier": { "model": "models/ships/galleon.glb", "size": 8 },
+    "manowar": { "model": "models/ships/manowar.glb", "size": 9 },
+    "submarine": { "model": "models/ships/manowar.glb", "size": 9 },
+    "enemy_patrol": { "model": "models/ships/enemy-patrol.glb", "size": 6 },
+    "boss_battleship": { "model": "models/ships/boss-blackthorn.glb", "size": 16 },
+    "boss_carrier": { "model": "models/ships/boss-widow.glb", "size": 18 }
   },
   "textures": {
     "ships": "textures/ships.png",

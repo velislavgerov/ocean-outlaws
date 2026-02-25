@@ -1,6 +1,6 @@
-// terrainComposite.js — composition-field island placement with FBX models
+// terrainComposite.js — composition-field island placement with GLB models
 import * as THREE from "three";
-import { loadFbxVisual } from "./fbxVisual.js";
+import { loadGlbVisual } from "./glbVisual.js";
 import { getQualityConfig } from "./mobile.js";
 
 var TERRAIN_VISUAL_Y_OFFSET = 4.0;
@@ -13,7 +13,7 @@ var MAX_COMPOSITE_INSTANCES = 7;
 var COMPOSITE_CENTER_MIN_DIST = 76;
 var COMPOSITE_CENTER_MAX_DIST = 176;
 var COMPOSITE_CENTER_ATTEMPTS = 220;
-var SMALL_ISLAND_MODEL = "assets/models/islands/island-mountain-arch-2.fbx";
+var SMALL_ISLAND_MODEL = "assets/models/islands/island-mountain-arch-2.glb";
 var MIN_BIG_ISLANDS = 3;
 var MIN_MEDIUM_ISLANDS = 7;
 var MIN_SMALL_ISLANDS = 10;
@@ -354,7 +354,7 @@ export async function addCompositeFieldVisual(root, terrain, seed) {
       var item = def.items[i];
       try {
         var local = rotateXZ((item.x || 0) * instScale, (item.z || 0) * instScale, rot);
-        var visual = await loadFbxVisual(item.modelPath, fitForCompositeItem(item), true);
+        var visual = await loadGlbVisual(item.modelPath, fitForCompositeItem(item), true);
         var holder = new THREE.Group();
         holder.add(visual);
         holder.position.set(
@@ -445,7 +445,7 @@ export async function addTieredIslandFieldVisual(root, terrain, heightmap, seed)
   }
 
   try {
-    var template = await loadFbxVisual(SMALL_ISLAND_MODEL, 20, true);
+    var template = await loadGlbVisual(SMALL_ISLAND_MODEL, 20, true);
     var total = 0;
     var qCfg2 = getQualityConfig();
     var islandScale = qCfg2.maxCompositeInstances ? qCfg2.maxCompositeInstances / MAX_COMPOSITE_INSTANCES : 1;
