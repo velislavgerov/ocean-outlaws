@@ -47,6 +47,24 @@ var AMBIENT_MODEL_POOLS = {
   ]
 };
 
+var ENEMY_MODEL_POOLS = {
+  merchant: [
+    { path: "assets/models/vehicles/sailboats/sailboat.glb", fit: 6.5 },
+    { path: "assets/models/vehicles/sailboats/sailboat-2.glb", fit: 6.5 },
+    { path: "assets/models/ships-palmov/boats/chinese-boat.glb", fit: 6.3 }
+  ],
+  navy: [
+    { path: "assets/models/ships-palmov/small/ship-small-5.glb", fit: 6.8 },
+    { path: "assets/models/ships-palmov/boats/boat-3.glb", fit: 6.3 },
+    { path: "assets/models/ships-palmov/boats/boat-1.glb", fit: 6.3 }
+  ],
+  pirate: [
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship.glb", fit: 7.0 },
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", fit: 7.0 },
+    { path: "assets/models/ships-palmov/small/pirate-ship-small.glb", fit: 6.8 }
+  ]
+};
+
 export function getFactions() { return FACTIONS; }
 export function getFactionAnnounce(faction) {
   var f = FACTIONS[faction];
@@ -148,6 +166,11 @@ function getEnemyOverrideSpec(enemy) {
 function pickAmbientModelVariant(faction) {
   var key = faction || "merchant";
   return pickRoleVariant("ambient." + key, AMBIENT_MODEL_POOLS[key], nextRandom);
+}
+
+function pickCombatModelVariant(faction) {
+  var key = faction || "pirate";
+  return pickRoleVariant("enemy." + key, ENEMY_MODEL_POOLS[key], nextRandom);
 }
 
 function applyEnemyOverrideAsync(mesh, enemy) {
@@ -328,7 +351,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     _smoothPitch: 0,
     _smoothRoll: 0,
     _buoyancyInit: false,
-    _stuckDetector: createStuckDetector()
+    _stuckDetector: createStuckDetector(),
+    visualOverride: pickCombatModelVariant(faction)
   };
 
   updateEnemyHitbox(enemy, mesh);

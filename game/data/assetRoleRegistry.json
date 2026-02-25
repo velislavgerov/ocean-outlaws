@@ -107,6 +107,21 @@
       { "path": "assets/models/vehicles/pirate-ships/pirate-ship.glb", "fit": 6.8, "weight": 1.0 },
       { "path": "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", "fit": 6.8, "weight": 0.9 }
     ],
+    "enemy.merchant": [
+      { "path": "assets/models/vehicles/sailboats/sailboat.glb", "fit": 6.5, "weight": 1.3 },
+      { "path": "assets/models/vehicles/sailboats/sailboat-2.glb", "fit": 6.5, "weight": 1.0 },
+      { "path": "assets/models/ships-palmov/boats/chinese-boat.glb", "fit": 6.3, "weight": 0.8 }
+    ],
+    "enemy.navy": [
+      { "path": "assets/models/ships-palmov/small/ship-small-5.glb", "fit": 6.8, "weight": 1.3 },
+      { "path": "assets/models/ships-palmov/boats/boat-3.glb", "fit": 6.3, "weight": 1.0 },
+      { "path": "assets/models/ships-palmov/boats/boat-1.glb", "fit": 6.3, "weight": 0.9 }
+    ],
+    "enemy.pirate": [
+      { "path": "assets/models/vehicles/pirate-ships/pirate-ship.glb", "fit": 7.0, "weight": 1.3 },
+      { "path": "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", "fit": 7.0, "weight": 1.0 },
+      { "path": "assets/models/ships-palmov/small/pirate-ship-small.glb", "fit": 6.8, "weight": 0.8 }
+    ],
     "pickup.ammo": [
       { "path": "assets/models/environment/boxes/box.glb", "fit": 1.0 },
       { "path": "assets/models/environment/boxes/box-2.glb", "fit": 1.0 },
