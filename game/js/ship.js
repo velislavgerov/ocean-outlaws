@@ -48,7 +48,7 @@ export function applyShipOverrideAsync(mesh, classKey) {
   if (!path) return null;
   var fitSize = getOverrideSize(classKey) || 8;
   var firePoints = mesh.userData.turrets || [];
-  return loadGlbVisual(path, fitSize, true).then(function (visual) {
+  return loadGlbVisual(path, fitSize, true, { noDecimate: true }).then(function (visual) {
     // snapshot children to preserve (fire points and lights like lantern)
     var keep = [];
     for (var i = 0; i < mesh.children.length; i++) {

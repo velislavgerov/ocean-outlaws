@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { addAmmo, addFuel, addParts } from "./resource.js";
 import { addGold } from "./upgrade.js";
 import { nextRandom } from "./rng.js";
+import { loadGlbVisual } from "./glbVisual.js";
+import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 
 // --- tuning ---
 var PICKUP_FLOAT_OFFSET = 0.8;
@@ -36,6 +38,29 @@ function ensureGeo() {
   barrelGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.7, 8);
 }
 
+var PICKUP_MODEL_POOLS = {
+  ammo: [
+    { path: "assets/models/environment/boxes/box.glb", fit: 1.0 },
+    { path: "assets/models/environment/boxes/box-2.glb", fit: 1.0 },
+    { path: "assets/models/environment/boxes/box-3.glb", fit: 1.0 }
+  ],
+  fuel: [
+    { path: "assets/models/environment/barrels/barrel.glb", fit: 1.0 },
+    { path: "assets/models/environment/barrels/barrel-2.glb", fit: 1.0 },
+    { path: "assets/models/environment/bottles/bottle-2.glb", fit: 0.95 }
+  ],
+  parts: [
+    { path: "assets/models/environment/boards/board.glb", fit: 1.0 },
+    { path: "assets/models/environment/boards/board-2.glb", fit: 1.0 },
+    { path: "assets/models/environment/wooden-posts/wooden-post.glb", fit: 1.0 }
+  ],
+  gold: [
+    { path: "assets/models/environment/basket.glb", fit: 1.0 },
+    { path: "assets/models/environment/bags/bag-grain.glb", fit: 1.0 },
+    { path: "assets/models/environment/mug.glb", fit: 1.0 }
+  ]
+};
+
 // --- color by type ---
 var TYPE_COLORS = {
   ammo: 0xffaa22,
@@ -51,6 +76,10 @@ var GLOW_COLORS = {
   gold: 0xffee88
 };
 
+function pickPickupModel(type) {
+  return pickRoleVariant("pickup." + type, PICKUP_MODEL_POOLS[type], nextRandom);
+}
+
 // --- build pickup mesh ---
 function buildPickupMesh(type) {
   ensureGeo();
@@ -65,6 +94,7 @@ function buildPickupMesh(type) {
   } else {
     mesh = new THREE.Mesh(crateGeo, mat);
   }
+  mesh.userData.pickupFallback = true;
   group.add(mesh);
 
   // glow point light
@@ -77,8 +107,28 @@ function buildPickupMesh(type) {
   return group;
 }
 
+function hydratePickupMesh(pickup) {
+  var model = pickPickupModel(pickup.type);
+  if (!model) return;
+  loadGlbVisual(model.path, model.fit, true)
+    .then(function (obj) {
+      if (pickup.collected || !pickup.mesh || !pickup.mesh.parent) return;
+      pickup.mesh.traverse(function (child) {
+        if (child.isMesh && child.userData && child.userData.pickupFallback) {
+          child.visible = false;
+        }
+      });
+      obj.position.y = 0.1;
+      pickup.mesh.add(obj);
+    })
+    .catch(function () {
+      // keep fallback mesh
+    });
+}
+
 // --- pickup manager ---
 export function createPickupManager() {
+  ensureAssetRoles();
   return {
     pickups: [],
     onCollectCallback: null  // called with (index) for multiplayer sync
@@ -107,14 +157,17 @@ export function spawnPickup(manager, x, y, z, scene) {
   mesh.position.set(x, y + PICKUP_FLOAT_OFFSET, z);
   scene.add(mesh);
 
-  manager.pickups.push({
+  var pickup = {
     mesh: mesh,
     type: type,
     posX: x,
     posZ: z,
     age: 0,
     collected: false
-  });
+  };
+  manager.pickups.push(pickup);
+
+  hydratePickupMesh(pickup);
 }
 
 // --- clear all pickups (called on wave transition) ---
