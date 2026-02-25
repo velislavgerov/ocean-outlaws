@@ -5,6 +5,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { getQualityConfig } from "./mobile.js";
 
 var cache = {};
+var textureCache = {};
 
 // DRACOLoader singleton — created once and shared across all loads
 var _dracoLoader = new DRACOLoader();
@@ -12,6 +13,63 @@ _dracoLoader.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.160.0/examples
 
 var _loader = new GLTFLoader();
 _loader.setDRACOLoader(_dracoLoader);
+var _textureLoader = new THREE.TextureLoader();
+
+function getAtlasPathForModel(sourcePath) {
+  var lower = String(sourcePath || "").toLowerCase();
+  if (
+    lower.indexOf("/ships/") >= 0 ||
+    lower.indexOf("/ships-palmov/") >= 0 ||
+    lower.indexOf("/vehicles/") >= 0
+  ) {
+    return "assets/textures/ships.png";
+  }
+  return "assets/textures/locations.png";
+}
+
+function needsLegacyAtlasMaterial(material) {
+  if (!material || material.map) return false;
+  var n = String(material.name || "").toLowerCase();
+  return n === "texture main" || n === "texture_main" || n === "texturemain";
+}
+
+function loadAtlasTexture(path) {
+  if (textureCache[path]) return textureCache[path];
+  textureCache[path] = new Promise(function (resolve, reject) {
+    _textureLoader.load(
+      path,
+      function (texture) {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        resolve(texture);
+      },
+      undefined,
+      reject
+    );
+  });
+  return textureCache[path];
+}
+
+async function applyMissingTextureFallback(root, sourcePath) {
+  var atlasPath = getAtlasPathForModel(sourcePath);
+  var atlasTexture;
+  try {
+    atlasTexture = await loadAtlasTexture(atlasPath);
+  } catch (err) {
+    console.warn("[glbVisual] Failed loading fallback atlas:", atlasPath, err);
+    return;
+  }
+
+  root.traverse(function (o) {
+    if (!o.isMesh || !o.material) return;
+    var mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (var i = 0; i < mats.length; i++) {
+      var m = mats[i];
+      if (!needsLegacyAtlasMaterial(m)) continue;
+      m.map = atlasTexture;
+      m.needsUpdate = true;
+    }
+  });
+}
 
 function fitToSize(root, target) {
   var box = new THREE.Box3().setFromObject(root);
@@ -45,6 +103,7 @@ function applyFlat(root) {
         side: m.side !== undefined ? m.side : THREE.FrontSide
       });
       if (m.map) toon.map = m.map;
+      if (m.vertexColors) toon.vertexColors = true;
       if (m.transparent) { toon.transparent = true; toon.opacity = m.opacity; }
       replaced.push(toon);
     }
@@ -107,6 +166,7 @@ function loadTemplate(path) {
 export async function loadGlbVisual(path, fitSize, flatShaded) {
   var tpl = await loadTemplate(path);
   var visual = tpl.clone(true);
+  await applyMissingTextureFallback(visual, path);
   fitToSize(visual, fitSize || 10);
   if (flatShaded !== false) applyFlat(visual);
   var qCfg = getQualityConfig();
