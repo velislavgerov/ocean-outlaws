@@ -10,21 +10,18 @@ import { nextRandom } from "./rng.js";
 var FACTIONS = {
   pirate: {
     label: "Pirate",
-    hullColor: 0xaa2828, deckColor: 0x882020, bridgeColor: 0x993030, glassColor: 0x4a1818,
     speed: 18, turnSpeed: 2.2, engageDist: 12, fireRange: 25, fireCooldown: 1.2,
     hp: 2, goldMult: 1.0, groupSize: [3, 5],
     announce: "Pirate Fleet Approaching!"
   },
   navy: {
     label: "Royal Navy",
-    hullColor: 0x2a4a88, deckColor: 0x3a5a99, bridgeColor: 0x4a6aaa, glassColor: 0x1a3a66,
     speed: 12, turnSpeed: 1.4, engageDist: 30, fireRange: 38, fireCooldown: 1.0,
     hp: 5, goldMult: 2.0, groupSize: [2, 4],
     announce: "Royal Navy Patrol!"
   },
   merchant: {
     label: "Merchant",
-    hullColor: 0x886838, deckColor: 0x997848, bridgeColor: 0xaa8858, glassColor: 0x4a3820,
     speed: 6, turnSpeed: 1.6, engageDist: 50, fireRange: 20, fireCooldown: 2.5,
     hp: 3, goldMult: 3.0, groupSize: [1, 3],
     announce: "Merchant Convoy Spotted!"
@@ -99,88 +96,17 @@ function spawnEnemyFlash(manager, scene, position) {
   manager.effects.push({ mesh: mesh, life: 0.08 });
 }
 
-// --- per-faction PBR material cache ---
-var factionMats = {};
-
-function getFactionMats(faction) {
-  if (factionMats[faction]) return factionMats[faction];
-  var f = FACTIONS[faction] || FACTIONS.pirate;
-  factionMats[faction] = {
-    hull: new THREE.MeshToonMaterial({ color: f.hullColor }),
-    deck: new THREE.MeshToonMaterial({ color: f.deckColor }),
-    bridge: new THREE.MeshToonMaterial({ color: f.bridgeColor }),
-    glass: new THREE.MeshToonMaterial({ color: f.glassColor })
-  };
-  return factionMats[faction];
-}
-
-// --- build enemy patrol boat mesh with faction colors ---
-function buildEnemyMesh(faction) {
-  var mats = getFactionMats(faction || "pirate");
+// --- build enemy placeholder mesh with fire points ---
+// Shown while GLB model loads; replaced by GLB on success, or error box on failure
+function buildEnemyPlaceholder() {
   var group = new THREE.Group();
-
-  // hull — angular patrol boat with ram bow
-  var hullShape = new THREE.Shape();
-  hullShape.moveTo(0, 2.0);
-  hullShape.lineTo(0.35, 1.5);
-  hullShape.lineTo(0.55, 0.8);
-  hullShape.lineTo(0.6, 0);
-  hullShape.lineTo(0.55, -0.8);
-  hullShape.lineTo(0.45, -1.3);
-  hullShape.lineTo(0.3, -1.5);
-  hullShape.lineTo(-0.3, -1.5);
-  hullShape.lineTo(-0.45, -1.3);
-  hullShape.lineTo(-0.55, -0.8);
-  hullShape.lineTo(-0.6, 0);
-  hullShape.lineTo(-0.55, 0.8);
-  hullShape.lineTo(-0.35, 1.5);
-  hullShape.lineTo(0, 2.0);
-
-  var hullGeo = new THREE.ExtrudeGeometry(hullShape, {
-    depth: 0.38, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 1
-  });
-  var hull = new THREE.Mesh(hullGeo, mats.hull);
-  hull.rotation.x = -Math.PI / 2;
-  hull.position.y = -0.1;
-  group.add(hull);
-
-  var wlGeo = new THREE.PlaneGeometry(1.1, 3.2);
-  var wlMat = new THREE.MeshToonMaterial({ color: 0x1a0a0a });
-  var wl = new THREE.Mesh(wlGeo, wlMat);
-  wl.rotation.x = -Math.PI / 2;
-  wl.position.set(0, 0.01, 0.1);
-  group.add(wl);
-
-  var deckGeo = new THREE.PlaneGeometry(0.85, 2.8);
-  var deck = new THREE.Mesh(deckGeo, mats.deck);
-  deck.rotation.x = -Math.PI / 2;
-  deck.position.set(0, 0.28, 0.1);
-  group.add(deck);
-
-  var bridgeGeo = new THREE.BoxGeometry(0.45, 0.38, 0.5);
-  var bridge = new THREE.Mesh(bridgeGeo, mats.bridge);
-  bridge.position.set(0, 0.47, -0.35);
-  group.add(bridge);
-  var winGeo = new THREE.PlaneGeometry(0.36, 0.14);
-  var win = new THREE.Mesh(winGeo, mats.glass);
-  win.position.set(0, 0.52, -0.09);
-  group.add(win);
-
-  // fire points — invisible hull fire positions (no turret mesh)
+  group.add(new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.5, 2),
+    new THREE.MeshBasicMaterial({ color: 0xff00ff })
+  ));
   var portFP = new THREE.Object3D(); portFP.position.set(-0.5, 0.3, 0.3); group.add(portFP);
   var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.5, 0.3, 0.3); group.add(stbdFP);
   group.userData.firePoints = [portFP, stbdFP];
-
-  var portMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-  var stbdMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  var lightGeo = new THREE.SphereGeometry(0.035, 4, 3);
-  var port = new THREE.Mesh(lightGeo, portMat);
-  port.position.set(-0.5, 0.28, 0.6);
-  group.add(port);
-  var stbd = new THREE.Mesh(lightGeo, stbdMat);
-  stbd.position.set(0.5, 0.28, 0.6);
-  group.add(stbd);
-
   return group;
 }
 
@@ -198,7 +124,16 @@ function applyEnemyOverrideAsync(mesh) {
     }
     mesh.userData.firePoints = firePoints;
   }).catch(function () {
-    // keep procedural fallback on failure
+    console.error("Failed to load enemy model: " + path);
+    while (mesh.children.length) mesh.remove(mesh.children[0]);
+    mesh.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 0.5, 2),
+      new THREE.MeshBasicMaterial({ color: 0xff00ff })
+    ));
+    for (var j = 0; j < firePoints.length; j++) {
+      mesh.add(firePoints[j]);
+    }
+    mesh.userData.firePoints = firePoints;
   });
 }
 
@@ -289,7 +224,7 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     attempts++;
   } while (terrain && isLand(terrain, x, z) && attempts < 30);
 
-  var mesh = buildEnemyMesh(faction);
+  var mesh = buildEnemyPlaceholder();
   applyEnemyOverrideAsync(mesh);
   mesh.position.set(x, 0.3, z);
 
@@ -330,7 +265,7 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
 // --- spawn an ambient enemy at explicit position (used by merchant system) ---
 export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute) {
   var fDef = FACTIONS[faction] || FACTIONS.pirate;
-  var mesh = buildEnemyMesh(faction);
+  var mesh = buildEnemyPlaceholder();
   applyEnemyOverrideAsync(mesh);
   mesh.position.set(x, 0.3, z);
   mesh.rotation.y = heading;

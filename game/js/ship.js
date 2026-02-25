@@ -1,10 +1,26 @@
-// ship.js — procedural ship model, physics state, update loop
+// ship.js — ship physics state, GLB model loading, update loop
 import * as THREE from "three";
 import { buildClassMesh } from "./shipModels.js";
 import { collideWithTerrain, applyEdgeBoundary, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
+
+// --- error placeholder for failed model loads ---
+// Returns a group with a bright magenta box and fire points so turret code doesn't break
+export function createErrorPlaceholder(size) {
+  var s = size || 2;
+  var group = new THREE.Group();
+  group.add(new THREE.Mesh(
+    new THREE.BoxGeometry(s * 0.5, s * 0.3, s),
+    new THREE.MeshBasicMaterial({ color: 0xff00ff })
+  ));
+  var portFP = new THREE.Object3D(); portFP.position.set(-s * 0.3, s * 0.15, 0); group.add(portFP);
+  var stbdFP = new THREE.Object3D(); stbdFP.position.set(s * 0.3, s * 0.15, 0); group.add(stbdFP);
+  var bowFP  = new THREE.Object3D(); bowFP.position.set(0, s * 0.15, s * 0.6); group.add(bowFP);
+  group.userData.turrets = [portFP, stbdFP, bowFP];
+  return group;
+}
 
 // --- default physics tuning (used as fallback) ---
 var DEFAULT_MAX_SPEED = 10;
@@ -26,60 +42,7 @@ var TERRAIN_AVOID_RANGE = 15;
 var TERRAIN_SLOW_MULT = 0.72;
 var TERRAIN_AVOID_TURN = 5.5;
 
-// --- fallback procedural ship geometry (original design) ---
-function buildShipMesh() {
-  var group = new THREE.Group();
-
-  var hullShape = new THREE.Shape();
-  hullShape.moveTo(0, 2.4);
-  hullShape.lineTo(0.7, 1.0);
-  hullShape.lineTo(0.8, -0.6);
-  hullShape.lineTo(0.7, -1.8);
-  hullShape.lineTo(0.5, -2.2);
-  hullShape.lineTo(-0.5, -2.2);
-  hullShape.lineTo(-0.7, -1.8);
-  hullShape.lineTo(-0.8, -0.6);
-  hullShape.lineTo(-0.7, 1.0);
-  hullShape.lineTo(0, 2.4);
-
-  var extrudeSettings = { depth: 0.5, bevelEnabled: false };
-  var hullGeo = new THREE.ExtrudeGeometry(hullShape, extrudeSettings);
-  var hullMat = new THREE.MeshToonMaterial({ color: 0x5a7088 });
-  var hull = new THREE.Mesh(hullGeo, hullMat);
-  hull.rotation.x = -Math.PI / 2;
-  hull.position.y = -0.1;
-  group.add(hull);
-
-  var deckGeo = new THREE.PlaneGeometry(1.2, 3.6);
-  var deckMat = new THREE.MeshToonMaterial({ color: 0x708899 });
-  var deck = new THREE.Mesh(deckGeo, deckMat);
-  deck.rotation.x = -Math.PI / 2;
-  deck.position.y = 0.4;
-  deck.position.z = -0.2;
-  group.add(deck);
-
-  var bridgeGeo = new THREE.BoxGeometry(0.7, 0.6, 0.8);
-  var bridgeMat = new THREE.MeshToonMaterial({ color: 0x8899aa });
-  var bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
-  bridge.position.set(0, 0.7, -0.6);
-  group.add(bridge);
-
-  // fire points — invisible hull fire positions (no turret mesh)
-  var portFP = new THREE.Object3D(); portFP.position.set(-0.55, 0.4, 0.3); group.add(portFP);
-  var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.55, 0.4, 0.3); group.add(stbdFP);
-  var bowFP  = new THREE.Object3D(); bowFP.position.set(0, 0.4, 2.0); group.add(bowFP);
-  group.userData.turrets = [portFP, stbdFP, bowFP];
-
-  var mastGeo = new THREE.CylinderGeometry(0.02, 0.03, 1.0, 4);
-  var mastMat = new THREE.MeshToonMaterial({ color: 0x5a7088 });
-  var mast = new THREE.Mesh(mastGeo, mastMat);
-  mast.position.set(0, 1.3, -0.6);
-  group.add(mast);
-
-  return group;
-}
-
-// --- async GLB override: replace procedural mesh with Palmov model ---
+// --- async GLB override: replace placeholder mesh with Palmov GLB model ---
 export function applyShipOverrideAsync(mesh, classKey) {
   var path = getOverridePath(classKey);
   if (!path) return null;
@@ -102,7 +65,16 @@ export function applyShipOverrideAsync(mesh, classKey) {
     }
     mesh.userData.turrets = firePoints;
   }).catch(function () {
-    // keep procedural fallback on failure
+    console.error("Failed to load ship model: " + path);
+    while (mesh.children.length) mesh.remove(mesh.children[0]);
+    mesh.add(new THREE.Mesh(
+      new THREE.BoxGeometry(2, 1, 4),
+      new THREE.MeshBasicMaterial({ color: 0xff00ff })
+    ));
+    for (var j = 0; j < firePoints.length; j++) {
+      mesh.add(firePoints[j]);
+    }
+    mesh.userData.turrets = firePoints;
   });
 }
 
@@ -113,10 +85,10 @@ export function createShip(classConfig) {
   if (classConfig && classConfig.key) {
     mesh = buildClassMesh(classConfig.key);
   } else {
-    mesh = buildShipMesh();
+    mesh = createErrorPlaceholder(3);
   }
 
-  // attempt to load GLB model override (async, falls back to procedural)
+  // attempt to load GLB model override (async, shows error placeholder on failure)
   if (classConfig && classConfig.key) {
     applyShipOverrideAsync(mesh, classConfig.key);
   }

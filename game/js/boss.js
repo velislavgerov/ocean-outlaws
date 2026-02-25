@@ -103,7 +103,19 @@ function applyBossOverrideAsync(mesh, bossType) {
       mesh.add(tentacles[i]);
     }
   }).catch(function () {
-    // keep procedural fallback on failure
+    console.error("Failed to load boss model: " + path);
+    while (mesh.children.length) mesh.remove(mesh.children[0]);
+    mesh.add(new THREE.Mesh(
+      new THREE.BoxGeometry(4, 2, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff00ff })
+    ));
+    for (var j = 0; j < firePoints.length; j++) {
+      mesh.add(firePoints[j]);
+    }
+    mesh.userData.turrets = firePoints;
+    for (var j = 0; j < tentacles.length; j++) {
+      mesh.add(tentacles[j]);
+    }
   });
 }
 

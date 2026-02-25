@@ -129,7 +129,7 @@ function createRemoteShipMesh(shipClass, playerIndex) {
   var mesh = buildClassMesh(shipClass || "cruiser");
   var colors = [0x44aaff, 0x44dd66, 0xff9944, 0xaa66ff];
   var tint = colors[playerIndex % colors.length];
-  // tint procedural placeholder immediately
+  // tint placeholder immediately
   applyPlayerTint(mesh, tint);
   // async swap to GLB model, then re-apply tint over new materials
   var promise = applyShipOverrideAsync(mesh, shipClass || "cruiser");
