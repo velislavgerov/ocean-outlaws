@@ -1,6 +1,9 @@
 // crew.js — officer/crew system: data, procedural names, roster management, bonuses
 import { nextRandom } from "./rng.js";
 
+// --- max roster size ---
+export var MAX_CREW = 8;
+
 // --- stations ---
 var STATIONS = ["weapons", "engine", "helm", "medical"];
 
@@ -163,6 +166,44 @@ export function getStationColor(station) {
     medical: "#44dd66"
   };
   return colors[station] || "#8899aa";
+}
+
+// --- check if roster is full ---
+export function isCrewFull(state) {
+  return state.roster.length >= MAX_CREW;
+}
+
+// --- remove officer from roster and unassign from any station ---
+export function removeOfficer(state, officerId) {
+  for (var s = 0; s < STATIONS.length; s++) {
+    if (state.assigned[STATIONS[s]] === officerId) {
+      state.assigned[STATIONS[s]] = null;
+    }
+  }
+  state.roster = state.roster.filter(function (o) { return o.id !== officerId; });
+}
+
+// --- auto-assign officer: matching specialty first, then any empty, then skip ---
+// Returns station name assigned to, or null if no station available.
+export function autoAssignOfficer(state, officer) {
+  // first try matching specialty station
+  var spec = officer.specialty;
+  if (STATIONS.indexOf(spec) !== -1 && !state.assigned[spec]) {
+    state.roster.push(officer);
+    state.assigned[spec] = officer.id;
+    return spec;
+  }
+  // then try any empty station
+  for (var s = 0; s < STATIONS.length; s++) {
+    if (!state.assigned[STATIONS[s]]) {
+      state.roster.push(officer);
+      state.assigned[STATIONS[s]] = officer.id;
+      return STATIONS[s];
+    }
+  }
+  // all stations full — just add to roster without assigning
+  state.roster.push(officer);
+  return null;
 }
 
 // --- helper: find officer in roster by id ---

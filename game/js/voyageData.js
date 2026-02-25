@@ -11,7 +11,8 @@ var NODE_TYPES = {
   salvage: { label: "Salvage", icon: "\u2620", color: "#8899aa" },                   // wreck (skull+bones works)
   storm_crossing: { label: "Storm Crossing", icon: "\u2601", color: "#6688bb" },     // cloud
   event: { label: "Event / Parley", icon: "\u{1F4DC}", color: "#bb88dd" },           // scroll
-  boss: { label: "Boss Lair", icon: "\u2620", color: "#ff4444" }                     // skull
+  boss: { label: "Boss Lair", icon: "\u2620", color: "#ff4444" },                    // skull
+  port: { label: "Port of Call", icon: "\ud83c\udfea", color: "#44dd88" }            // shop/port
 };
 
 export function getNodeTypes() {
@@ -170,7 +171,8 @@ function pickNodeType(rng, col, numCols, isBossZone) {
     { type: "merchant_chase", weight: 15 },
     { type: "salvage", weight: 15 },
     { type: "storm_crossing", weight: 12 },
-    { type: "event", weight: 13 }
+    { type: "event", weight: 13 },
+    { type: "port", weight: 10 }
   ];
 
   var total = 0;

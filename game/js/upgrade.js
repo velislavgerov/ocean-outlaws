@@ -235,6 +235,31 @@ export function getMultiplierForKey(state, key, extraLevels) {
   return base;
 }
 
+// --- apply a free upgrade (no gold cost); returns true on success ---
+export function applyFreeUpgrade(state, key) {
+  var info = findUpgrade(key);
+  if (!info) return false;
+  var level = state.levels[key] || 0;
+  if (level >= 3) return false;
+  state.levels[key] = level + 1;
+  return true;
+}
+
+// --- return array of upgrade defs where level < 3 (for card generation) ---
+export function getAvailableUpgrades(state) {
+  var result = [];
+  var cats = Object.keys(UPGRADE_TREE);
+  for (var c = 0; c < cats.length; c++) {
+    var upgrades = UPGRADE_TREE[cats[c]].upgrades;
+    for (var u = 0; u < upgrades.length; u++) {
+      var up = upgrades[u];
+      var level = state.levels[up.key] || 0;
+      if (level < 3) result.push(up);
+    }
+  }
+  return result;
+}
+
 // --- helper: find upgrade definition by key ---
 export function findUpgrade(key) {
   var cats = Object.keys(UPGRADE_TREE);

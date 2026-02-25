@@ -14,8 +14,9 @@ import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
 import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
-import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost } from "./upgrade.js";
-import { createUpgradeScreen, showUpgradeScreen, hideUpgradeScreen } from "./upgradeScreen.js";
+import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost, applyFreeUpgrade } from "./upgrade.js";
+import { createCardPicker, showCardPicker, hideCardPicker } from "./cardPicker.js";
+import { generateUpgradeCards } from "./cardGen.js";
 import { getShipClass } from "./shipClass.js";
 import { createAbilityState, activateAbility, updateAbility } from "./shipClass.js";
 import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen, getShipSelectOverlay } from "./shipSelect.js";
@@ -28,8 +29,9 @@ import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeathe
 import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness, setTimeOfDay } from "./daynight.js";
 import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot, damageBoss } from "./boss.js";
 import { createBossHud, showBossHud, hideBossHud, updateBossHud, showLootBanner } from "./bossHud.js";
-import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewBonuses } from "./crew.js";
-import { createCrewScreen, showCrewScreen, hideCrewScreen } from "./crewScreen.js";
+import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewBonuses, isCrewFull, removeOfficer, autoAssignOfficer } from "./crew.js";
+import { createCrewPickupManager, spawnCrewPickup, updateCrewPickups, clearCrewPickups, setCrewPickupCallback } from "./crewPickup.js";
+import { createCrewSwap, showCrewSwap, hideCrewSwap } from "./crewSwap.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
 import { createTerrain, removeTerrain, collideWithTerrain, isLand, findWaterPosition, getEdgeFactor, getTerrainMinimapMarkers } from "./terrain.js";
@@ -109,10 +111,10 @@ var weapons = null;
 var abilityState = null;
 var selectedClass = null;
 var gameFrozen = true;
-var upgradeScreenOpen = false;
+var cardPickerOpen = false;
 var gameStarted = false;
 var activeBoss = null;
-var crewScreenOpen = false;
+var crewSwapOpen = false;
 var techScreenOpen = false;
 var portScreenOpen = false;
 var mapState = loadMapState();
@@ -128,9 +130,10 @@ var merchantMgr = createMerchantManager();
 var enemyMgr = createEnemyManager();
 var droneMgr = createDroneManager();
 var upgrades = createUpgradeState();
-createUpgradeScreen();
+createCardPicker();
 var crew = createCrewState();
-createCrewScreen();
+var crewPickupMgr = createCrewPickupManager();
+createCrewSwap();
 var techState = loadTechState();
 createTechScreen();
 createPortScreen();
@@ -142,6 +145,11 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   spawnPickup(pickupMgr, x, y, z, scene);
   if (faction === "merchant") {
     spawnPickup(pickupMgr, x, y, z, scene); // extra drop for merchants
+  }
+  // rare crew pickup drop (~5%)
+  if (nextRandom() < 0.05 && currentRunSeed !== null) {
+    var dropOfficer = generateOfficerReward(1);
+    spawnCrewPickup(crewPickupMgr, x, 0, z, scene, dropOfficer);
   }
   var techB = getTechBonuses(techState);
   var factionMult = getFactionGoldMult(faction);
@@ -245,10 +253,10 @@ createSettingsMenu({
     clearMerchants(merchantMgr, scene);
     if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
     if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
-    upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
+    cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
     setAutofire(true);
     setWeather(weather, "calm");
-    hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
+    hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
     clearVoyageState();
@@ -285,6 +293,25 @@ initRemoteLabels();
 setPickupCollectCallback(pickupMgr, function (index) {
   if (isMultiplayerActive(mpState)) {
     sendPickupClaim(mpState, index);
+  }
+});
+
+// Crew pickup collection callback
+setCrewPickupCallback(crewPickupMgr, function (officer) {
+  if (isCrewFull(crew)) {
+    crewSwapOpen = true;
+    showCrewSwap(crew.roster, officer, function (choice) {
+      crewSwapOpen = false;
+      if (choice.action === "swap") {
+        removeOfficer(crew, choice.replaceId);
+        autoAssignOfficer(crew, choice.newOfficer);
+        showBanner("Officer swapped: " + choice.newOfficer.portrait + " " + choice.newOfficer.name, 3);
+      }
+    });
+  } else {
+    var station = autoAssignOfficer(crew, officer);
+    var stationText = station ? " \u2192 " + station : "";
+    showBanner("Officer recruited: " + officer.portrait + " " + officer.name + stationText, 3);
   }
 });
 
@@ -541,19 +568,19 @@ function processCombatAction(action) {
         setNavBoss(null);
         hideBossHud();
       }
-      // Show upgrade screen (each player upgrades independently)
+      // Show card picker (each player upgrades independently)
       if (waveMgr.wave < waveMgr.maxWave) {
-        upgradeScreenOpen = true;
-        fadeGameAudio();
-        showUpgradeScreen(upgrades, function () {
-          upgradeScreenOpen = false;
-          applyUpgrades();
-          crewScreenOpen = true;
-          showCrewScreen(crew, function () {
-            crewScreenOpen = false;
+        var mpWaveCards = generateUpgradeCards(upgrades, 3);
+        if (mpWaveCards.length > 0) {
+          cardPickerOpen = true;
+          fadeGameAudio();
+          showCardPicker(mpWaveCards, function (picked) {
+            applyFreeUpgrade(upgrades, picked.key);
+            applyUpgrades();
+            cardPickerOpen = false;
             resumeGameAudio();
           });
-        });
+        }
       }
     } else if (action.event === "game_over") {
       lastZoneResult = "game_over";
@@ -701,7 +728,7 @@ function startMultiplayerCombat() {
   setEngineClass(selectedClass);
   gameFrozen = false;
   gameStarted = true;
-  upgradeScreenOpen = false;
+  cardPickerOpen = false;
   activeZoneId = null;
   fadeIn(0.6);
   showBanner("Multiplayer — Fleet Approaching!", 3);
@@ -827,6 +854,27 @@ function startNodeEncounter(node, runSeed) {
     }, 1500);
     return;
   }
+  if (node.type === "port") {
+    portScreenOpen = true;
+    fadeGameAudio();
+    var portRun = loadRunState();
+    var portClassCfg = getShipClass(selectedClass);
+    var portHpInfo = {
+      hp: portRun && portRun.hp !== null && portRun.hp !== undefined ? portRun.hp : portClassCfg.stats.hp,
+      maxHp: portRun && portRun.maxHp ? portRun.maxHp : portClassCfg.stats.hp
+    };
+    showPortScreen({ upgrades: upgrades, hpInfo: portHpInfo, classKey: selectedClass }, function () {
+      portScreenOpen = false;
+      resumeGameAudio();
+      updateRunAfterNode(null, null);
+      if (activeVoyageState && activeVoyageState.completed) {
+        endRunVictory();
+      } else {
+        openRunVoyageChart(runSeed);
+      }
+    });
+    return;
+  }
   startNodeCombat(node, runSeed);
 }
 
@@ -905,7 +953,7 @@ function startNodeCombat(node, runSeed) {
   setEngineClass(selectedClass);
   gameFrozen = false;
   gameStarted = true;
-  upgradeScreenOpen = false;
+  cardPickerOpen = false;
   activeZoneId = "run_node_" + node.id;
   fadeIn(0.6);
   var nodeTypes = getNodeTypes();
@@ -972,6 +1020,7 @@ function cleanupCombatScene() {
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
   clearPickups(pickupMgr, scene);
+  clearCrewPickups(crewPickupMgr, scene);
   resetDrones(droneMgr, scene);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
@@ -1020,7 +1069,7 @@ function startZoneCombat(classKey, zoneId) {
   setEngineClass(classKey);
   gameFrozen = false;
   gameStarted = true;
-  upgradeScreenOpen = false;
+  cardPickerOpen = false;
   fadeIn(0.6);
   showBanner(zone.name + " — Fleet Approaching!", 3);
 }
@@ -1120,10 +1169,10 @@ setRestartCallback(function () {
   clearMerchants(merchantMgr, scene);
   if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
-  upgradeScreenOpen = false; crewScreenOpen = false; techScreenOpen = false; portScreenOpen = false;
+  cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
   setAutofire(true);
   setWeather(weather, "calm");
-  hideUpgradeScreen(); hideCrewScreen(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
+  hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
   clearVoyageState();
   clearRunState();
   activeChart = null; activeVoyageState = null;
@@ -1149,7 +1198,7 @@ function animate() {
   var input = getInput();
   var mouse = getMouse();
 
-  if (!gameFrozen && !upgradeScreenOpen && !crewScreenOpen && !techScreenOpen && !portScreenOpen && !isSettingsOpen() && gameStarted) {
+  if (!gameFrozen && !cardPickerOpen && !crewSwapOpen && !techScreenOpen && !portScreenOpen && !isSettingsOpen() && gameStarted) {
     var mults = buildCombinedMults(upgrades, getCrewBonuses(crew), getTechBonuses(techState));
 
     // process keyboard actions (QWER ability bar)
@@ -1314,13 +1363,14 @@ function animate() {
         triggerScreenShake(1.5);
         hideBossHud();
         var bossOfficer = generateOfficerReward(nextRandom() < 0.5 ? 2 : 3);
-        addOfficer(crew, bossOfficer);
-        showBanner("Officer recruited: " + bossOfficer.portrait + " " + bossOfficer.name, 4);
+        spawnCrewPickup(crewPickupMgr, activeBoss.posX, 0, activeBoss.posZ + 3, scene, bossOfficer);
+        showBanner("Officer spotted — sail to collect!", 4);
       }
     }
 
     updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain);
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
+    updateCrewPickups(crewPickupMgr, ship, dt, elapsed, weatherWaveHeight, scene);
     updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass);
     updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateMerchants(merchantMgr, ship, dt, scene, activeTerrain, elapsed, weatherWaveHeight, enemyMgr, activeZoneId ? getZone(activeZoneId) : null);
@@ -1382,27 +1432,29 @@ function animate() {
           activeBoss = null; setNavBoss(null);
           hideBossHud();
         }
-        if (nextRandom() < 0.5) {
+        // 15% chance of crew pickup dropping near player
+        if (nextRandom() < 0.15 && ship && currentRunSeed !== null) {
           var waveOfficer = generateOfficerReward(1);
-          addOfficer(crew, waveOfficer);
-          showBanner("Officer recruited: " + waveOfficer.portrait + " " + waveOfficer.name, 3);
+          var ox = ship.posX + (nextRandom() - 0.5) * 10;
+          var oz = ship.posZ + (nextRandom() - 0.5) * 10;
+          spawnCrewPickup(crewPickupMgr, ox, 0, oz, scene, waveOfficer);
         }
         performAutoSave();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "wave_complete", { wave: waveMgr.wave });
         }
         if (waveMgr.wave < waveMgr.maxWave) {
-          upgradeScreenOpen = true;
-          fadeGameAudio();
-          showUpgradeScreen(upgrades, function () {
-            upgradeScreenOpen = false;
-            applyUpgrades();
-            crewScreenOpen = true;
-            showCrewScreen(crew, function () {
-              crewScreenOpen = false;
+          var waveCards = generateUpgradeCards(upgrades, 3);
+          if (waveCards.length > 0) {
+            cardPickerOpen = true;
+            fadeGameAudio();
+            showCardPicker(waveCards, function (picked) {
+              applyFreeUpgrade(upgrades, picked.key);
+              applyUpgrades();
+              cardPickerOpen = false;
               resumeGameAudio();
             });
-          });
+          }
         }
       } else if (event === "game_over") {
         if (mpActive && mpState.isHost) {
@@ -1435,14 +1487,14 @@ function animate() {
           if (activeVoyageState && activeVoyageState.completed) {
             endRunVictory();
           } else {
-            upgradeScreenOpen = true;
-            fadeGameAudio();
-            showUpgradeScreen(upgrades, function () {
-              upgradeScreenOpen = false;
-              applyUpgrades();
-              crewScreenOpen = true;
-              showCrewScreen(crew, function () {
-                crewScreenOpen = false;
+            var nodeCards = generateUpgradeCards(upgrades, 3);
+            if (nodeCards.length > 0) {
+              cardPickerOpen = true;
+              fadeGameAudio();
+              showCardPicker(nodeCards, function (picked) {
+                applyFreeUpgrade(upgrades, picked.key);
+                applyUpgrades();
+                cardPickerOpen = false;
                 resumeGameAudio();
                 cleanupCombatScene();
                 gameStarted = false;
@@ -1451,7 +1503,14 @@ function animate() {
                   fadeIn(0.3);
                 });
               });
-            });
+            } else {
+              cleanupCombatScene();
+              gameStarted = false;
+              fadeOut(0.3, function () {
+                openRunVoyageChart(currentRunSeed);
+                fadeIn(0.3);
+              });
+            }
           }
         } else {
           lastZoneResult = "victory";
@@ -1517,7 +1576,7 @@ function animate() {
     var portInfo = getPortsInfo(portMgr, ship);
     updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
-      waveMgr.wave, waveState, dt, upgrades.gold, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo, abilityBarSlots);
+      waveMgr.wave, waveState, dt, upgrades.gold, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo, abilityBarSlots, crew);
 
     // minimap: collect port positions
     var portPositions = [];

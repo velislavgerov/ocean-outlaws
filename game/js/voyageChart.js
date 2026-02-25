@@ -16,7 +16,7 @@ var tooltipEl = null;
 var nodeHitAreas = []; // {id, cx, cy, r}
 var _touchStartPos = null;
 
-var NODE_ICONS = { fleet_battle: "\u2694", harbor_raid: "\u2693", merchant_chase: "\u26F5", salvage: "\u{1F4A0}", storm_crossing: "\u2601", event: "\u{1F4DC}", boss: "\u2620" };
+var NODE_ICONS = { fleet_battle: "\u2694", harbor_raid: "\u2693", merchant_chase: "\u26F5", salvage: "\u{1F4A0}", storm_crossing: "\u2601", event: "\u{1F4DC}", boss: "\u2620", port: "\ud83c\udfea" };
 
 // --- create the chart overlay (call once) ---
 export function createVoyageChart() {
@@ -65,7 +65,7 @@ export function createVoyageChart() {
   var legend = document.createElement("div");
   legend.style.cssText = "margin-top:10px;font-size:11px;color:" + T.textDim + ";display:flex;flex-wrap:wrap;gap:12px;justify-content:center;font-family:" + FONT;
   var types = getNodeTypes();
-  var typeKeys = ["fleet_battle", "harbor_raid", "merchant_chase", "salvage", "storm_crossing", "event", "boss"];
+  var typeKeys = ["fleet_battle", "harbor_raid", "merchant_chase", "salvage", "storm_crossing", "event", "boss", "port"];
   for (var i = 0; i < typeKeys.length; i++) {
     var t = types[typeKeys[i]];
     legend.innerHTML += '<span style="color:' + t.color + '">' + t.icon + " " + t.label + "</span>";

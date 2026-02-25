@@ -3,6 +3,7 @@
 import { createMinimap, updateMinimap as renderMinimap } from "./minimap.js";
 import { isMobile } from "./mobile.js";
 import { T, FONT, SCROLL_BG, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
+import { createCrewHud as _createCrewHud, updateCrewHud as _updateCrewHud, getCrewHudContainer } from "./crewHud.js";
 
 // --- color palette (parchment/nautical) ---
 var C = {
@@ -120,6 +121,10 @@ export function createHUD() {
   portLabel.textContent = "";
   portLabel.style.cssText = "margin-top:4px;font-size:11px;color:" + C.portGreen + ";height:14px;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
   topLeftPanel.appendChild(portLabel);
+
+  // crew HUD — small officer icons
+  var crewHudEl = _createCrewHud();
+  topLeftPanel.appendChild(crewHudEl);
 
   document.body.appendChild(topLeftPanel);
 
@@ -424,8 +429,11 @@ function fadePopup(el, timer, dt) {
 // abilityBarInfo: array of 4 objects:
 //   { icon, color, active, cooldownPct, cooldownSecs, isActiveSlot }
 // (slots 0-2 = weapons, slot 3 = class ability)
-export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText, autofireOn, portInfo, abilityBarInfo) {
+export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, maxHp, fuel, maxFuel, parts, wave, waveState, dt, salvage, weaponInfo, abilityInfo, weatherText, autofireOn, portInfo, abilityBarInfo, crewState) {
   if (!topLeftPanel) return;
+
+  // Crew HUD
+  if (crewState !== undefined) _updateCrewHud(crewState);
 
   // Hull Integrity bar — no numbers unless damaged
   if (hp !== undefined && hpBar) {
