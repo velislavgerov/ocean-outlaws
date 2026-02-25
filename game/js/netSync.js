@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { broadcast, getOtherPlayerIds } from "./multiplayer.js";
 import { buildClassMesh } from "./shipModels.js";
+import { applyShipOverrideAsync } from "./ship.js";
 
 // --- tuning ---
 var SEND_RATE = 12;                     // state updates per second (cap)
@@ -112,18 +113,31 @@ function clearRemoteLabels() {
   labelElements = {};
 }
 
-// --- create remote ship mesh with tinted color ---
-function createRemoteShipMesh(shipClass, playerIndex) {
-  var mesh = buildClassMesh(shipClass || "cruiser");
-  // tint the hull slightly to differentiate
-  var colors = [0x44aaff, 0x44dd66, 0xff9944, 0xaa66ff];
-  var tint = colors[playerIndex % colors.length];
+// --- apply player tint color to all mesh materials ---
+function applyPlayerTint(mesh, tintColor) {
+  var color = new THREE.Color(tintColor);
   mesh.traverse(function (child) {
     if (child.isMesh && child.material) {
       child.material = child.material.clone();
-      child.material.color.lerp(new THREE.Color(tint), 0.3);
+      child.material.color.lerp(color, 0.3);
     }
   });
+}
+
+// --- create remote ship mesh with tinted color ---
+function createRemoteShipMesh(shipClass, playerIndex) {
+  var mesh = buildClassMesh(shipClass || "cruiser");
+  var colors = [0x44aaff, 0x44dd66, 0xff9944, 0xaa66ff];
+  var tint = colors[playerIndex % colors.length];
+  // tint procedural placeholder immediately
+  applyPlayerTint(mesh, tint);
+  // async swap to GLB model, then re-apply tint over new materials
+  var promise = applyShipOverrideAsync(mesh, shipClass || "cruiser");
+  if (promise) {
+    promise.then(function () {
+      applyPlayerTint(mesh, tint);
+    });
+  }
   return mesh;
 }
 
