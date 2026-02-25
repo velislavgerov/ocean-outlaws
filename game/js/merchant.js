@@ -157,19 +157,20 @@ export function clearMerchants(mgr, scene) {
 }
 
 // --- update: tick spawn timer, track lifetime, despawn off-map ---
-export function updateMerchants(mgr, ship, dt, scene, terrain, elapsed, getWaveHeight, enemyMgr, zone, zoneId) {
+export function updateMerchants(mgr, ship, dt, scene, terrain, elapsed, getWaveHeight, enemyMgr, zone, zoneId, roleContext) {
   // scale spawn interval by zone difficulty
   var difficulty = (zone && zone.difficulty) ? zone.difficulty : 1;
   var interval = Math.max(SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_BASE - difficulty * 2);
-  var roleContext = zone ? {
+  var derivedRoleContext = zone ? {
     zoneId: zoneId || zone.id || null,
     condition: zone.condition || null,
     difficulty: zone.difficulty || null
   } : null;
+  var spawnRoleContext = roleContext || derivedRoleContext;
 
   mgr.spawnTimer -= dt;
   if (mgr.spawnTimer <= 0) {
-    spawnMerchantGroup(mgr, scene, terrain, enemyMgr, roleContext);
+    spawnMerchantGroup(mgr, scene, terrain, enemyMgr, spawnRoleContext);
     mgr.spawnTimer = interval;
   }
 
