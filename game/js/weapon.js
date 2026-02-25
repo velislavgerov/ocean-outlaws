@@ -201,6 +201,8 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
       applyHoming(p, enemies, cfg.homingTurnRate, dt);
     }
 
+    var prevX = p.mesh.position.x;
+    var prevZ = p.mesh.position.z;
     p.mesh.position.x += p.velocity.x * dt;
     p.mesh.position.y += p.velocity.y * dt;
     p.mesh.position.z += p.velocity.z * dt;
@@ -243,8 +245,8 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     var hitWater = !cfg.waterLevel && p.mesh.position.y < 0.2;
     var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var outOfRange = dist > cfg.maxRange;
-    var hitEnemy = checkEnemyHit(p, enemies, enemyManager, scene, state);
-    var hitBoss = !hitEnemy && checkBossHit(p, activeBoss, scene, state);
+    var hitEnemy = checkEnemyHit(p, prevX, prevZ, enemies, enemyManager, scene, state);
+    var hitBoss = !hitEnemy && checkBossHit(p, prevX, prevZ, activeBoss, scene, state);
 
     if (hitWater || hitTerrain || outOfRange || hitEnemy || hitBoss) {
       if (hitWater || hitTerrain || hitEnemy || hitBoss) {
@@ -321,62 +323,98 @@ function applyHoming(projectile, enemies, turnRate, dt) {
 }
 
 // OBB ratios for heading-aligned ship hitbox
-var OBB_LENGTH_RATIO = 0.6;
-var OBB_WIDTH_RATIO = 0.35;
+var OBB_LENGTH_RATIO = 0.8;
+var OBB_WIDTH_RATIO = 0.5;
+var HITBOX_PADDING = 0.22;
 
-function pointInShipOBB(px, pz, shipX, shipZ, heading, hitRadius) {
+function pointInShipOBB(px, pz, shipX, shipZ, heading, halfL, halfW) {
   var dx = px - shipX;
   var dz = pz - shipZ;
   var cosH = Math.cos(heading);
   var sinH = Math.sin(heading);
   var localZ = dx * sinH + dz * cosH;
   var localX = dx * cosH - dz * sinH;
-  var halfL = hitRadius * OBB_LENGTH_RATIO;
-  var halfW = hitRadius * OBB_WIDTH_RATIO;
   return Math.abs(localZ) <= halfL && Math.abs(localX) <= halfW;
 }
 
-function checkEnemyHit(projectile, enemies, enemyManager, scene, weaponState) {
+function getTargetHalfExtents(target, fallbackRadius, projRadius) {
+  var halfL = target.hitHalfL || ((fallbackRadius || 2.0) * OBB_LENGTH_RATIO);
+  var halfW = target.hitHalfW || ((fallbackRadius || 2.0) * OBB_WIDTH_RATIO);
+  var pad = (projRadius || 0.12) + HITBOX_PADDING;
+  return { halfL: halfL + pad, halfW: halfW + pad };
+}
+
+function segmentSteps(x0, z0, x1, z1, sampleSpacing) {
+  var dx = x1 - x0;
+  var dz = z1 - z0;
+  var len = Math.sqrt(dx * dx + dz * dz);
+  return Math.max(1, Math.ceil(len / Math.max(0.15, sampleSpacing)));
+}
+
+function checkEnemyHit(projectile, prevX, prevZ, enemies, enemyManager, scene, weaponState) {
   if (!enemies) return false;
   var pp = projectile.mesh.position;
   var dmg = projectile.damageMult || 1;
+  var projRadius = projectile.cfg && projectile.cfg.projRadius ? projectile.cfg.projRadius : 0.12;
+
   for (var i = 0; i < enemies.length; i++) {
     var enemy = enemies[i];
     if (!enemy.alive) continue;
     var ex = enemy.posX;
     var ez = enemy.posZ;
-    var dx = pp.x - ex;
-    var dz = pp.z - ez;
-    var distSq = dx * dx + dz * dz;
     var hitRadius = enemy.hitRadius || 2.0;
-    if (distSq > hitRadius * hitRadius) continue;
-    if (pointInShipOBB(pp.x, pp.z, ex, ez, enemy.heading, hitRadius)) {
-      if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg);
-      // Broadcast hit for multiplayer sync
-      if (weaponState && weaponState.onNetHitCallback) {
-        weaponState.onNetHitCallback("enemy", i, dmg);
+    var ext = getTargetHalfExtents(enemy, hitRadius, projRadius);
+    var broad = Math.max(hitRadius, ext.halfL, ext.halfW);
+
+    var midX = (prevX + pp.x) * 0.5;
+    var midZ = (prevZ + pp.z) * 0.5;
+    var bdx = midX - ex;
+    var bdz = midZ - ez;
+    if (bdx * bdx + bdz * bdz > (broad * broad * 2.2)) continue;
+
+    var steps = segmentSteps(prevX, prevZ, pp.x, pp.z, Math.min(ext.halfW, ext.halfL) * 0.8);
+    for (var sIdx = 0; sIdx <= steps; sIdx++) {
+      var t = sIdx / steps;
+      var sx = prevX + (pp.x - prevX) * t;
+      var sz = prevZ + (pp.z - prevZ) * t;
+      if (pointInShipOBB(sx, sz, ex, ez, enemy.heading, ext.halfL, ext.halfW)) {
+        if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg);
+        if (weaponState && weaponState.onNetHitCallback) {
+          weaponState.onNetHitCallback("enemy", i, dmg);
+        }
+        return true;
       }
-      return true;
     }
   }
   return false;
 }
 
-function checkBossHit(projectile, boss, scene, weaponState) {
+function checkBossHit(projectile, prevX, prevZ, boss, scene, weaponState) {
   if (!boss || !boss.alive) return false;
   var pp = projectile.mesh.position;
   var dmg = projectile.damageMult || 1;
-  var dx = pp.x - boss.posX, dz = pp.z - boss.posZ;
-  var distSq = dx * dx + dz * dz;
+  var projRadius = projectile.cfg && projectile.cfg.projRadius ? projectile.cfg.projRadius : 0.12;
   var hitRadius = boss.hitRadius || 5.0;
-  if (distSq > hitRadius * hitRadius) return false;
-  if (pointInShipOBB(pp.x, pp.z, boss.posX, boss.posZ, boss.heading, hitRadius)) {
-    damageBoss(boss, dmg, scene);
-    // Broadcast hit for multiplayer sync
-    if (weaponState && weaponState.onNetHitCallback) {
-      weaponState.onNetHitCallback("boss", 0, dmg);
+  var ext = getTargetHalfExtents(boss, hitRadius, projRadius);
+
+  var midX = (prevX + pp.x) * 0.5;
+  var midZ = (prevZ + pp.z) * 0.5;
+  var dx = midX - boss.posX, dz = midZ - boss.posZ;
+  var broad = Math.max(hitRadius, ext.halfL, ext.halfW);
+  if (dx * dx + dz * dz > (broad * broad * 2.2)) return false;
+
+  var steps = segmentSteps(prevX, prevZ, pp.x, pp.z, Math.min(ext.halfW, ext.halfL) * 0.8);
+  for (var sIdx = 0; sIdx <= steps; sIdx++) {
+    var t = sIdx / steps;
+    var sx = prevX + (pp.x - prevX) * t;
+    var sz = prevZ + (pp.z - prevZ) * t;
+    if (pointInShipOBB(sx, sz, boss.posX, boss.posZ, boss.heading, ext.halfL, ext.halfW)) {
+      damageBoss(boss, dmg, scene);
+      if (weaponState && weaponState.onNetHitCallback) {
+        weaponState.onNetHitCallback("boss", 0, dmg);
+      }
+      return true;
     }
-    return true;
   }
   return false;
 }

@@ -110,7 +110,7 @@ function buildEnemyPlaceholder() {
   return group;
 }
 
-function applyEnemyOverrideAsync(mesh) {
+function applyEnemyOverrideAsync(mesh, enemy) {
   var path = getOverridePath("enemy_patrol");
   if (!path) return;
   var fitSize = getOverrideSize("enemy_patrol") || 6;
@@ -123,6 +123,7 @@ function applyEnemyOverrideAsync(mesh) {
       mesh.add(firePoints[i]);
     }
     mesh.userData.firePoints = firePoints;
+    updateEnemyHitbox(enemy, visual);
   }).catch(function () {
     console.error("Failed to load enemy model: " + path);
     while (mesh.children.length) mesh.remove(mesh.children[0]);
@@ -134,7 +135,38 @@ function applyEnemyOverrideAsync(mesh) {
       mesh.add(firePoints[j]);
     }
     mesh.userData.firePoints = firePoints;
+    updateEnemyHitbox(enemy, mesh);
   });
+}
+
+
+function updateEnemyHitbox(enemy, sourceObj) {
+  if (!enemy || !sourceObj) return;
+  sourceObj.updateMatrixWorld(true);
+  var box = new THREE.Box3().setFromObject(sourceObj);
+  if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
+  var size = new THREE.Vector3();
+  box.getSize(size);
+  var halfL = Math.max(0.9, size.z * 0.5 * 0.85);
+  var halfW = Math.max(0.6, size.x * 0.5 * 0.8);
+  enemy.hitHalfL = halfL;
+  enemy.hitHalfW = halfW;
+  enemy.hitRadius = Math.max(1.4, Math.sqrt(halfL * halfL + halfW * halfW));
+}
+
+function updatePlayerHitboxFromMesh(ship) {
+  if (!ship || !ship.mesh) return;
+  var now = performance.now ? performance.now() : Date.now();
+  if (ship._hitboxStamp && now - ship._hitboxStamp < 500) return;
+  ship._hitboxStamp = now;
+
+  ship.mesh.updateMatrixWorld(true);
+  var box = new THREE.Box3().setFromObject(ship.mesh);
+  if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
+  var size = new THREE.Vector3();
+  box.getSize(size);
+  ship.hitHalfL = Math.max(1.2, size.z * 0.5 * 0.8);
+  ship.hitHalfW = Math.max(0.7, size.x * 0.5 * 0.8);
 }
 
 // --- normalize angle to [-PI, PI] ---
@@ -225,7 +257,6 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
   } while (terrain && isLand(terrain, x, z) && attempts < 30);
 
   var mesh = buildEnemyPlaceholder();
-  applyEnemyOverrideAsync(mesh);
   mesh.position.set(x, 0.3, z);
 
   var heading = Math.atan2(playerX - x, playerZ - z);
@@ -258,6 +289,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     _stuckDetector: createStuckDetector()
   };
 
+  updateEnemyHitbox(enemy, mesh);
+  applyEnemyOverrideAsync(mesh, enemy);
   manager.enemies.push(enemy);
   scene.add(mesh);
 }
@@ -266,7 +299,6 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
 export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute) {
   var fDef = FACTIONS[faction] || FACTIONS.pirate;
   var mesh = buildEnemyPlaceholder();
-  applyEnemyOverrideAsync(mesh);
   mesh.position.set(x, 0.3, z);
   mesh.rotation.y = heading;
 
@@ -299,6 +331,8 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     tradeRoute: tradeRoute || null
   };
 
+  updateEnemyHitbox(enemy, mesh);
+  applyEnemyOverrideAsync(mesh, enemy);
   manager.enemies.push(enemy);
   scene.add(mesh);
   return enemy;
@@ -588,7 +622,9 @@ function pointInPlayerOBB(px, pz, ship) {
   var sinH = Math.sin(ship.heading);
   var localZ = dx * sinH + dz * cosH;
   var localX = dx * cosH - dz * sinH;
-  return Math.abs(localZ) <= PLAYER_OBB_HALF_L && Math.abs(localX) <= PLAYER_OBB_HALF_W;
+  var halfL = ship.hitHalfL || PLAYER_OBB_HALF_L;
+  var halfW = ship.hitHalfW || PLAYER_OBB_HALF_W;
+  return Math.abs(localZ) <= halfL && Math.abs(localX) <= halfW;
 }
 
 // --- update enemy projectiles and check hits on player ---
@@ -598,6 +634,8 @@ function updateEnemyProjectiles(manager, ship, dt, scene, terrain) {
     var p = manager.projectiles[i];
     p.age += dt;
 
+    var prevX = p.mesh.position.x;
+    var prevZ = p.mesh.position.z;
     p.velocity.y -= ENEMY_PROJ_GRAVITY * dt;
     p.mesh.position.x += p.velocity.x * dt;
     p.mesh.position.y += p.velocity.y * dt;
@@ -613,18 +651,31 @@ function updateEnemyProjectiles(manager, ship, dt, scene, terrain) {
     var hitTerrain = terrain && isLand(terrain, p.mesh.position.x, p.mesh.position.z);
     var outOfRange = dist > 50;
 
-    // hit player — OBB aligned to ship heading
+    // hit player — OBB aligned to ship heading (with sweep to avoid tunneling)
     var hitPlayer = false;
-    var pdx = p.mesh.position.x - ship.posX;
-    var pdz = p.mesh.position.z - ship.posZ;
-    var pDistSq = pdx * pdx + pdz * pdz;
-    // broad-phase radius check
-    if (pDistSq < 2.5 * 2.5) {
-      // narrow-phase OBB
-      if (pointInPlayerOBB(p.mesh.position.x, p.mesh.position.z, ship)) {
-        hitPlayer = true;
-        var incomingDmg = Math.max(0.1, 1 - (manager.playerArmor || 0));
-        manager.playerHp = Math.max(0, manager.playerHp - incomingDmg);
+    updatePlayerHitboxFromMesh(ship);
+    var halfL = ship.hitHalfL || PLAYER_OBB_HALF_L;
+    var halfW = ship.hitHalfW || PLAYER_OBB_HALF_W;
+    var broad = Math.sqrt(halfL * halfL + halfW * halfW) + 0.25;
+    var midX = (prevX + p.mesh.position.x) * 0.5;
+    var midZ = (prevZ + p.mesh.position.z) * 0.5;
+    var pdx = midX - ship.posX;
+    var pdz = midZ - ship.posZ;
+    if (pdx * pdx + pdz * pdz < broad * broad * 2.2) {
+      var segDx = p.mesh.position.x - prevX;
+      var segDz = p.mesh.position.z - prevZ;
+      var segLen = Math.sqrt(segDx * segDx + segDz * segDz);
+      var steps = Math.max(1, Math.ceil(segLen / 0.5));
+      for (var sIdx = 0; sIdx <= steps; sIdx++) {
+        var t = sIdx / steps;
+        var sx = prevX + (p.mesh.position.x - prevX) * t;
+        var sz = prevZ + (p.mesh.position.z - prevZ) * t;
+        if (pointInPlayerOBB(sx, sz, ship)) {
+          hitPlayer = true;
+          var incomingDmg = Math.max(0.1, 1 - (manager.playerArmor || 0));
+          manager.playerHp = Math.max(0, manager.playerHp - incomingDmg);
+          break;
+        }
       }
     }
 
