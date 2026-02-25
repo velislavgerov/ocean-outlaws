@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { addAmmo, addFuel } from "./resource.js";
 import { getRepairCost } from "./upgrade.js";
-import { getTerrainHeight, isLand } from "./terrain.js";
+import { sampleHeightmap, isHeightmapLand } from "./terrain.js";
 import { nextRandom } from "./rng.js";
 
 // --- tuning ---
@@ -34,7 +34,7 @@ function findCoastlinePositions(terrain) {
     if (cdist < MIN_CENTER_DIST) continue;
 
     // sample terrain height — we want positions right at the coastline
-    var h = getTerrainHeight(terrain, x, z);
+    var h = sampleHeightmap(terrain, x, z);
     if (h < COAST_HEIGHT_MIN || h > COAST_HEIGHT_MAX) continue;
 
     // ensure there's land nearby (within 10 units in some direction)
@@ -43,7 +43,7 @@ function findCoastlinePositions(terrain) {
       var angle = a * Math.PI / 4;
       var checkX = x + Math.cos(angle) * 8;
       var checkZ = z + Math.sin(angle) * 8;
-      if (isLand(terrain, checkX, checkZ)) {
+      if (isHeightmapLand(terrain, checkX, checkZ)) {
         hasLand = true;
         break;
       }
@@ -56,7 +56,7 @@ function findCoastlinePositions(terrain) {
       var angle = a * Math.PI / 4;
       var checkX = x + Math.cos(angle) * 8;
       var checkZ = z + Math.sin(angle) * 8;
-      if (!isLand(terrain, checkX, checkZ)) {
+      if (!isHeightmapLand(terrain, checkX, checkZ)) {
         hasWater = true;
         break;
       }
@@ -80,7 +80,7 @@ function findCoastlinePositions(terrain) {
     var bestWaterH = 999;
     for (var a = 0; a < 16; a++) {
       var angle = a * Math.PI / 8;
-      var testH = getTerrainHeight(terrain, x + Math.cos(angle) * 6, z + Math.sin(angle) * 6);
+      var testH = sampleHeightmap(terrain, x + Math.cos(angle) * 6, z + Math.sin(angle) * 6);
       if (testH < bestWaterH) {
         bestWaterH = testH;
         bestWaterAngle = angle;

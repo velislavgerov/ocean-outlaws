@@ -10,9 +10,7 @@ function createCompatUniforms() {
     uWaveAmp: { value: 1.0 },
     uWaveSteps: { value: 0.0 },
     uWaterTint: { value: new THREE.Vector3(0, 0, 0) },
-    uShaderDetail: { value: 1.0 },
-    uHasTerrain: { value: 0.0 },
-    uTerrainMap: { value: null }
+    uShaderDetail: { value: 1.0 }
   };
 }
 
@@ -44,16 +42,6 @@ export function createOcean(segments) {
   uniforms.__segments = segs;
 
   return { mesh: mesh, uniforms: uniforms };
-}
-
-export function setTerrainMap(uniforms, terrain) {
-  if (!uniforms) return;
-  uniforms.uHasTerrain.value = terrain && terrain.heightmap ? 1.0 : 0.0;
-}
-
-export function clearTerrainMap(uniforms) {
-  if (!uniforms) return;
-  uniforms.uHasTerrain.value = 0.0;
 }
 
 export function updateOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, camera, weatherDim, foamIntensity, cloudShadow) {

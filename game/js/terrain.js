@@ -1,4 +1,4 @@
-// terrain.js — procedural island generation, 3D mesh, collision queries
+// terrain.js — Palmov composition terrain, collision queries, map boundaries
 import * as THREE from "three";
 import { nextRandom } from "./rng.js";
 import { addCompositeFieldVisual, addTieredIslandFieldVisual, pointInVisualLand, resolveVisualCollision, getTerrainAvoidance as _getTerrainAvoidance, createColliderDebugOverlay, removeColliderDebugOverlay } from "./terrainComposite.js";
@@ -6,7 +6,6 @@ import { addCompositeFieldVisual, addTieredIslandFieldVisual, pointInVisualLand,
 // --- tuning ---
 var MAP_SIZE = 400;           // world units, matches ocean plane
 var GRID_RES = 128;           // heightmap resolution (NxN)
-var CELL_SIZE = MAP_SIZE / GRID_RES;
 var SEA_LEVEL = 0.0;          // threshold: above = land, below = water
 var NOISE_SCALE = 0.02;       // noise frequency tuned for island-sized features
 var OCTAVES = 4;
@@ -200,18 +199,29 @@ function sampleHeight(terrain, worldX, worldZ) {
   return hx0 + (hx1 - hx0) * fy;
 }
 
+// --- heightmap-specific queries for port placement (used during async load window) ---
+export function sampleHeightmap(terrain, worldX, worldZ) {
+  if (!terrain || !terrain.heightmap) return -1;
+  return sampleHeight(terrain, worldX, worldZ);
+}
+
+export function isHeightmapLand(terrain, worldX, worldZ) {
+  if (!terrain || !terrain.heightmap) return false;
+  return sampleHeight(terrain, worldX, worldZ) > SEA_LEVEL;
+}
+
 // --- public: check if a world position is on land ---
 export function isLand(terrain, worldX, worldZ) {
   if (!terrain) return false;
   if (terrain.useVisualCollision) return pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS);
-  return sampleHeight(terrain, worldX, worldZ) > SEA_LEVEL;
+  return false;
 }
 
 // --- public: get terrain height at world position ---
 export function getTerrainHeight(terrain, worldX, worldZ) {
   if (!terrain) return -1;
   if (terrain.useVisualCollision) return pointInVisualLand(terrain, worldX, worldZ, COLLISION_RADIUS) ? 1 : -1;
-  return sampleHeight(terrain, worldX, worldZ);
+  return -1;
 }
 
 // --- public: collide a moving entity with terrain ---
@@ -221,40 +231,8 @@ export function collideWithTerrain(terrain, posX, posZ, prevX, prevZ) {
   if (terrain.useVisualCollision) {
     var vcol = resolveVisualCollision(terrain, posX, posZ, prevX, prevZ);
     if (vcol) return vcol;
-    return { collided: false, newX: posX, newZ: posZ, normalX: 0, normalZ: 0 };
   }
-
-  var h = sampleHeight(terrain, posX, posZ);
-  if (h <= SEA_LEVEL) return { collided: false, newX: posX, newZ: posZ, normalX: 0, normalZ: 0 };
-
-  // sample gradient to find push direction (away from higher terrain)
-  var step = CELL_SIZE;
-  var hL = sampleHeight(terrain, posX - step, posZ);
-  var hR = sampleHeight(terrain, posX + step, posZ);
-  var hU = sampleHeight(terrain, posX, posZ - step);
-  var hD = sampleHeight(terrain, posX, posZ + step);
-
-  var gradX = hR - hL;
-  var gradZ = hD - hU;
-  var gradLen = Math.sqrt(gradX * gradX + gradZ * gradZ);
-
-  if (gradLen > 0.001) {
-    // push along negative gradient (downhill = toward water)
-    var normalX = -gradX / gradLen;
-    var normalZ = -gradZ / gradLen;
-    // push distance proportional to penetration
-    var penetration = h - SEA_LEVEL;
-    var pushDist = penetration * 2 + 0.5;
-    var newX = posX + normalX * pushDist;
-    var newZ = posZ + normalZ * pushDist;
-    // verify the pushed position is actually water
-    if (sampleHeight(terrain, newX, newZ) <= SEA_LEVEL) {
-      return { collided: true, newX: newX, newZ: newZ, normalX: normalX, normalZ: normalZ };
-    }
-  }
-
-  // fallback: revert to previous position
-  return { collided: true, newX: prevX, newZ: prevZ, normalX: 0, normalZ: 0 };
+  return { collided: false, newX: posX, newZ: posZ, normalX: 0, normalZ: 0 };
 }
 
 // --- public: check line-of-sight between two points ---
@@ -272,21 +250,6 @@ export function terrainBlocksLine(terrain, x1, z1, x2, z2) {
       var vx = x1 + vdx * vt;
       var vz = z1 + vdz * vt;
       if (pointInVisualLand(terrain, vx, vz, VISUAL_COLLIDER_PAD)) return true;
-    }
-    return false;
-  }
-  var dx = x2 - x1;
-  var dz = z2 - z1;
-  var dist = Math.sqrt(dx * dx + dz * dz);
-  var steps = Math.ceil(dist / (CELL_SIZE * 0.5));
-  if (steps < 2) steps = 2;
-
-  for (var i = 1; i < steps; i++) {
-    var t = i / steps;
-    var sx = x1 + dx * t;
-    var sz = z1 + dz * t;
-    if (sampleHeight(terrain, sx, sz) > SEA_LEVEL + 0.5) {
-      return true;
     }
   }
   return false;

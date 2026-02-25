@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createOcean, updateOcean, getWaveHeight, setTerrainMap, clearTerrainMap } from "./ocean.js";
+import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire, getFireTouch } from "./input.js";
@@ -251,7 +251,7 @@ createSettingsMenu({
     clearPorts(portMgr, scene);
     clearCrates(crateMgr, scene);
     clearMerchants(merchantMgr, scene);
-    if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+    if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
     if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
     cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
     setAutofire(true);
@@ -699,13 +699,12 @@ function startMultiplayerCombat() {
   resetSendState();
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   // Seed PRNG from shared terrain seed for deterministic simulation
   var seed = mpState.terrainSeed || Math.floor(Math.random() * 999999);
   seedRNG(seed);
   activeTerrain = createTerrain(seed, 2);
   scene.add(activeTerrain.mesh);
-  setTerrainMap(ocean.uniforms, activeTerrain);
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
@@ -918,13 +917,12 @@ function startNodeCombat(node, runSeed) {
   resetDrones(droneMgr, scene);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   var terrainSeed = runSeed + node.id * 1000 + 7;
   seedRNG(terrainSeed);
   var terrainDiff = 1 + Math.floor(node.col * 5 / Math.max(1, activeChart.columns - 1));
   activeTerrain = createTerrain(terrainSeed, Math.min(terrainDiff, 6));
   scene.add(activeTerrain.mesh);
-  setTerrainMap(ocean.uniforms, activeTerrain);
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
@@ -1014,7 +1012,7 @@ function endRunDefeat() {
 }
 
 function cleanupCombatScene() {
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   resetEnemyManager(enemyMgr, scene);
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
@@ -1041,7 +1039,7 @@ function startZoneCombat(classKey, zoneId) {
   resetCrew(crew);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   // generate terrain: seed from zone id hash, difficulty scales land coverage
   var terrainSeed = 0;
   for (var si = 0; si < zoneId.length; si++) terrainSeed += zoneId.charCodeAt(si) * (si + 1);
@@ -1050,7 +1048,6 @@ function startZoneCombat(classKey, zoneId) {
   seedRNG(terrainSeed);
   activeTerrain = createTerrain(terrainSeed, zone.difficulty);
   scene.add(activeTerrain.mesh);
-  setTerrainMap(ocean.uniforms, activeTerrain);
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene);
   clearCrates(crateMgr, scene);
@@ -1167,7 +1164,7 @@ setRestartCallback(function () {
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); clearTerrainMap(ocean.uniforms); activeTerrain = null; }
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
   setAutofire(true);
