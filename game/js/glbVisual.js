@@ -104,12 +104,13 @@ function loadTemplate(path) {
   return cache[path];
 }
 
-export async function loadGlbVisual(path, fitSize, flatShaded) {
+export async function loadGlbVisual(path, fitSize, flatShaded, options) {
   var tpl = await loadTemplate(path);
   var visual = tpl.clone(true);
   fitToSize(visual, fitSize || 10);
   if (flatShaded !== false) applyFlat(visual);
+  var opts = options || {};
   var qCfg = getQualityConfig();
-  if (qCfg.maxTriangles > 0) enforceTriBudget(visual, qCfg.maxTriangles);
+  if (!opts.noDecimate && qCfg.maxTriangles > 0) enforceTriBudget(visual, qCfg.maxTriangles);
   return visual;
 }

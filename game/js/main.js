@@ -1408,7 +1408,7 @@ function animate() {
     updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain);
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateCrewPickups(crewPickupMgr, ship, dt, elapsed, weatherWaveHeight, scene);
-    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass);
+    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass, activeTerrain);
     updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateMerchants(merchantMgr, ship, dt, scene, activeTerrain, elapsed, weatherWaveHeight, enemyMgr, activeZoneId ? getZone(activeZoneId) : null);
     if (mults.autoRepair) {
@@ -1620,7 +1620,10 @@ function animate() {
     if (portMgr.ports) {
       for (var mpi = 0; mpi < portMgr.ports.length; mpi++) {
         var mp = portMgr.ports[mpi];
-        portPositions.push({ x: mp.posX, z: mp.posZ });
+        portPositions.push({
+          x: mp.dockX !== undefined ? mp.dockX : mp.posX,
+          z: mp.dockZ !== undefined ? mp.dockZ : mp.posZ
+        });
       }
     }
     var pickupList = pickupMgr.pickups || [];

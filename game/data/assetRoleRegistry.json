@@ -1,6 +1,7 @@
 {
   "version": 1,
   "roles": {
+    "port.factions": ["neutral", "merchant", "pirate"],
     "port.themes": [
       [
         { "path": "assets/models/environment/wooden-piers/wooden-pier.glb", "fit": 8, "x": 0, "y": 0, "z": 0, "ry": 0 },
@@ -23,6 +24,76 @@
         { "path": "assets/models/environment/barrels/barrel-2.glb", "fit": 1.0, "x": 0.6, "y": 1.8, "z": -0.7, "ry": 0 },
         { "path": "assets/models/environment/bottles/bottle-2.glb", "fit": 0.7, "x": 0.2, "y": 2.0, "z": 0.4, "ry": 0 }
       ]
+    ],
+    "port.themes.neutral": [
+      [
+        { "path": "assets/models/environment/wooden-piers/wooden-pier.glb", "fit": 8, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/environment/wooden-posts/wooden-post-2.glb", "fit": 2.5, "x": -1.2, "y": 0, "z": -2.3, "ry": 0 },
+        { "path": "assets/models/environment/wooden-posts/wooden-post-3.glb", "fit": 2.5, "x": 1.2, "y": 0, "z": -2.3, "ry": 0 },
+        { "path": "assets/models/environment/boxes/box.glb", "fit": 1.1, "x": 0.6, "y": 1.8, "z": 0.9, "ry": 0.4712389 },
+        { "path": "assets/models/environment/barrels/barrel.glb", "fit": 1.0, "x": -0.6, "y": 1.8, "z": -0.7, "ry": 0 }
+      ],
+      [
+        { "path": "assets/models/environment/wooden-piers/wooden-pier-4.glb", "fit": 8.5, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/environment/lamppost.glb", "fit": 3.0, "x": 1.1, "y": 1.4, "z": -2.0, "ry": 0 },
+        { "path": "assets/models/environment/bags/bag-grain.glb", "fit": 1.1, "x": -0.5, "y": 1.8, "z": 0.7, "ry": 0 },
+        { "path": "assets/models/environment/boxes/box-3.glb", "fit": 1.1, "x": 0.7, "y": 1.8, "z": 1.0, "ry": 0.6283185 },
+        { "path": "assets/models/environment/barrels/barrel-3.glb", "fit": 1.1, "x": -0.8, "y": 1.8, "z": -0.7, "ry": 0 }
+      ],
+      [
+        { "path": "assets/models/environment/wooden-platforms/wooden-platform-2.glb", "fit": 8.2, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/environment/wooden-piers/wooden-pier-2.glb", "fit": 8, "x": 0, "y": 0, "z": 0.2, "ry": 0 },
+        { "path": "assets/models/environment/boards/board-2.glb", "fit": 1.1, "x": -0.6, "y": 1.8, "z": 0.6, "ry": 0.6283185 },
+        { "path": "assets/models/environment/barrels/barrel-2.glb", "fit": 1.0, "x": 0.6, "y": 1.8, "z": -0.7, "ry": 0 },
+        { "path": "assets/models/environment/bottles/bottle-2.glb", "fit": 0.7, "x": 0.2, "y": 2.0, "z": 0.4, "ry": 0 }
+      ]
+    ],
+    "port.themes.merchant": [
+      [
+        { "path": "assets/models/environment/wooden-piers/wooden-pier-4.glb", "fit": 8.4, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/houses/trading/trading-house.glb", "fit": 5.4, "x": 0.2, "y": 1.8, "z": -2.4, "ry": 0 },
+        { "path": "assets/models/environment/food-tents/food-tent-2.glb", "fit": 2.8, "x": -1.1, "y": 1.8, "z": 1.0, "ry": 0 },
+        { "path": "assets/models/environment/bags/bag-grain.glb", "fit": 1.0, "x": 0.7, "y": 1.8, "z": 1.1, "ry": 0.17 },
+        { "path": "assets/models/environment/boxes/box-3.glb", "fit": 1.0, "x": -0.6, "y": 1.8, "z": 0.8, "ry": 0.5 }
+      ],
+      [
+        { "path": "assets/models/environment/wooden-platforms/wooden-platform.glb", "fit": 8.4, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/houses/trading/trading-house-2.glb", "fit": 5.6, "x": -0.3, "y": 1.8, "z": -2.5, "ry": 0 },
+        { "path": "assets/models/environment/tables/table-2.glb", "fit": 1.6, "x": 0.95, "y": 1.8, "z": 0.55, "ry": 0.22 },
+        { "path": "assets/models/environment/chairs/chair.glb", "fit": 1.1, "x": 0.35, "y": 1.8, "z": 0.95, "ry": -0.4 },
+        { "path": "assets/models/environment/barrels/barrel-stand.glb", "fit": 1.4, "x": -0.8, "y": 1.8, "z": 0.6, "ry": 0.2 }
+      ]
+    ],
+    "port.themes.pirate": [
+      [
+        { "path": "assets/models/environment/destroyed-wooden-pier.glb", "fit": 8.3, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/houses/pirate/pirate-house.glb", "fit": 5.8, "x": -0.1, "y": 1.8, "z": -2.3, "ry": 0 },
+        { "path": "assets/models/environment/barrels/barrel-3.glb", "fit": 1.0, "x": 0.9, "y": 1.8, "z": 0.85, "ry": 0 },
+        { "path": "assets/models/environment/fences/untreated/untreated-fence.glb", "fit": 2.3, "x": 0.2, "y": 1.8, "z": 1.3, "ry": 0.08 },
+        { "path": "assets/models/environment/bags/bag-grain-2.glb", "fit": 1.0, "x": -0.7, "y": 1.8, "z": 0.8, "ry": -0.35 }
+      ],
+      [
+        { "path": "assets/models/environment/wooden-piers/wooden-pier-5.glb", "fit": 8.6, "x": 0, "y": 0, "z": 0, "ry": 0 },
+        { "path": "assets/models/houses/pirate/pirate-house-2.glb", "fit": 5.6, "x": 0, "y": 1.8, "z": -2.5, "ry": 0 },
+        { "path": "assets/models/environment/fences/stone/stone-fence-small.glb", "fit": 2.2, "x": 1.0, "y": 1.8, "z": 1.1, "ry": 0.24 },
+        { "path": "assets/models/environment/barrels/barrel.glb", "fit": 1.0, "x": -0.6, "y": 1.8, "z": 0.9, "ry": 0 },
+        { "path": "assets/models/environment/boxes/box-2.glb", "fit": 1.0, "x": 0.6, "y": 1.8, "z": 0.7, "ry": 0.35 }
+      ]
+    ],
+    "ambient.merchant": [
+      { "path": "assets/models/vehicles/sailboats/sailboat.glb", "fit": 6.2 },
+      { "path": "assets/models/vehicles/sailboats/sailboat-2.glb", "fit": 6.2 },
+      { "path": "assets/models/ships-palmov/boats/chinese-boat.glb", "fit": 6.0 }
+    ],
+    "ambient.navy": [
+      { "path": "assets/models/ships-palmov/boats/boat-1.glb", "fit": 6.0 },
+      { "path": "assets/models/ships-palmov/boats/boat-3.glb", "fit": 6.0 },
+      { "path": "assets/models/ships-palmov/small/ship-small-5.glb", "fit": 6.5 }
+    ],
+    "ambient.pirate": [
+      { "path": "assets/models/ships-palmov/small/pirate-ship-small.glb", "fit": 6.6 },
+      { "path": "assets/models/vehicles/pirate-ships/pirate-ship.glb", "fit": 6.8 },
+      { "path": "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", "fit": 6.8 }
     ],
     "pickup.ammo": [
       { "path": "assets/models/environment/boxes/box.glb", "fit": 1.0 },

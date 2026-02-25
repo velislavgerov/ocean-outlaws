@@ -90,7 +90,7 @@ function applyBossOverrideAsync(mesh, bossType, boss) {
   var fit = getOverrideSize(slot) || (bossType === "carrier" ? 18 : 16);
   var firePoints = mesh.userData.turrets || [];
   var tentacles = mesh.userData.tentacles || [];
-  loadGlbVisual(path, fit, true).then(function (visual) {
+  loadGlbVisual(path, fit, true, { noDecimate: true }).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
     // re-attach fire points so they move with the boss

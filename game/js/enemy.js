@@ -4,6 +4,7 @@ import { isLand, collideWithTerrain, terrainBlocksLine, getTerrainAvoidance } fr
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
+import { ensureAssetRoles, getRoleVariants } from "./assetRoles.js";
 import { nextRandom } from "./rng.js";
 
 // --- faction definitions ---
@@ -26,6 +27,24 @@ var FACTIONS = {
     hp: 3, goldMult: 3.0, groupSize: [1, 3],
     announce: "Merchant Convoy Spotted!"
   }
+};
+
+var AMBIENT_MODEL_POOLS = {
+  merchant: [
+    { path: "assets/models/vehicles/sailboats/sailboat.glb", fit: 6.2 },
+    { path: "assets/models/vehicles/sailboats/sailboat-2.glb", fit: 6.2 },
+    { path: "assets/models/ships-palmov/boats/chinese-boat.glb", fit: 6.0 }
+  ],
+  navy: [
+    { path: "assets/models/ships-palmov/boats/boat-1.glb", fit: 6.0 },
+    { path: "assets/models/ships-palmov/boats/boat-3.glb", fit: 6.0 },
+    { path: "assets/models/ships-palmov/small/ship-small-5.glb", fit: 6.5 }
+  ],
+  pirate: [
+    { path: "assets/models/ships-palmov/small/pirate-ship-small.glb", fit: 6.6 },
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship.glb", fit: 6.8 },
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", fit: 6.8 }
+  ]
 };
 
 export function getFactions() { return FACTIONS; }
@@ -110,12 +129,39 @@ function buildEnemyPlaceholder() {
   return group;
 }
 
+function getEnemyOverrideSpec(enemy) {
+  if (enemy && enemy.visualOverride && enemy.visualOverride.path) {
+    var overrideNoDecimate = enemy.visualOverride.noDecimate;
+    return {
+      path: enemy.visualOverride.path,
+      fit: enemy.visualOverride.fit || getOverrideSize("enemy_patrol") || 6,
+      noDecimate: overrideNoDecimate === undefined ? true : !!overrideNoDecimate
+    };
+  }
+  return {
+    path: getOverridePath("enemy_patrol"),
+    fit: getOverrideSize("enemy_patrol") || 6,
+    noDecimate: true
+  };
+}
+
+function pickAmbientModelVariant(faction) {
+  var key = faction || "merchant";
+  var rolePool = getRoleVariants("ambient." + key);
+  var pool = rolePool && rolePool.length ? rolePool : AMBIENT_MODEL_POOLS[key];
+  if (!pool || pool.length === 0) return null;
+  var idx = Math.floor(nextRandom() * pool.length);
+  if (idx < 0 || idx >= pool.length) idx = 0;
+  return pool[idx];
+}
+
 function applyEnemyOverrideAsync(mesh, enemy) {
-  var path = getOverridePath("enemy_patrol");
+  var spec = getEnemyOverrideSpec(enemy);
+  var path = spec.path;
   if (!path) return;
-  var fitSize = getOverrideSize("enemy_patrol") || 6;
+  var fitSize = spec.fit;
   var firePoints = mesh.userData.firePoints || [];
-  loadGlbVisual(path, fitSize, true).then(function (visual) {
+  loadGlbVisual(path, fitSize, true, { noDecimate: spec.noDecimate }).then(function (visual) {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(visual);
     // re-attach fire points so they move with the ship
@@ -179,6 +225,7 @@ function normalizeAngle(a) {
 // --- create the enemy manager ---
 export function createEnemyManager() {
   ensureGeo();
+  ensureAssetRoles();
   return {
     enemies: [],
     projectiles: [],
@@ -301,6 +348,7 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
   var mesh = buildEnemyPlaceholder();
   mesh.position.set(x, 0.3, z);
   mesh.rotation.y = heading;
+  var ambientVisual = pickAmbientModelVariant(faction);
 
   var enemy = {
     mesh: mesh,
@@ -326,6 +374,7 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    visualOverride: ambientVisual,
     ambient: true,
     attacked: false,
     tradeRoute: tradeRoute || null
