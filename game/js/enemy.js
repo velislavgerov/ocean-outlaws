@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { isLand, collideWithTerrain, terrainBlocksLine, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
-import { getOverridePath, getOverrideSize } from "./artOverrides.js";
+import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
 import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 import { nextRandom } from "./rng.js";
