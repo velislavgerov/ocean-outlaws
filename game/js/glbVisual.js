@@ -13,6 +13,40 @@ _dracoLoader.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.160.0/examples
 var _loader = new GLTFLoader();
 _loader.setDRACOLoader(_dracoLoader);
 
+function markSharedResource(resource, sourcePath) {
+  if (!resource) return;
+  if (!resource.userData) resource.userData = {};
+  resource.userData.__glbSharedTemplate = true;
+  if (sourcePath && !resource.userData.__glbTemplatePath) {
+    resource.userData.__glbTemplatePath = sourcePath;
+  }
+}
+
+function markSharedMaterialResources(material, sourcePath) {
+  if (!material) return;
+  markSharedResource(material, sourcePath);
+  for (var k in material) {
+    if (!Object.prototype.hasOwnProperty.call(material, k)) continue;
+    var v = material[k];
+    if (v && v.isTexture) markSharedResource(v, sourcePath);
+  }
+}
+
+function markTemplateResources(root, sourcePath) {
+  if (!root) return;
+  root.traverse(function (o) {
+    if (o.geometry) markSharedResource(o.geometry, sourcePath);
+    if (!o.material) return;
+    if (Array.isArray(o.material)) {
+      for (var i = 0; i < o.material.length; i++) {
+        markSharedMaterialResources(o.material[i], sourcePath);
+      }
+    } else {
+      markSharedMaterialResources(o.material, sourcePath);
+    }
+  });
+}
+
 function fitToSize(root, target) {
   var box = new THREE.Box3().setFromObject(root);
   var size = new THREE.Vector3();
@@ -98,6 +132,7 @@ function loadTemplate(path) {
   if (cache[path]) return cache[path];
   cache[path] = new Promise(function (resolve, reject) {
     _loader.load(encodeURI(path), function (gltf) {
+      markTemplateResources(gltf.scene, path);
       resolve(gltf.scene);
     }, undefined, reject);
   });

@@ -1,9 +1,12 @@
-// ocean.js — flat-shaded CPU vertex-color ocean (low-poly aesthetic)
+// ocean.js — tiled flat-shaded CPU vertex-color ocean for effectively infinite traversal
 import * as THREE from "three";
 
 var BASE_DEEP = new THREE.Color("#2a5577");
 var BASE_SHALLOW = new THREE.Color("#4ea3c4");
 var TMP_COLOR = new THREE.Color();
+
+var OCEAN_SIZE = 400;
+var OCEAN_TILE_RADIUS = 1; // 3x3 tiles around camera anchor
 
 function createCompatUniforms() {
   return {
@@ -21,34 +24,91 @@ function buildOceanGeometry(size, segments) {
   return geo;
 }
 
+function buildOceanTile(size, segments, material) {
+  var geometry = buildOceanGeometry(size, segments);
+  var mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.renderOrder = 0;
+  return { mesh: mesh, geometry: geometry };
+}
+
 export function createOcean(segments) {
   var segs = Math.max(8, Math.floor(segments || 56));
-  var size = 400;
-  var geometry = buildOceanGeometry(size, segs);
-  var material = new THREE.MeshLambertMaterial({
+  var size = OCEAN_SIZE;
+
+  var tileMaterial = new THREE.MeshLambertMaterial({
     color: 0xffffff,
     side: THREE.DoubleSide,
     flatShading: true,
     vertexColors: true
   });
-  var mesh = new THREE.Mesh(geometry, material);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.renderOrder = 0;
+
+  var group = new THREE.Group();
+  var tiles = [];
+
+  for (var tz = -OCEAN_TILE_RADIUS; tz <= OCEAN_TILE_RADIUS; tz++) {
+    for (var tx = -OCEAN_TILE_RADIUS; tx <= OCEAN_TILE_RADIUS; tx++) {
+      var tile = buildOceanTile(size, segs, tileMaterial);
+      tile.gridX = tx;
+      tile.gridZ = tz;
+      group.add(tile.mesh);
+      tiles.push(tile);
+    }
+  }
 
   var uniforms = createCompatUniforms();
-  uniforms.__oceanGeo = geometry;
-  uniforms.__oceanMesh = mesh;
+  uniforms.__oceanMesh = group;
+  uniforms.__oceanGeo = tiles[0].geometry;
   uniforms.__size = size;
   uniforms.__segments = segs;
+  uniforms.__tiles = tiles;
+  uniforms.__tileRadius = OCEAN_TILE_RADIUS;
 
-  return { mesh: mesh, uniforms: uniforms };
+  return { mesh: group, uniforms: uniforms };
+}
+
+function updateTileHeights(tile, elapsed, amp, steps, deepColor, shallowColor) {
+  var pos = tile.geometry.attributes.position;
+  var cols = tile.geometry.attributes.color;
+  var tileX = tile.mesh.position.x;
+  var tileZ = tile.mesh.position.z;
+
+  var safeAmp = Math.max(0.01, amp);
+  for (var i = 0; i < pos.count; i++) {
+    var worldX = pos.getX(i) + tileX;
+    // PlaneGeometry is in XY before mesh rotation. With -PI/2 around X, world Z = -local Y.
+    var worldZ = -pos.getY(i) + tileZ;
+
+    var h = getWaveHeight(worldX, worldZ, elapsed, amp, steps);
+    pos.setZ(i, h);
+
+    var t = THREE.MathUtils.clamp((h / (safeAmp * 1.6) + 1) * 0.5, 0, 1);
+    TMP_COLOR.copy(deepColor).lerp(shallowColor, t);
+    cols.setXYZ(i, TMP_COLOR.r, TMP_COLOR.g, TMP_COLOR.b);
+  }
+
+  pos.needsUpdate = true;
+  cols.needsUpdate = true;
+  tile.geometry.computeVertexNormals();
+}
+
+function positionTilesAroundCamera(uniforms, camera) {
+  var tiles = uniforms.__tiles;
+  if (!tiles || tiles.length === 0) return;
+
+  var size = uniforms.__size || OCEAN_SIZE;
+  var anchorX = camera ? Math.round(camera.position.x / size) * size : 0;
+  var anchorZ = camera ? Math.round(camera.position.z / size) * size : 0;
+
+  for (var i = 0; i < tiles.length; i++) {
+    var tile = tiles[i];
+    tile.mesh.position.x = anchorX + tile.gridX * size;
+    tile.mesh.position.z = anchorZ + tile.gridZ * size;
+  }
 }
 
 export function updateOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, camera, weatherDim, foamIntensity, cloudShadow) {
-  if (!uniforms || !uniforms.__oceanGeo) return;
-  var geo = uniforms.__oceanGeo;
-  var pos = geo.attributes.position;
-  var cols = geo.attributes.color;
+  if (!uniforms || !uniforms.__tiles || uniforms.__tiles.length === 0) return;
 
   var amp = waveAmplitude !== undefined ? waveAmplitude : uniforms.uWaveAmp.value;
   uniforms.uWaveAmp.value = amp;
@@ -68,30 +128,17 @@ export function updateOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTi
     deepColor.setRGB(dayNight.waterDeep[0], dayNight.waterDeep[1], dayNight.waterDeep[2]);
     shallowColor.setRGB(dayNight.waterCrest[0], dayNight.waterCrest[1], dayNight.waterCrest[2]);
   }
+
   deepColor.multiplyScalar(dim);
   shallowColor.multiplyScalar(dim);
   deepColor.offsetHSL(0, 0, tint.z * 0.25 + tint.y * 0.1);
   shallowColor.offsetHSL(0, 0, tint.z * 0.25 + tint.y * 0.1);
 
-  var safeAmp = Math.max(0.01, amp);
-  for (var i = 0; i < pos.count; i++) {
-    var x = pos.getX(i);
-    var z = pos.getY(i);
-    var h = 0;
-    h += Math.sin(x * 0.22 + elapsed * 0.9) * 0.8 * amp;
-    h += Math.sin(z * 0.18 + elapsed * 0.7) * 0.65 * amp;
-    h += Math.sin(x * 0.55 + z * 0.4 + elapsed * 1.1) * 0.25 * amp;
-    if (steps && steps > 0.5) h = Math.floor(h * steps) / steps;
-    pos.setZ(i, h);
+  positionTilesAroundCamera(uniforms, camera);
 
-    var t = THREE.MathUtils.clamp((h / (safeAmp * 1.6) + 1) * 0.5, 0, 1);
-    TMP_COLOR.copy(deepColor).lerp(shallowColor, t);
-    cols.setXYZ(i, TMP_COLOR.r, TMP_COLOR.g, TMP_COLOR.b);
+  for (var i = 0; i < uniforms.__tiles.length; i++) {
+    updateTileHeights(uniforms.__tiles[i], elapsed, amp, steps, deepColor, shallowColor);
   }
-
-  pos.needsUpdate = true;
-  cols.needsUpdate = true;
-  geo.computeVertexNormals();
 }
 
 export function getWaveHeight(worldX, worldZ, time, waveAmp, waveSteps) {

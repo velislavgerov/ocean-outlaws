@@ -22,6 +22,7 @@ var MAP_SIZE = 400;
 var TERRAIN_HEIGHT = 4;
 
 var _compositePackPromise = null;
+var _worldPosTmp = new THREE.Vector3();
 
 function seededRand(seed) {
   var s = (seed >>> 0) || 1;
@@ -238,6 +239,12 @@ function addMinimapMarker(terrain, type, x, z, size, modelPath) {
   terrain.minimapMarkers.push({ type: type || "island", x: x, z: z, size: size || 1, modelPath: modelPath || "" });
 }
 
+function addMinimapMarkerForObject(terrain, type, obj, size, modelPath) {
+  if (!obj) return;
+  obj.getWorldPosition(_worldPosTmp);
+  addMinimapMarker(terrain, type, _worldPosTmp.x, _worldPosTmp.z, size, modelPath);
+}
+
 function shouldAddCompositeCollider(item) {
   return item && item.type === "island";
 }
@@ -367,10 +374,10 @@ export async function addCompositeFieldVisual(root, terrain, seed) {
         holder.scale.setScalar(worldScale);
         root.add(holder);
         if (shouldAddCompositeCollider(item)) addVisualColliderFromObject(terrain, holder, item.modelPath);
-        addMinimapMarker(
+        addMinimapMarkerForObject(
           terrain,
           getCompositeMarkerTypeByScale(item.type, worldScale),
-          holder.position.x, holder.position.z,
+          holder,
           worldScale, item.modelPath
         );
         itemsPlaced++;
@@ -437,7 +444,7 @@ export async function addTieredIslandFieldVisual(root, terrain, heightmap, seed)
       holder.scale.setScalar(minScale + rng() * (maxScale - minScale));
       root.add(holder);
       addVisualColliderFromObject(terrain, holder, SMALL_ISLAND_MODEL);
-      addMinimapMarker(terrain, markerType, cand.x, cand.z, holder.scale.x, SMALL_ISLAND_MODEL);
+      addMinimapMarkerForObject(terrain, markerType, holder, holder.scale.x, SMALL_ISLAND_MODEL);
       placed.push({ x: cand.x, z: cand.z });
       placedNow++;
     }

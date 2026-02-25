@@ -1,7 +1,7 @@
 // ship.js — ship physics state, GLB model loading, update loop
 import * as THREE from "three";
 import { buildClassMesh } from "./shipModels.js";
-import { collideWithTerrain, applyEdgeBoundary, getTerrainAvoidance } from "./terrain.js";
+import { collideWithTerrain, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
@@ -265,14 +265,6 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
       ship.speed = 0;
       ship._stuckDetector = createStuckDetector();
     }
-  }
-
-  // map edge boundary — soft push-back toward center
-  var edge = applyEdgeBoundary(ship.posX, ship.posZ);
-  if (edge.pushed) {
-    ship.posX = edge.posX;
-    ship.posZ = edge.posZ;
-    ship.speed *= 0.95;  // gentle slowdown near edge
   }
 
   ship.mesh.position.x = ship.posX;

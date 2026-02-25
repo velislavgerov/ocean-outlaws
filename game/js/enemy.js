@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { isLand, collideWithTerrain, terrainBlocksLine, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
-import { getOverridePath, getOverrideSize } from "./artOverrides.js";
+import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
 import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 import { nextRandom } from "./rng.js";
@@ -139,7 +139,7 @@ function buildEnemyPlaceholder() {
   var group = new THREE.Group();
   group.add(new THREE.Mesh(
     new THREE.BoxGeometry(1, 0.5, 2),
-    new THREE.MeshBasicMaterial({ color: 0xff00ff })
+    new THREE.MeshBasicMaterial({ color: 0x446688 })
   ));
   var portFP = new THREE.Object3D(); portFP.position.set(-0.5, 0.3, 0.3); group.add(portFP);
   var stbdFP = new THREE.Object3D(); stbdFP.position.set(0.5, 0.3, 0.3); group.add(stbdFP);
@@ -204,33 +204,69 @@ function pickCombatModelVariant(faction, roleContext) {
   return pickFactionRoleVariant("enemy", key, ENEMY_MODEL_POOLS, roleContext);
 }
 
+function scheduleEnemyModelRetry(mesh, enemy) {
+  if (!enemy || enemy._modelLoaded || enemy._modelLoading || enemy._modelRetryTimer) return;
+  enemy._modelRetryTimer = setTimeout(function () {
+    enemy._modelRetryTimer = null;
+    if (!enemy.alive || !mesh) return;
+    applyEnemyOverrideAsync(mesh, enemy);
+  }, 1500);
+}
+
 function applyEnemyOverrideAsync(mesh, enemy) {
-  var spec = getEnemyOverrideSpec(enemy);
-  var path = spec.path;
-  if (!path) return;
-  var fitSize = spec.fit;
+  if (!mesh || !enemy) return;
+  if (enemy._modelLoaded || enemy._modelLoading) return;
+  enemy._modelLoading = true;
+
   var firePoints = mesh.userData.firePoints || [];
-  loadGlbVisual(path, fitSize, true, { noDecimate: spec.noDecimate }).then(function (visual) {
-    while (mesh.children.length) mesh.remove(mesh.children[0]);
-    mesh.add(visual);
-    // re-attach fire points so they move with the ship
-    for (var i = 0; i < firePoints.length; i++) {
-      mesh.add(firePoints[i]);
-    }
-    mesh.userData.firePoints = firePoints;
-    updateEnemyHitbox(enemy, visual);
-  }).catch(function () {
-    console.error("Failed to load enemy model: " + path);
+
+  function applyFallback() {
     while (mesh.children.length) mesh.remove(mesh.children[0]);
     mesh.add(new THREE.Mesh(
       new THREE.BoxGeometry(1, 0.5, 2),
-      new THREE.MeshBasicMaterial({ color: 0xff00ff })
+      new THREE.MeshBasicMaterial({ color: 0x446688 })
     ));
     for (var j = 0; j < firePoints.length; j++) {
       mesh.add(firePoints[j]);
     }
     mesh.userData.firePoints = firePoints;
     updateEnemyHitbox(enemy, mesh);
+  }
+
+  ensureManifest().then(function () {
+    var spec = getEnemyOverrideSpec(enemy);
+    var path = spec.path;
+    if (!path) {
+      console.error("Enemy model override missing for enemy_patrol");
+      enemy._modelLoading = false;
+      applyFallback();
+      scheduleEnemyModelRetry(mesh, enemy);
+      return;
+    }
+
+    var fitSize = spec.fit;
+    return loadGlbVisual(path, fitSize, true, { noDecimate: spec.noDecimate }).then(function (visual) {
+      while (mesh.children.length) mesh.remove(mesh.children[0]);
+      mesh.add(visual);
+      // re-attach fire points so they move with the ship
+      for (var i = 0; i < firePoints.length; i++) {
+        mesh.add(firePoints[i]);
+      }
+      mesh.userData.firePoints = firePoints;
+      updateEnemyHitbox(enemy, visual);
+      enemy._modelLoading = false;
+      enemy._modelLoaded = true;
+    }).catch(function () {
+      console.error("Failed to load enemy model: " + path);
+      enemy._modelLoading = false;
+      applyFallback();
+      scheduleEnemyModelRetry(mesh, enemy);
+    });
+  }).catch(function () {
+    console.error("Enemy model manifest failed to load");
+    enemy._modelLoading = false;
+    applyFallback();
+    scheduleEnemyModelRetry(mesh, enemy);
   });
 }
 
@@ -295,6 +331,10 @@ export function createEnemyManager() {
 export function resetEnemyManager(manager, scene) {
   // remove all enemy meshes, projectiles, particles from scene
   for (var i = 0; i < manager.enemies.length; i++) {
+    if (manager.enemies[i]._modelRetryTimer) {
+      clearTimeout(manager.enemies[i]._modelRetryTimer);
+      manager.enemies[i]._modelRetryTimer = null;
+    }
     scene.remove(manager.enemies[i].mesh);
   }
   for (var i = 0; i < manager.projectiles.length; i++) {
@@ -383,7 +423,10 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleC
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
-    visualOverride: pickCombatModelVariant(faction, roleContext)
+    visualOverride: pickCombatModelVariant(faction, roleContext),
+    _modelLoading: false,
+    _modelLoaded: false,
+    _modelRetryTimer: null
   };
 
   updateEnemyHitbox(enemy, mesh);
@@ -425,6 +468,9 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
     visualOverride: ambientVisual,
+    _modelLoading: false,
+    _modelLoaded: false,
+    _modelRetryTimer: null,
     ambient: true,
     attacked: false,
     tradeRoute: tradeRoute || null
