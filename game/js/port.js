@@ -2,18 +2,23 @@
 import * as THREE from "three";
 import { addAmmo, addFuel } from "./resource.js";
 import { getRepairCost } from "./upgrade.js";
-import { sampleHeightmap, isHeightmapLand } from "./terrain.js";
+import { sampleHeightmap, isHeightmapLand, isLand } from "./terrain.js";
 import { nextRandom } from "./rng.js";
 import { loadGlbVisual } from "./glbVisual.js";
-import { ensureAssetRoles, getRoleVariants } from "./assetRoles.js";
+import { ensureAssetRoles, getRoleVariants, pickRoleVariant } from "./assetRoles.js";
 
 // --- tuning ---
 var PORT_COUNT = 3;              // ports per map
-var PORT_COLLECT_RADIUS = 8;     // proximity to trigger resupply
+var PORT_COLLECT_RADIUS = 10;    // proximity to trigger resupply
 var PORT_COOLDOWN = 45;          // seconds before port can be used again
 var PORT_AMMO_RESTOCK = 30;
 var PORT_FUEL_RESTOCK = 40;
 var PORT_HP_RESTOCK = 15;        // flat HP restored
+var PORT_WATER_NUDGE = 4;        // move port root slightly toward open water
+var PORT_DOCK_OFFSET = 8;        // interaction anchor placed on water side of port
+var PORT_DOCK_MAX_OFFSET = 22;   // allow farther dock fallback on complex coasts
+var PORT_DOCK_CLEAR_RADIUS = 2.2;
+var PORT_DOCK_REFRESH = 0.75;    // refresh dock anchor against visual colliders
 
 // coastline search: find cells near sea level
 var COAST_SEARCH_ATTEMPTS = 200;
@@ -22,6 +27,7 @@ var COAST_HEIGHT_MAX = 0.15;     // just above sea level (beach)
 var MAP_HALF = 200;              // half of MAP_SIZE (400)
 var MIN_PORT_SPACING = 60;       // minimum distance between ports
 var MIN_CENTER_DIST = 40;        // keep ports away from spawn
+var PORT_THEME_ORDER = ["neutral", "merchant", "pirate"];
 
 var PORT_THEME_VARIANTS = [
   [
@@ -46,6 +52,42 @@ var PORT_THEME_VARIANTS = [
     { path: "assets/models/environment/bottles/bottle-2.glb", fit: 0.7, x: 0.2, y: 2.0, z: 0.4, ry: 0 }
   ]
 ];
+
+var PORT_THEME_VARIANTS_BY_FACTION = {
+  neutral: PORT_THEME_VARIANTS,
+  merchant: [
+    [
+      { path: "assets/models/environment/wooden-piers/wooden-pier-4.glb", fit: 8.4, x: 0, y: 0, z: 0, ry: 0 },
+      { path: "assets/models/houses/trading/trading-house.glb", fit: 5.4, x: 0.2, y: 1.8, z: -2.4, ry: 0 },
+      { path: "assets/models/environment/food-tents/food-tent-2.glb", fit: 2.8, x: -1.1, y: 1.8, z: 1.0, ry: 0 },
+      { path: "assets/models/environment/bags/bag-grain.glb", fit: 1.0, x: 0.7, y: 1.8, z: 1.1, ry: 0.17 },
+      { path: "assets/models/environment/boxes/box-3.glb", fit: 1.0, x: -0.6, y: 1.8, z: 0.8, ry: 0.5 }
+    ],
+    [
+      { path: "assets/models/environment/wooden-platforms/wooden-platform.glb", fit: 8.4, x: 0, y: 0, z: 0, ry: 0 },
+      { path: "assets/models/houses/trading/trading-house-2.glb", fit: 5.6, x: -0.3, y: 1.8, z: -2.5, ry: 0 },
+      { path: "assets/models/environment/tables/table-2.glb", fit: 1.6, x: 0.95, y: 1.8, z: 0.55, ry: 0.22 },
+      { path: "assets/models/environment/chairs/chair.glb", fit: 1.1, x: 0.35, y: 1.8, z: 0.95, ry: -0.4 },
+      { path: "assets/models/environment/barrels/barrel-stand.glb", fit: 1.4, x: -0.8, y: 1.8, z: 0.6, ry: 0.2 }
+    ]
+  ],
+  pirate: [
+    [
+      { path: "assets/models/environment/destroyed-wooden-pier.glb", fit: 8.3, x: 0, y: 0, z: 0, ry: 0 },
+      { path: "assets/models/houses/pirate/pirate-house.glb", fit: 5.8, x: -0.1, y: 1.8, z: -2.3, ry: 0 },
+      { path: "assets/models/environment/barrels/barrel-3.glb", fit: 1.0, x: 0.9, y: 1.8, z: 0.85, ry: 0 },
+      { path: "assets/models/environment/fences/untreated/untreated-fence.glb", fit: 2.3, x: 0.2, y: 1.8, z: 1.3, ry: 0.08 },
+      { path: "assets/models/environment/bags/bag-grain-2.glb", fit: 1.0, x: -0.7, y: 1.8, z: 0.8, ry: -0.35 }
+    ],
+    [
+      { path: "assets/models/environment/wooden-piers/wooden-pier-5.glb", fit: 8.6, x: 0, y: 0, z: 0, ry: 0 },
+      { path: "assets/models/houses/pirate/pirate-house-2.glb", fit: 5.6, x: 0, y: 1.8, z: -2.5, ry: 0 },
+      { path: "assets/models/environment/fences/stone/stone-fence-small.glb", fit: 2.2, x: 1.0, y: 1.8, z: 1.1, ry: 0.24 },
+      { path: "assets/models/environment/barrels/barrel.glb", fit: 1.0, x: -0.6, y: 1.8, z: 0.9, ry: 0 },
+      { path: "assets/models/environment/boxes/box-2.glb", fit: 1.0, x: 0.6, y: 1.8, z: 0.7, ry: 0.35 }
+    ]
+  ]
+};
 
 // --- find coastline positions ---
 function findCoastlinePositions(terrain) {
@@ -112,17 +154,104 @@ function findCoastlinePositions(terrain) {
         bestWaterAngle = angle;
       }
     }
-    // nudge 3 units toward the deepest water neighbor
-    x += Math.cos(bestWaterAngle) * 3;
-    z += Math.sin(bestWaterAngle) * 3;
+    // nudge toward deepest water neighbor to reduce shoreline collision frustration
+    x += Math.cos(bestWaterAngle) * PORT_WATER_NUDGE;
+    z += Math.sin(bestWaterAngle) * PORT_WATER_NUDGE;
 
-    positions.push({ x: x, z: z });
+    var dock = findDockCandidate(
+      x, z, bestWaterAngle,
+      Math.max(1, PORT_DOCK_OFFSET * 0.4),
+      PORT_DOCK_MAX_OFFSET,
+      1.5,
+      function (dx, dz) {
+        return hasWaterClearance(terrain, dx, dz, isHeightmapLand);
+      }
+    );
+    var foundDock = !!dock;
+    if (!foundDock) continue;
+
+    positions.push({ x: x, z: z, waterAngle: bestWaterAngle, dockX: dock.x, dockZ: dock.z });
   }
   return positions;
 }
 
+function normalizeThemeKey(value) {
+  if (typeof value !== "string") return null;
+  var key = value.trim().toLowerCase();
+  return key || null;
+}
+
+function parsePortFactionRole(entry) {
+  if (typeof entry === "string") return normalizeThemeKey(entry);
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+  if (typeof entry.value === "string") return normalizeThemeKey(entry.value);
+  if (typeof entry.variant === "string") return normalizeThemeKey(entry.variant);
+  if (typeof entry.faction === "string") return normalizeThemeKey(entry.faction);
+  if (typeof entry.key === "string") return normalizeThemeKey(entry.key);
+  return null;
+}
+
+function normalizeRoleToken(value) {
+  if (value === null || value === undefined) return null;
+  var text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  text = text.replace(/[^a-z0-9_\-]/g, "_");
+  return text || null;
+}
+
+function getPortThemeKeys() {
+  var roleKeys = getRoleVariants("port.factions");
+  if (!roleKeys || !roleKeys.length) return PORT_THEME_ORDER;
+
+  var keys = [];
+  for (var i = 0; i < roleKeys.length; i++) {
+    var key = parsePortFactionRole(roleKeys[i]);
+    if (!key) continue;
+    if (keys.indexOf(key) >= 0) continue;
+    keys.push(key);
+  }
+  return keys.length ? keys : PORT_THEME_ORDER;
+}
+
+function pickPortThemeKey(fallbackKeys, fallbackIdx) {
+  var picked = pickRoleVariant("port.factions", null, nextRandom);
+  var weightedKey = parsePortFactionRole(picked);
+  if (weightedKey) return weightedKey;
+  if (!fallbackKeys || fallbackKeys.length === 0) return null;
+  return fallbackKeys[fallbackIdx % fallbackKeys.length];
+}
+
+function getFallbackThemes(themeKey) {
+  var themed = themeKey ? PORT_THEME_VARIANTS_BY_FACTION[themeKey] : null;
+  return themed && themed.length ? themed : PORT_THEME_VARIANTS;
+}
+
+function hasWaterClearance(terrain, x, z, landTest) {
+  if (landTest(terrain, x, z)) return false;
+  for (var a = 0; a < 8; a++) {
+    var angle = a * Math.PI / 4;
+    var cx = x + Math.cos(angle) * PORT_DOCK_CLEAR_RADIUS;
+    var cz = z + Math.sin(angle) * PORT_DOCK_CLEAR_RADIUS;
+    if (landTest(terrain, cx, cz)) return false;
+  }
+  return true;
+}
+
+function findDockCandidate(baseX, baseZ, baseAngle, minDist, maxDist, step, isWaterTest) {
+  var angleOffsets = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05];
+  for (var dist = minDist; dist <= maxDist; dist += step) {
+    for (var i = 0; i < angleOffsets.length; i++) {
+      var angle = baseAngle + angleOffsets[i];
+      var x = baseX + Math.cos(angle) * dist;
+      var z = baseZ + Math.sin(angle) * dist;
+      if (isWaterTest(x, z)) return { x: x, z: z };
+    }
+  }
+  return null;
+}
+
 // --- build dock mesh ---
-function buildPortMesh() {
+function buildPortMesh(themeKey, roleContext) {
   var group = new THREE.Group();
 
   // pier platform
@@ -182,30 +311,56 @@ function buildPortMesh() {
   group.userData.light = light;
   group.userData.lamp = lamp;
   group.userData.lampMat = lampMat;
+  group.userData.themeKey = themeKey || "neutral";
 
   // async GLB dock dressing; keep primitive base as resilient fallback
-  hydratePortVisual(group);
+  hydratePortVisual(group, themeKey, roleContext);
 
   return group;
 }
 
-function pickPortTheme() {
-  var roleThemes = getRoleVariants("port.themes");
-  var themes = roleThemes && roleThemes.length ? roleThemes : PORT_THEME_VARIANTS;
-  var idx = Math.floor(nextRandom() * themes.length);
-  if (idx < 0 || idx >= themes.length) idx = 0;
-  return themes[idx];
+function pickPortTheme(themeKey, roleContext) {
+  var normalizedKey = normalizeThemeKey(themeKey);
+  var themedKey = normalizedKey ? "port.themes." + normalizedKey : null;
+  var zoneId = roleContext ? normalizeRoleToken(roleContext.zoneId || roleContext.id) : null;
+  var condition = roleContext ? normalizeRoleToken(roleContext.condition) : null;
+  var difficulty = roleContext ? normalizeRoleToken(roleContext.difficulty) : null;
+  var candidates = [];
+  if (themedKey) {
+    if (zoneId) candidates.push(themedKey + ".zone." + zoneId);
+    if (condition) candidates.push(themedKey + ".condition." + condition);
+    if (difficulty) candidates.push(themedKey + ".difficulty." + difficulty);
+  }
+  if (zoneId) candidates.push("port.themes.zone." + zoneId);
+  if (condition) candidates.push("port.themes.condition." + condition);
+  if (difficulty) candidates.push("port.themes.difficulty." + difficulty);
+
+  for (var i = 0; i < candidates.length; i++) {
+    var contextualPick = pickRoleVariant(candidates[i], null, nextRandom);
+    if (contextualPick) return contextualPick;
+  }
+
+  var modules = themedKey ? pickRoleVariant(themedKey, null, nextRandom) : null;
+  if (!modules) modules = pickRoleVariant("port.themes", null, nextRandom);
+  if (modules) return modules;
+
+  var fallback = getFallbackThemes(normalizedKey);
+  var idx = Math.floor(nextRandom() * fallback.length);
+  if (idx < 0 || idx >= fallback.length) idx = 0;
+  return fallback[idx];
 }
 
-function hydratePortVisual(group) {
-  var modules = pickPortTheme();
+function hydratePortVisual(group, themeKey, roleContext) {
+  var modules = pickPortTheme(themeKey, roleContext);
+  if (!Array.isArray(modules) || modules.length === 0) return;
   var visualRoot = new THREE.Group();
   group.add(visualRoot);
 
   var fallbackHidden = false;
   for (var i = 0; i < modules.length; i++) {
     (function (mod) {
-      loadGlbVisual(mod.path, mod.fit, true)
+      // Keep full mesh topology for port kits; budget decimation can punch visible holes.
+      loadGlbVisual(mod.path, mod.fit, true, { noDecimate: true })
         .then(function (obj) {
           if (!fallbackHidden) {
             fallbackHidden = true;
@@ -236,12 +391,15 @@ export function createPortManager() {
 }
 
 // --- initialize ports for a zone ---
-export function initPorts(manager, terrain, scene) {
+export function initPorts(manager, terrain, scene, roleContext) {
   clearPorts(manager, scene);
   var positions = findCoastlinePositions(terrain);
+  var themeKeys = getPortThemeKeys();
+  var themeOffset = themeKeys.length ? Math.floor(nextRandom() * themeKeys.length) : 0;
 
   for (var i = 0; i < positions.length; i++) {
-    var mesh = buildPortMesh();
+    var themeKey = pickPortThemeKey(themeKeys, themeOffset + i);
+    var mesh = buildPortMesh(themeKey, roleContext);
     mesh.position.set(positions[i].x, 0, positions[i].z);
     scene.add(mesh);
 
@@ -249,12 +407,46 @@ export function initPorts(manager, terrain, scene) {
       mesh: mesh,
       posX: positions[i].x,
       posZ: positions[i].z,
+      dockX: positions[i].dockX,
+      dockZ: positions[i].dockZ,
+      dockRefreshTimer: 0,
+      waterAngle: positions[i].waterAngle,
+      themeKey: themeKey || "neutral",
       cooldown: 0,       // 0 = available
       available: true
     });
   }
 
   manager.initialized = true;
+}
+
+function getPortTarget(port) {
+  if (!port) return { x: 0, z: 0 };
+  return {
+    x: port.dockX !== undefined ? port.dockX : port.posX,
+    z: port.dockZ !== undefined ? port.dockZ : port.posZ
+  };
+}
+
+function refreshPortDockTarget(port, terrain) {
+  if (!port || !terrain) return;
+  var current = getPortTarget(port);
+  if (hasWaterClearance(terrain, current.x, current.z, isLand)) return;
+
+  var dock = findDockCandidate(
+    port.posX,
+    port.posZ,
+    port.waterAngle || 0,
+    Math.max(1, PORT_DOCK_OFFSET * 0.35),
+    PORT_DOCK_MAX_OFFSET,
+    1.25,
+    function (x, z) {
+      return hasWaterClearance(terrain, x, z, isLand);
+    }
+  );
+  if (!dock) return;
+  port.dockX = dock.x;
+  port.dockZ = dock.z;
 }
 
 // --- clear all ports ---
@@ -267,9 +459,15 @@ export function clearPorts(manager, scene) {
 }
 
 // --- update ports: check proximity, tick cooldowns, update visuals ---
-export function updatePorts(manager, ship, resources, enemyMgr, dt, upgrades, classKey) {
+export function updatePorts(manager, ship, resources, enemyMgr, dt, upgrades, classKey, terrain) {
   for (var i = 0; i < manager.ports.length; i++) {
     var port = manager.ports[i];
+
+    port.dockRefreshTimer = (port.dockRefreshTimer || 0) - dt;
+    if (port.dockRefreshTimer <= 0) {
+      refreshPortDockTarget(port, terrain);
+      port.dockRefreshTimer = PORT_DOCK_REFRESH;
+    }
 
     // tick cooldown
     if (port.cooldown > 0) {
@@ -282,8 +480,9 @@ export function updatePorts(manager, ship, resources, enemyMgr, dt, upgrades, cl
 
     // check proximity for resupply
     if (port.available) {
-      var dx = ship.posX - port.posX;
-      var dz = ship.posZ - port.posZ;
+      var target = getPortTarget(port);
+      var dx = ship.posX - target.x;
+      var dz = ship.posZ - target.z;
       var distSq = dx * dx + dz * dz;
 
       if (distSq < PORT_COLLECT_RADIUS * PORT_COLLECT_RADIUS) {
@@ -332,8 +531,9 @@ export function getPortsInfo(manager, ship) {
   var nearestDist = Infinity;
   for (var i = 0; i < manager.ports.length; i++) {
     var port = manager.ports[i];
-    var dx = ship.posX - port.posX;
-    var dz = ship.posZ - port.posZ;
+    var target = getPortTarget(port);
+    var dx = ship.posX - target.x;
+    var dz = ship.posZ - target.z;
     var dist = Math.sqrt(dx * dx + dz * dz);
     if (dist < nearestDist) {
       nearestDist = dist;

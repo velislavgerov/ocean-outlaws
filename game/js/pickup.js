@@ -4,7 +4,7 @@ import { addAmmo, addFuel, addParts } from "./resource.js";
 import { addGold } from "./upgrade.js";
 import { nextRandom } from "./rng.js";
 import { loadGlbVisual } from "./glbVisual.js";
-import { ensureAssetRoles, getRoleVariants } from "./assetRoles.js";
+import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 
 // --- tuning ---
 var PICKUP_FLOAT_OFFSET = 0.8;
@@ -77,12 +77,31 @@ var GLOW_COLORS = {
 };
 
 function pickPickupModel(type) {
-  var rolePool = getRoleVariants("pickup." + type);
-  var pool = rolePool && rolePool.length ? rolePool : PICKUP_MODEL_POOLS[type];
-  if (!pool || pool.length === 0) return null;
-  var idx = Math.floor(nextRandom() * pool.length);
-  if (idx < 0 || idx >= pool.length) idx = 0;
-  return pool[idx];
+  return pickRoleVariant("pickup." + type, PICKUP_MODEL_POOLS[type], nextRandom);
+}
+
+function normalizeRoleToken(value) {
+  if (value === null || value === undefined) return null;
+  var text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  text = text.replace(/[^a-z0-9_\-]/g, "_");
+  return text || null;
+}
+
+function pickPickupModelWithContext(type, roleContext) {
+  var baseRole = "pickup." + type;
+  var zoneId = roleContext ? normalizeRoleToken(roleContext.zoneId || roleContext.id) : null;
+  var condition = roleContext ? normalizeRoleToken(roleContext.condition) : null;
+  var difficulty = roleContext ? normalizeRoleToken(roleContext.difficulty) : null;
+  var candidates = [];
+  if (zoneId) candidates.push(baseRole + ".zone." + zoneId);
+  if (condition) candidates.push(baseRole + ".condition." + condition);
+  if (difficulty) candidates.push(baseRole + ".difficulty." + difficulty);
+  for (var i = 0; i < candidates.length; i++) {
+    var contextual = pickRoleVariant(candidates[i], null, nextRandom);
+    if (contextual) return contextual;
+  }
+  return pickPickupModel(type);
 }
 
 // --- build pickup mesh ---
@@ -113,7 +132,7 @@ function buildPickupMesh(type) {
 }
 
 function hydratePickupMesh(pickup) {
-  var model = pickPickupModel(pickup.type);
+  var model = pickPickupModelWithContext(pickup.type, pickup.roleContext);
   if (!model) return;
   loadGlbVisual(model.path, model.fit, true)
     .then(function (obj) {
@@ -136,12 +155,18 @@ export function createPickupManager() {
   ensureAssetRoles();
   return {
     pickups: [],
+    roleContext: null,
     onCollectCallback: null  // called with (index) for multiplayer sync
   };
 }
 
 export function setPickupCollectCallback(manager, callback) {
   manager.onCollectCallback = callback;
+}
+
+export function setPickupRoleContext(manager, roleContext) {
+  if (!manager) return;
+  manager.roleContext = roleContext || null;
 }
 
 // --- spawn a pickup at position ---
@@ -167,6 +192,7 @@ export function spawnPickup(manager, x, y, z, scene) {
     type: type,
     posX: x,
     posZ: z,
+    roleContext: manager.roleContext || null,
     age: 0,
     collected: false
   };

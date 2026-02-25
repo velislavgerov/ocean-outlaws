@@ -12,7 +12,7 @@ import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOr
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
-import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback } from "./pickup.js";
+import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
 import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost, applyFreeUpgrade } from "./upgrade.js";
 import { createCardPicker, showCardPicker, hideCardPicker } from "./cardPicker.js";
@@ -52,6 +52,7 @@ import { createInfamyScreen, showInfamyScreen, hideInfamyScreen } from "./infamy
 import { createMainMenu, showMainMenu, hideMainMenu } from "./mainMenu.js";
 import { createRunState, saveRunState as saveRun, loadRunState, hasActiveRun, clearRunState } from "./runState.js";
 import { createWorldDebugView, updateWorldDebugView, toggleWorldDebugView, isWorldDebugVisible, zoomWorldDebugView, getWorldDebugState } from "./worldDebugView.js";
+import { getRolePickStats, resetRolePickStats } from "./assetRoles.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -64,6 +65,7 @@ var runGoldLooted = 0; // gold earned during current run
 var runZonesReached = 0; // zones visited during current run
 var currentRunSeed = null; // non-null when in a roguelite run
 var currentNode = null; // current voyage chart node being fought
+var currentRoleContext = null; // active zone/node context for role-based model selection
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -751,10 +753,13 @@ function startMultiplayerCombat() {
   seedRNG(seed);
   activeTerrain = createTerrain(seed, 2);
   scene.add(activeTerrain.mesh);
+  var mpPortRoleContext = { zoneId: "multiplayer", condition: "calm", difficulty: 2 };
+  currentRoleContext = mpPortRoleContext;
   clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene);
+  initPorts(portMgr, activeTerrain, scene, mpPortRoleContext);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
+  setPickupRoleContext(pickupMgr, mpPortRoleContext);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -967,12 +972,22 @@ function startNodeCombat(node, runSeed) {
   var terrainSeed = runSeed + node.id * 1000 + 7;
   seedRNG(terrainSeed);
   var terrainDiff = 1 + Math.floor(node.col * 5 / Math.max(1, activeChart.columns - 1));
+  var weatherPreset = "calm";
+  if (node.type === "storm_crossing") weatherPreset = "storm";
+  else if (node.col >= 5) weatherPreset = "rough";
+  var nodePortRoleContext = {
+    zoneId: "run_node_" + node.id,
+    condition: weatherPreset === "storm" ? "stormy" : weatherPreset,
+    difficulty: Math.min(terrainDiff, 6)
+  };
+  currentRoleContext = nodePortRoleContext;
   activeTerrain = createTerrain(terrainSeed, Math.min(terrainDiff, 6));
   scene.add(activeTerrain.mesh);
   clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene);
+  initPorts(portMgr, activeTerrain, scene, nodePortRoleContext);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
+  setPickupRoleContext(pickupMgr, nodePortRoleContext);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -990,9 +1005,6 @@ function startNodeCombat(node, runSeed) {
   abilityState = createAbilityState(selectedClass);
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
   resetDrones(droneMgr, scene);
-  var weatherPreset = "calm";
-  if (node.type === "storm_crossing") weatherPreset = "storm";
-  else if (node.col >= 5) weatherPreset = "rough";
   setWeather(weather, weatherPreset);
   setEngineClass(selectedClass);
   gameFrozen = false;
@@ -1064,9 +1076,11 @@ function cleanupCombatScene() {
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
   clearPickups(pickupMgr, scene);
+  setPickupRoleContext(pickupMgr, null);
   clearCrewPickups(crewPickupMgr, scene);
   resetDrones(droneMgr, scene);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
+  currentRoleContext = null;
   hideBossHud();
 }
 
@@ -1094,10 +1108,17 @@ function startZoneCombat(classKey, zoneId) {
   seedRNG(terrainSeed);
   activeTerrain = createTerrain(terrainSeed, zone.difficulty);
   scene.add(activeTerrain.mesh);
+  var zonePortRoleContext = {
+    zoneId: zoneId,
+    condition: zone.condition || "calm",
+    difficulty: zone.difficulty
+  };
+  currentRoleContext = zonePortRoleContext;
   clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene);
+  initPorts(portMgr, activeTerrain, scene, zonePortRoleContext);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
+  setPickupRoleContext(pickupMgr, zonePortRoleContext);
   if (ship && ship.mesh) scene.remove(ship.mesh);
   ship = createShip(classCfg);
   scene.add(ship.mesh);
@@ -1576,12 +1597,19 @@ function runFrame(dt) {
       }
     }
 
-    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain);
+    var activeZone = activeZoneId ? getZone(activeZoneId) : null;
+    var roleContext = activeZone ? {
+      zoneId: activeZoneId,
+      condition: activeZone.condition,
+      difficulty: activeZone.difficulty
+    } : currentRoleContext;
+    if (activeZone && roleContext) currentRoleContext = roleContext;
+    updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain, roleContext);
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateCrewPickups(crewPickupMgr, ship, dt, elapsed, weatherWaveHeight, scene);
-    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass);
+    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass, activeTerrain);
     updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene, upgrades);
-    updateMerchants(merchantMgr, ship, dt, scene, activeTerrain, elapsed, weatherWaveHeight, enemyMgr, activeZoneId ? getZone(activeZoneId) : null);
+    updateMerchants(merchantMgr, ship, dt, scene, activeTerrain, elapsed, weatherWaveHeight, enemyMgr, activeZone, activeZoneId, roleContext);
     if (mults.autoRepair) {
       var arHp = getPlayerHp(enemyMgr);
       if (arHp.hp < arHp.maxHp) setPlayerHp(enemyMgr, Math.min(arHp.maxHp, arHp.hp + dt));
@@ -1791,7 +1819,10 @@ function runFrame(dt) {
     if (portMgr.ports) {
       for (var mpi = 0; mpi < portMgr.ports.length; mpi++) {
         var mp = portMgr.ports[mpi];
-        portPositions.push({ x: mp.posX, z: mp.posZ });
+        portPositions.push({
+          x: mp.dockX !== undefined ? mp.dockX : mp.posX,
+          z: mp.dockZ !== undefined ? mp.dockZ : mp.posZ
+        });
       }
     }
     var pickupList = pickupMgr.pickups || [];
@@ -1979,3 +2010,11 @@ window.render_game_to_text = function () {
 };
 
 animate();
+
+// Debug helpers for tuning weighted role entries during playtests.
+window.get_role_pick_stats = function () {
+  return getRolePickStats();
+};
+window.reset_role_pick_stats = function () {
+  resetRolePickStats();
+};

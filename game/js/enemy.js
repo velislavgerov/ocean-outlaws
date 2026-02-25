@@ -2,8 +2,9 @@
 import * as THREE from "three";
 import { isLand, collideWithTerrain, terrainBlocksLine, getTerrainAvoidance } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
-import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
+import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
+import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 import { nextRandom } from "./rng.js";
 
 // --- faction definitions ---
@@ -26,6 +27,42 @@ var FACTIONS = {
     hp: 3, goldMult: 3.0, groupSize: [1, 3],
     announce: "Merchant Convoy Spotted!"
   }
+};
+
+var AMBIENT_MODEL_POOLS = {
+  merchant: [
+    { path: "assets/models/vehicles/sailboats/sailboat.glb", fit: 6.2 },
+    { path: "assets/models/vehicles/sailboats/sailboat-2.glb", fit: 6.2 },
+    { path: "assets/models/ships-palmov/boats/chinese-boat.glb", fit: 6.0 }
+  ],
+  navy: [
+    { path: "assets/models/ships-palmov/boats/boat-1.glb", fit: 6.0 },
+    { path: "assets/models/ships-palmov/boats/boat-3.glb", fit: 6.0 },
+    { path: "assets/models/ships-palmov/small/ship-small-5.glb", fit: 6.5 }
+  ],
+  pirate: [
+    { path: "assets/models/ships-palmov/small/pirate-ship-small.glb", fit: 6.6 },
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship.glb", fit: 6.8 },
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", fit: 6.8 }
+  ]
+};
+
+var ENEMY_MODEL_POOLS = {
+  merchant: [
+    { path: "assets/models/vehicles/sailboats/sailboat.glb", fit: 6.5 },
+    { path: "assets/models/vehicles/sailboats/sailboat-2.glb", fit: 6.5 },
+    { path: "assets/models/ships-palmov/boats/chinese-boat.glb", fit: 6.3 }
+  ],
+  navy: [
+    { path: "assets/models/ships-palmov/small/ship-small-5.glb", fit: 6.8 },
+    { path: "assets/models/ships-palmov/boats/boat-3.glb", fit: 6.3 },
+    { path: "assets/models/ships-palmov/boats/boat-1.glb", fit: 6.3 }
+  ],
+  pirate: [
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship.glb", fit: 7.0 },
+    { path: "assets/models/vehicles/pirate-ships/pirate-ship-2.glb", fit: 7.0 },
+    { path: "assets/models/ships-palmov/small/pirate-ship-small.glb", fit: 6.8 }
+  ]
 };
 
 export function getFactions() { return FACTIONS; }
@@ -110,6 +147,63 @@ function buildEnemyPlaceholder() {
   return group;
 }
 
+function getEnemyOverrideSpec(enemy) {
+  if (enemy && enemy.visualOverride && enemy.visualOverride.path) {
+    var overrideNoDecimate = enemy.visualOverride.noDecimate;
+    return {
+      path: enemy.visualOverride.path,
+      fit: enemy.visualOverride.fit || getOverrideSize("enemy_patrol") || 6,
+      noDecimate: overrideNoDecimate === undefined ? true : !!overrideNoDecimate
+    };
+  }
+  return {
+    path: getOverridePath("enemy_patrol"),
+    fit: getOverrideSize("enemy_patrol") || 6,
+    noDecimate: true
+  };
+}
+
+function normalizeRoleToken(value) {
+  if (value === null || value === undefined) return null;
+  var text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  text = text.replace(/[^a-z0-9_\-]/g, "_");
+  return text || null;
+}
+
+function pickFactionRoleVariant(rolePrefix, faction, fallbackPools, roleContext) {
+  var key = faction || "pirate";
+  var baseRole = rolePrefix + "." + key;
+  var tried = {};
+  var candidates = [];
+  if (roleContext) {
+    var zoneId = normalizeRoleToken(roleContext.zoneId || roleContext.id);
+    var condition = normalizeRoleToken(roleContext.condition);
+    var difficulty = normalizeRoleToken(roleContext.difficulty);
+    if (zoneId) candidates.push(baseRole + ".zone." + zoneId);
+    if (condition) candidates.push(baseRole + ".condition." + condition);
+    if (difficulty) candidates.push(baseRole + ".difficulty." + difficulty);
+  }
+  for (var i = 0; i < candidates.length; i++) {
+    var roleKey = candidates[i];
+    if (tried[roleKey]) continue;
+    tried[roleKey] = true;
+    var contextualPick = pickRoleVariant(roleKey, null, nextRandom);
+    if (contextualPick) return contextualPick;
+  }
+  return pickRoleVariant(baseRole, fallbackPools[key], nextRandom);
+}
+
+function pickAmbientModelVariant(faction, roleContext) {
+  var key = faction || "merchant";
+  return pickFactionRoleVariant("ambient", key, AMBIENT_MODEL_POOLS, roleContext);
+}
+
+function pickCombatModelVariant(faction, roleContext) {
+  var key = faction || "pirate";
+  return pickFactionRoleVariant("enemy", key, ENEMY_MODEL_POOLS, roleContext);
+}
+
 function scheduleEnemyModelRetry(mesh, enemy) {
   if (!enemy || enemy._modelLoaded || enemy._modelLoading || enemy._modelRetryTimer) return;
   enemy._modelRetryTimer = setTimeout(function () {
@@ -132,13 +226,16 @@ function applyEnemyOverrideAsync(mesh, enemy) {
       new THREE.BoxGeometry(1, 0.5, 2),
       new THREE.MeshBasicMaterial({ color: 0x446688 })
     ));
-    for (var j = 0; j < firePoints.length; j++) mesh.add(firePoints[j]);
+    for (var j = 0; j < firePoints.length; j++) {
+      mesh.add(firePoints[j]);
+    }
     mesh.userData.firePoints = firePoints;
     updateEnemyHitbox(enemy, mesh);
   }
 
   ensureManifest().then(function () {
-    var path = getOverridePath("enemy_patrol");
+    var spec = getEnemyOverrideSpec(enemy);
+    var path = spec.path;
     if (!path) {
       console.error("Enemy model override missing for enemy_patrol");
       enemy._modelLoading = false;
@@ -146,12 +243,15 @@ function applyEnemyOverrideAsync(mesh, enemy) {
       scheduleEnemyModelRetry(mesh, enemy);
       return;
     }
-    var fitSize = getOverrideSize("enemy_patrol") || 6;
-    return loadGlbVisual(path, fitSize, true).then(function (visual) {
+
+    var fitSize = spec.fit;
+    return loadGlbVisual(path, fitSize, true, { noDecimate: spec.noDecimate }).then(function (visual) {
       while (mesh.children.length) mesh.remove(mesh.children[0]);
       mesh.add(visual);
       // re-attach fire points so they move with the ship
-      for (var i = 0; i < firePoints.length; i++) mesh.add(firePoints[i]);
+      for (var i = 0; i < firePoints.length; i++) {
+        mesh.add(firePoints[i]);
+      }
       mesh.userData.firePoints = firePoints;
       updateEnemyHitbox(enemy, visual);
       enemy._modelLoading = false;
@@ -210,6 +310,7 @@ function normalizeAngle(a) {
 // --- create the enemy manager ---
 export function createEnemyManager() {
   ensureGeo();
+  ensureAssetRoles();
   return {
     enemies: [],
     projectiles: [],
@@ -272,7 +373,7 @@ export function setPlayerHp(manager, hp) {
 }
 
 // --- spawn a single enemy at map edge with wave multipliers ---
-function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
+function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleContext) {
   if (manager.enemies.length >= MAX_ENEMIES) return;
 
   var hpMult = waveConfig ? waveConfig.hpMult : 1;
@@ -291,16 +392,13 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     attempts++;
   } while (terrain && isLand(terrain, x, z) && attempts < 30);
 
-  var density = terrain && terrain.getDensityAt ? terrain.getDensityAt(x, z) : null;
-  var difficultyScale = density ? density.enemyMult : 1;
-
   var mesh = buildEnemyPlaceholder();
   mesh.position.set(x, 0.3, z);
 
   var heading = Math.atan2(playerX - x, playerZ - z);
   mesh.rotation.y = heading;
 
-  var scaledHp = Math.round(fDef.hp * hpMult * difficultyScale);
+  var scaledHp = Math.round(fDef.hp * hpMult);
 
   var enemy = {
     mesh: mesh,
@@ -312,11 +410,11 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     posX: x,
     posZ: z,
     heading: heading,
-    speed: fDef.speed * speedMult * difficultyScale * (0.7 + nextRandom() * 0.3),
+    speed: fDef.speed * speedMult * (0.7 + nextRandom() * 0.3),
     turnSpeed: fDef.turnSpeed,
     engageDist: fDef.engageDist,
     fireRange: fDef.fireRange,
-    fireCooldown: Math.max(0.35, fDef.fireCooldown / (fireRateMult * difficultyScale) * (0.8 + nextRandom() * 0.4)),
+    fireCooldown: fDef.fireCooldown / fireRateMult * (0.8 + nextRandom() * 0.4),
     fireTimer: 1 + nextRandom() * 2,
     sinking: false,
     sinkTimer: 0,
@@ -325,6 +423,7 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    visualOverride: pickCombatModelVariant(faction, roleContext),
     _modelLoading: false,
     _modelLoaded: false,
     _modelRetryTimer: null
@@ -337,11 +436,12 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain) {
 }
 
 // --- spawn an ambient enemy at explicit position (used by merchant system) ---
-export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute) {
+export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene, tradeRoute, roleContext) {
   var fDef = FACTIONS[faction] || FACTIONS.pirate;
   var mesh = buildEnemyPlaceholder();
   mesh.position.set(x, 0.3, z);
   mesh.rotation.y = heading;
+  var ambientVisual = pickAmbientModelVariant(faction, roleContext);
 
   var enemy = {
     mesh: mesh,
@@ -367,6 +467,7 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    visualOverride: ambientVisual,
     _modelLoading: false,
     _modelLoaded: false,
     _modelRetryTimer: null,
@@ -385,7 +486,7 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
 // --- update all enemies ---
 // waveMgr: wave manager from wave.js (optional, for spawn gating)
 // waveConfig: current wave config with multipliers (optional)
-export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig, terrain) {
+export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, waveMgr, waveConfig, terrain, roleContext) {
   manager.elapsed = elapsed;
 
   // --- spawning gated by wave manager ---
@@ -397,7 +498,7 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
 
   manager.spawnTimer -= dt;
   if (manager.spawnTimer <= 0 && shouldSpawn) {
-    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig, terrain);
+    spawnEnemy(manager, ship.posX, ship.posZ, scene, waveConfig, terrain, roleContext);
     if (waveMgr) waveMgr.enemiesToSpawn--;
     // transition wave state if all spawned
     if (waveMgr && waveMgr.enemiesToSpawn <= 0) {

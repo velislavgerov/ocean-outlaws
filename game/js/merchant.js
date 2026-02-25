@@ -73,7 +73,7 @@ export function getMerchantCount(mgr) {
 }
 
 // --- spawn a merchant group (solo or convoy) ---
-function spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr) {
+function spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr, roleContext) {
   if (mgr.merchants.length >= MAX_MERCHANTS) return;
   if (!ship) return;
 
@@ -118,7 +118,8 @@ function spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr) {
       "merchant",
       merchantSpeed,
       scene,
-      { startX: route.startX, startZ: route.startZ, endX: route.endX, endZ: route.endZ }
+      { startX: route.startX, startZ: route.startZ, endX: route.endX, endZ: route.endZ },
+      roleContext
     );
     if (enemy) {
       enemy.fleeSpeed = fleeSpeed;
@@ -143,7 +144,8 @@ function spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr) {
       ESCORT_FACTION,
       escortSpeed,
       scene,
-      { startX: route.startX, startZ: route.startZ, endX: route.endX, endZ: route.endZ }
+      { startX: route.startX, startZ: route.startZ, endX: route.endX, endZ: route.endZ },
+      roleContext
     );
     if (escort) {
       escort.fleeSpeed = escortSpeed;
@@ -169,14 +171,20 @@ export function clearMerchants(mgr, scene) {
 }
 
 // --- update: tick spawn timer, track lifetime, despawn off-map ---
-export function updateMerchants(mgr, ship, dt, scene, terrain, elapsed, getWaveHeight, enemyMgr, zone) {
+export function updateMerchants(mgr, ship, dt, scene, terrain, elapsed, getWaveHeight, enemyMgr, zone, zoneId, roleContext) {
   // scale spawn interval by zone difficulty
   var difficulty = (zone && zone.difficulty) ? zone.difficulty : 1;
   var interval = Math.max(SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_BASE - difficulty * 2);
+  var derivedRoleContext = zone ? {
+    zoneId: zoneId || zone.id || null,
+    condition: zone.condition || null,
+    difficulty: zone.difficulty || null
+  } : null;
+  var spawnRoleContext = roleContext || derivedRoleContext;
 
   mgr.spawnTimer -= dt;
   if (mgr.spawnTimer <= 0) {
-    spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr);
+    spawnMerchantGroup(mgr, ship, scene, terrain, enemyMgr, spawnRoleContext);
     mgr.spawnTimer = interval;
   }
 
