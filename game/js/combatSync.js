@@ -127,6 +127,25 @@ export function sendPickupConfirmed(mpState, pickupIndex, playerId) {
   });
 }
 
+// --- send crew pickup claim (any player → all) ---
+export function sendCrewPickupClaim(mpState, pickupIndex) {
+  if (!mpState || !mpState.active) return;
+  broadcast(mpState, {
+    type: "crew_pickup_claim",
+    index: pickupIndex
+  });
+}
+
+// --- send crew pickup confirmed (host → all) ---
+export function sendCrewPickupConfirmed(mpState, pickupIndex, playerId) {
+  if (!mpState || !mpState.active || !mpState.isHost) return;
+  broadcast(mpState, {
+    type: "crew_pickup_confirmed",
+    index: pickupIndex,
+    playerId: playerId
+  });
+}
+
 // --- send kill feed entry (any player → all) ---
 export function sendKillFeedEntry(mpState, text, color) {
   if (!mpState || !mpState.active) return;
@@ -247,6 +266,22 @@ export function handleCombatMessage(msg, context) {
   if (msg.type === "pickup_confirmed") {
     return {
       action: "pickup_confirmed",
+      index: msg.index,
+      playerId: msg.playerId
+    };
+  }
+
+  if (msg.type === "crew_pickup_claim") {
+    return {
+      action: "crew_pickup_claim",
+      index: msg.index,
+      senderId: msg.senderId
+    };
+  }
+
+  if (msg.type === "crew_pickup_confirmed") {
+    return {
+      action: "crew_pickup_confirmed",
       index: msg.index,
       playerId: msg.playerId
     };

@@ -54,12 +54,17 @@ function buildCrewMesh() {
 export function createCrewPickupManager() {
   return {
     pickups: [],
-    onCollect: null  // callback(officer)
+    onCollect: null,  // callback(officer)
+    onClaim: null     // callback(index) — fires before collect for multiplayer claim/confirm
   };
 }
 
 export function setCrewPickupCallback(mgr, cb) {
   mgr.onCollect = cb;
+}
+
+export function setCrewPickupClaimCallback(mgr, cb) {
+  mgr.onClaim = cb;
 }
 
 // --- spawn ---
@@ -76,6 +81,15 @@ export function spawnCrewPickup(mgr, x, y, z, scene, officer) {
     age: 0,
     collected: false
   });
+}
+
+// --- remove a specific crew pickup by index (for host-confirmed removal) ---
+export function removeCrewPickup(mgr, index, scene) {
+  if (index < 0 || index >= mgr.pickups.length) return null;
+  var p = mgr.pickups[index];
+  scene.remove(p.mesh);
+  p.collected = true;
+  return p.officer;
 }
 
 // --- clear all crew pickups ---
@@ -104,8 +118,13 @@ export function updateCrewPickups(mgr, ship, dt, elapsed, getWaveHeight, scene) 
     var dz = ship.posZ - p.posZ;
     if (dx * dx + dz * dz < COLLECT_RADIUS * COLLECT_RADIUS && !p.collected) {
       p.collected = true;
-      scene.remove(p.mesh);
-      if (mgr.onCollect) mgr.onCollect(p.officer);
+      if (mgr.onClaim) {
+        // multiplayer: defer actual collection until host confirms
+        mgr.onClaim(i, p.officer);
+      } else {
+        scene.remove(p.mesh);
+        if (mgr.onCollect) mgr.onCollect(p.officer);
+      }
       continue;
     }
 

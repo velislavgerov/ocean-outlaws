@@ -30,7 +30,7 @@ import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars
 import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot, damageBoss } from "./boss.js";
 import { createBossHud, showBossHud, hideBossHud, updateBossHud, showLootBanner } from "./bossHud.js";
 import { createCrewState, resetCrew, generateOfficerReward, addOfficer, getCrewBonuses, isCrewFull, removeOfficer, autoAssignOfficer } from "./crew.js";
-import { createCrewPickupManager, spawnCrewPickup, updateCrewPickups, clearCrewPickups, setCrewPickupCallback } from "./crewPickup.js";
+import { createCrewPickupManager, spawnCrewPickup, updateCrewPickups, clearCrewPickups, setCrewPickupCallback, setCrewPickupClaimCallback, removeCrewPickup } from "./crewPickup.js";
 import { createCrewSwap, showCrewSwap, hideCrewSwap } from "./crewSwap.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
@@ -41,7 +41,7 @@ import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMerchantManager, updateMerchants, clearMerchants, setMerchantPlayerSpeed } from "./merchant.js";
 import { createMultiplayerState, createRoom, joinRoom, setReady, setShipClass, setUsername, startGame, allPlayersReady, leaveRoom, isMultiplayerActive, broadcast, getPlayerCount } from "./multiplayer.js";
 import { sendShipState, sendEnemyState, sendFireEvent, handleBroadcastMessage, updateRemoteShips, getRemoteShipsForMinimap, clearRemoteShips, resetSendState, initRemoteLabels, updateRemoteLabels, fadeRemoteShip } from "./netSync.js";
-import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendWeatherSync, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies } from "./combatSync.js";
+import { sendHitEvent, sendBossState, sendBossSpawn, sendBossDefeated, sendBossAttack, sendWaveEvent, sendWeatherChange, sendWeatherSync, sendPickupClaim, sendKillFeedEntry, sendGameOverEvent, handleCombatMessage, resetCombatSync, applyEnemyStateFromHost, deadReckonEnemies, sendCrewPickupClaim, sendCrewPickupConfirmed } from "./combatSync.js";
 import { createLobbyScreen, createMultiplayerButton, showLobbyChoice, showLobby, hideLobbyScreen, updatePlayerList, updateReadyButton, updateStartButton, setLobbyCallbacks } from "./lobbyScreen.js";
 import { autoSave, loadSave, hasSave, deleteSave, exportSave, importSave } from "./save.js";
 import { createSettingsMenu, isSettingsOpen, updateSettingsData, updateMuteButton, updateVolumeSlider } from "./settingsMenu.js";
@@ -296,8 +296,8 @@ setPickupCollectCallback(pickupMgr, function (index) {
   }
 });
 
-// Crew pickup collection callback
-setCrewPickupCallback(crewPickupMgr, function (officer) {
+// Crew pickup collection callback (single-player or after multiplayer confirmation)
+function applyCrewOfficer(officer) {
   if (isCrewFull(crew)) {
     crewSwapOpen = true;
     showCrewSwap(crew.roster, officer, function (choice) {
@@ -312,6 +312,27 @@ setCrewPickupCallback(crewPickupMgr, function (officer) {
     var station = autoAssignOfficer(crew, officer);
     var stationText = station ? " \u2192 " + station : "";
     showBanner("Officer recruited: " + officer.portrait + " " + officer.name + stationText, 3);
+  }
+}
+
+setCrewPickupCallback(crewPickupMgr, function (officer) {
+  applyCrewOfficer(officer);
+});
+
+// Multiplayer crew pickup claim: instead of immediately collecting, broadcast claim to host
+setCrewPickupClaimCallback(crewPickupMgr, function (index, officer) {
+  if (isMultiplayerActive(mpState)) {
+    sendCrewPickupClaim(mpState, index);
+    // Remove mesh locally — host will confirm and other clients will remove theirs
+    var p = crewPickupMgr.pickups[index];
+    if (p && p.mesh && p.mesh.parent) p.mesh.parent.remove(p.mesh);
+    // Speculatively award the officer locally (host-confirmed removal will suppress double-award)
+    applyCrewOfficer(officer);
+  } else {
+    // Single-player fallback (shouldn't normally reach here)
+    var sp = crewPickupMgr.pickups[index];
+    if (sp && sp.mesh && sp.mesh.parent) sp.mesh.parent.remove(sp.mesh);
+    applyCrewOfficer(officer);
   }
 });
 
@@ -625,6 +646,25 @@ function processCombatAction(action) {
         claimedP.collected = true;
         scene.remove(claimedP.mesh);
       }
+    }
+  } else if (action.action === "crew_pickup_claim") {
+    // Host arbitrates crew pickup claims — first claimer wins
+    if (mpState.isHost) {
+      var crewIdx = action.index;
+      var cp = crewPickupMgr.pickups[crewIdx];
+      if (cp && !cp._claimed) {
+        cp._claimed = true;
+        sendCrewPickupConfirmed(mpState, crewIdx, action.senderId);
+      }
+    }
+  } else if (action.action === "crew_pickup_confirmed") {
+    // All clients: remove the pickup; only the confirmed player already collected
+    var confIdx = action.index;
+    var confP = crewPickupMgr.pickups[confIdx];
+    if (confP && !confP._hostConfirmed) {
+      confP._hostConfirmed = true;
+      if (confP.mesh && confP.mesh.parent) confP.mesh.parent.remove(confP.mesh);
+      confP.collected = true;
     }
   } else if (action.action === "kill_feed") {
     // Show kill feed entry from other player

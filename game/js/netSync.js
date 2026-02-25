@@ -3,17 +3,26 @@ import * as THREE from "three";
 import { broadcast, getOtherPlayerIds } from "./multiplayer.js";
 import { buildClassMesh } from "./shipModels.js";
 import { applyShipOverrideAsync } from "./ship.js";
+import { playWeaponSound } from "./soundFx.js";
 
 // --- tuning ---
 var SEND_RATE = 12;                     // state updates per second (cap)
 var SEND_INTERVAL = 1000 / SEND_RATE;   // ms between sends
-var REMOTE_PROJ_SPEED = 60;             // visual speed for remote projectiles
 var REMOTE_PROJ_LIFE = 1.5;             // seconds before despawn
 var POSITION_THRESHOLD = 0.3;           // min distance before sending update
 var ROTATION_THRESHOLD = 0.05;          // min heading change before sending
 var LERP_SPEED = 8;                     // interpolation speed for remote ships
 var PREDICTION_DECAY = 0.95;            // velocity damping for dead reckoning
 var REMOTE_SHIP_FADE_TIME = 5;          // seconds to fade out disconnected ship
+
+// --- per-weapon visual config for remote projectiles ---
+// Mirrors WEAPON_TYPES in weapon.js — keep in sync if weapon properties change
+var REMOTE_WEAPON_CONFIG = {
+  turret:  { color: 0xffcc44, radius: 0.12, speed: 35, gravity: 9.8,  waterLevel: false },
+  missile: { color: 0xff6644, radius: 0.20, speed: 28, gravity: 2.0,  waterLevel: false },
+  torpedo: { color: 0x44aaff, radius: 0.25, speed: 18, gravity: 0,    waterLevel: true  }
+};
+var DEFAULT_WEAPON_CONFIG = { color: 0x44aaff, radius: 0.15, speed: 35, gravity: 9.8, waterLevel: false };
 
 // --- remote player ships ---
 var remoteShips = {};   // { playerId: { mesh, posX, posZ, heading, speed, targetX, targetZ, targetHeading, shipClass, health, lastUpdate, _smoothY, _smoothPitch, _smoothRoll, fading, fadeTimer } }
@@ -22,13 +31,15 @@ var lastSentState = { posX: 0, posZ: 0, heading: 0, speed: 0, health: 0 };
 
 // --- remote projectiles (visual only) ---
 var remoteProjectiles = [];
-var remoteProjGeo = null;
-var remoteProjMat = null;
+var remoteProjGeos = {};   // keyed by weapon type
+var remoteProjMats = {};   // keyed by weapon type
 
-function ensureRemoteProjGeo() {
-  if (remoteProjGeo) return;
-  remoteProjGeo = new THREE.SphereGeometry(0.15, 6, 4);
-  remoteProjMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
+function ensureRemoteProjAssets(weaponKey) {
+  var key = weaponKey || "turret";
+  if (remoteProjGeos[key]) return;
+  var cfg = REMOTE_WEAPON_CONFIG[key] || DEFAULT_WEAPON_CONFIG;
+  remoteProjGeos[key] = new THREE.SphereGeometry(cfg.radius, 6, 4);
+  remoteProjMats[key] = new THREE.MeshBasicMaterial({ color: cfg.color });
 }
 
 // --- floating username labels (HTML overlay) ---
@@ -187,13 +198,15 @@ export function sendShipState(mpState, ship, health, maxHealth, weaponIndex, aut
 // --- send fire event ---
 export function sendFireEvent(mpState, weaponKey, originX, originZ, dirX, dirZ) {
   if (!mpState || !mpState.active) return;
+  var cfg = REMOTE_WEAPON_CONFIG[weaponKey] || DEFAULT_WEAPON_CONFIG;
   broadcast(mpState, {
     type: "fire",
     weapon: weaponKey,
     ox: Math.round(originX * 100) / 100,
     oz: Math.round(originZ * 100) / 100,
     dx: Math.round(dirX * 1000) / 1000,
-    dz: Math.round(dirZ * 1000) / 1000
+    dz: Math.round(dirZ * 1000) / 1000,
+    speed: cfg.speed
   });
 }
 
@@ -245,16 +258,23 @@ export function handleBroadcastMessage(msg, scene, mpState) {
 
 // --- spawn a visual projectile from a remote player's fire event ---
 function spawnRemoteProjectile(msg, scene) {
-  ensureRemoteProjGeo();
-  var mesh = new THREE.Mesh(remoteProjGeo, remoteProjMat);
-  mesh.position.set(msg.ox, 1.2, msg.oz);
+  var weaponKey = msg.weapon || "turret";
+  ensureRemoteProjAssets(weaponKey);
+  var cfg = REMOTE_WEAPON_CONFIG[weaponKey] || DEFAULT_WEAPON_CONFIG;
+  var projSpeed = msg.speed || cfg.speed;
+  var startY = cfg.waterLevel ? 0.3 : 1.2;
+  var mesh = new THREE.Mesh(remoteProjGeos[weaponKey], remoteProjMats[weaponKey]);
+  mesh.position.set(msg.ox, startY, msg.oz);
   scene.add(mesh);
   remoteProjectiles.push({
     mesh: mesh,
-    vx: msg.dx * REMOTE_PROJ_SPEED,
-    vz: msg.dz * REMOTE_PROJ_SPEED,
+    vx: msg.dx * projSpeed,
+    vz: msg.dz * projSpeed,
+    gravity: cfg.gravity,
+    waterLevel: cfg.waterLevel,
     life: REMOTE_PROJ_LIFE
   });
+  playWeaponSound(weaponKey);
 }
 
 // --- update a remote player's ship position ---
@@ -415,8 +435,11 @@ export function updateRemoteShips(dt, getWaveHeight, elapsed, scene) {
     }
     rp.mesh.position.x += rp.vx * dt;
     rp.mesh.position.z += rp.vz * dt;
-    rp.mesh.position.y -= 4.0 * dt; // gentle arc
-    if (rp.mesh.position.y < 0.2) {
+    if (!rp.waterLevel) {
+      rp.mesh.position.y -= (rp.gravity || 9.8) * dt;
+    }
+    var floorY = rp.waterLevel ? 0.3 : 0.2;
+    if (rp.mesh.position.y < floorY) {
       scene.remove(rp.mesh);
       continue;
     }
