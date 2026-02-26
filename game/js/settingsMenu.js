@@ -3,6 +3,12 @@
 
 import { exportSave, importSave, deleteSave, hasSave } from "./save.js";
 import { getQuality, setQuality, isMobile } from "./mobile.js";
+import {
+  getTerrainStreamSettings,
+  getTerrainStreamSettingBounds,
+  updateTerrainStreamSettings,
+  resetTerrainStreamSettings
+} from "./terrain.js";
 import { T, FONT, PARCHMENT_BG } from "./theme.js";
 
 var BTN = [
@@ -235,6 +241,123 @@ export function createSettingsMenu(callbacks) {
     }
   }
   updateQualityBtns();
+
+  // === WORLD STREAM TUNING ===
+  var streamCfg = getTerrainStreamSettings();
+  var streamBounds = getTerrainStreamSettingBounds();
+  var streamRows = {};
+  var streamHint = null;
+
+  var streamSection = document.createElement("div");
+  streamSection.style.cssText = [
+    BTN, "display:block", "text-align:left", "padding:10px 12px",
+    "border:1px solid " + T.border, "line-height:1.25"
+  ].join(";");
+
+  var streamTitle = document.createElement("div");
+  streamTitle.textContent = "WORLD STREAM";
+  streamTitle.style.cssText = "font-size:12px;color:" + T.gold + ";font-weight:bold;letter-spacing:0.8px;margin-bottom:6px;text-align:center";
+  streamSection.appendChild(streamTitle);
+
+  function makeStreamStepper(label, key, step) {
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0";
+
+    var text = document.createElement("span");
+    text.textContent = label;
+    text.style.cssText = "font-size:11px;color:" + T.text + ";letter-spacing:0.3px";
+    row.appendChild(text);
+
+    var controls = document.createElement("div");
+    controls.style.cssText = "display:flex;align-items:center;gap:5px";
+
+    var minusBtn = document.createElement("button");
+    minusBtn.textContent = "-";
+    minusBtn.style.cssText = "min-width:28px;min-height:28px;padding:0 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.text + ";border-radius:4px;cursor:pointer;font-family:" + FONT;
+    minusBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var patch = {};
+      patch[key] = streamCfg[key] - step;
+      streamCfg = updateTerrainStreamSettings(patch);
+      updateStreamRows();
+    });
+    controls.appendChild(minusBtn);
+
+    var valueEl = document.createElement("span");
+    valueEl.style.cssText = "min-width:28px;text-align:center;font-size:12px;color:" + T.gold + ";font-weight:bold";
+    controls.appendChild(valueEl);
+
+    var plusBtn = document.createElement("button");
+    plusBtn.textContent = "+";
+    plusBtn.style.cssText = "min-width:28px;min-height:28px;padding:0 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.text + ";border-radius:4px;cursor:pointer;font-family:" + FONT;
+    plusBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var patch = {};
+      patch[key] = streamCfg[key] + step;
+      streamCfg = updateTerrainStreamSettings(patch);
+      updateStreamRows();
+    });
+    controls.appendChild(plusBtn);
+
+    row.appendChild(controls);
+    streamRows[key] = {
+      valueEl: valueEl,
+      minusBtn: minusBtn,
+      plusBtn: plusBtn
+    };
+    streamSection.appendChild(row);
+  }
+
+  function updateStreamRows() {
+    streamCfg = getTerrainStreamSettings();
+    for (var key in streamRows) {
+      if (!Object.prototype.hasOwnProperty.call(streamRows, key)) continue;
+      var row = streamRows[key];
+      var bounds = streamBounds[key];
+      row.valueEl.textContent = String(streamCfg[key]);
+      if (bounds) {
+        var min = bounds.min;
+        var max = bounds.max;
+        if (key === "keepRadius") min = Math.max(min, streamCfg.streamRadius);
+        if (key === "activeChunkHardLimit") min = Math.max(min, streamCfg.activeChunkSoftLimit + 2);
+        if (key === "activeChunkSoftLimit") max = Math.min(max, streamCfg.activeChunkHardLimit - 2);
+        row.minusBtn.style.opacity = streamCfg[key] <= min ? "0.5" : "1";
+        row.plusBtn.style.opacity = streamCfg[key] >= max ? "0.5" : "1";
+      }
+    }
+
+    if (streamHint) {
+      streamHint.textContent =
+        "Loaded per frame: " + streamCfg.chunkCreateBudget +
+        " | Keep window: " + streamCfg.keepRadius +
+        " | Active cap: " + streamCfg.activeChunkSoftLimit + "/" + streamCfg.activeChunkHardLimit;
+    }
+  }
+
+  makeStreamStepper("ACTIVE RADIUS", "streamRadius", 1);
+  makeStreamStepper("KEEP RADIUS", "keepRadius", 1);
+  makeStreamStepper("PRELOAD AHEAD", "preloadAhead", 1);
+  makeStreamStepper("CHUNKS / FRAME", "chunkCreateBudget", 1);
+  makeStreamStepper("ACTIVE SOFT CAP", "activeChunkSoftLimit", 1);
+  makeStreamStepper("ACTIVE HARD CAP", "activeChunkHardLimit", 1);
+
+  streamHint = document.createElement("div");
+  streamHint.style.cssText = "margin-top:6px;font-size:10px;color:" + T.textDim + ";text-align:center";
+  streamSection.appendChild(streamHint);
+
+  var resetStreamBtn = document.createElement("button");
+  resetStreamBtn.textContent = "RESET STREAM DEFAULTS";
+  resetStreamBtn.style.cssText = "margin-top:8px;width:100%;padding:6px 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.textDim + ";border-radius:4px;cursor:pointer;font-family:" + FONT + ";font-size:11px";
+  resetStreamBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    streamCfg = resetTerrainStreamSettings();
+    updateStreamRows();
+    showNotice("World stream settings reset.");
+  });
+  streamSection.appendChild(resetStreamBtn);
+
+  updateStreamRows();
+  menuPanel.appendChild(streamSection);
 
   // === SAVE MANAGEMENT ===
   var newGameBtn = makeButton("NEW GAME", T.red, function () {

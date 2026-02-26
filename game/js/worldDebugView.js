@@ -226,6 +226,7 @@ function drawSnapshot(snapshot) {
   drawPlayer(snapshot.player);
 
   var terrain = snapshot.terrain || {};
+  var stream = terrain.streamSettings || {};
   infoEl.textContent =
     "seed " + (terrain.seed !== undefined ? terrain.seed : "n/a") +
     " | active " + (terrain.activeChunks || 0) +
@@ -236,6 +237,13 @@ function drawSnapshot(snapshot) {
     "\nstate: loading " + chunkCounts.loading + " | active " + chunkCounts.active + " | queued " + chunkCounts.queued +
     " | markers " + markers.length +
     " | enemies " + enemies.length +
+    "\nstream: r " + (stream.streamRadius !== undefined ? stream.streamRadius : "?") +
+    " | keep " + (stream.keepRadius !== undefined ? stream.keepRadius : "?") +
+    " | ahead " + (stream.preloadAhead !== undefined ? stream.preloadAhead : "?") +
+    " | budget " + (stream.chunkCreateBudget !== undefined ? stream.chunkCreateBudget : "?") +
+    " | soft/hard " + (stream.activeChunkSoftLimit !== undefined ? stream.activeChunkSoftLimit : "?") + "/" + (stream.activeChunkHardLimit !== undefined ? stream.activeChunkHardLimit : "?") +
+    " | desired " + (terrain.desiredChunkCount || 0) +
+    " | created/frame " + (terrain.createdThisFrame || 0) +
     "\ncontrols: F2 toggle, +/- zoom, mouse wheel zoom, drag to pan, follow toggle";
 }
 
