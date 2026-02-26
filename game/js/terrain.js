@@ -20,15 +20,29 @@ var SPAWN_CLEAR_RADIUS = 40;
 var COLLISION_RADIUS = 1.5;
 var VISUAL_COLLIDER_PAD = 0.35;
 
-// streaming radii in chunk coordinates
-var STREAM_RADIUS = 2;                 // immediate active bubble
-var KEEP_RADIUS = 3;                   // keep nearby chunks warm before GC
-var PRELOAD_AHEAD = 3;                 // preload 2-3 chunks ahead of heading
+// world-stream tuning (persisted and user-configurable)
+var STREAM_SETTINGS_KEY = "oo_world_stream_settings";
+var STREAM_SETTINGS_BOUNDS = Object.freeze({
+  streamRadius: { min: 1, max: 4 },
+  keepRadius: { min: 1, max: 6 },
+  preloadAhead: { min: 0, max: 5 },
+  chunkCreateBudget: { min: 1, max: 24 },
+  activeChunkSoftLimit: { min: 8, max: 80 },
+  activeChunkHardLimit: { min: 12, max: 96 }
+});
+var DEFAULT_STREAM_SETTINGS = Object.freeze({
+  streamRadius: 1,
+  keepRadius: 2,
+  preloadAhead: 1,
+  chunkCreateBudget: 4,
+  activeChunkSoftLimit: 20,
+  activeChunkHardLimit: 30
+});
+var _streamSettings = null;
+var _streamSettingsSubscribers = [];
 
 // disposal budget per frame (resources disposed incrementally)
 var GC_RESOURCE_BUDGET = 40;
-var ACTIVE_CHUNK_SOFT_LIMIT = 36;
-var ACTIVE_CHUNK_HARD_LIMIT = 48;
 
 // difficulty / loot scaling with distance from spawn
 var DISTANCE_RAMP_MAX = 6000;
@@ -85,6 +99,78 @@ function fbm(x, y) {
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
+}
+
+function cloneStreamSettings(src) {
+  return {
+    streamRadius: src.streamRadius,
+    keepRadius: src.keepRadius,
+    preloadAhead: src.preloadAhead,
+    chunkCreateBudget: src.chunkCreateBudget,
+    activeChunkSoftLimit: src.activeChunkSoftLimit,
+    activeChunkHardLimit: src.activeChunkHardLimit
+  };
+}
+
+function clampSettingInt(value, fallback, bounds) {
+  var n = Number(value);
+  if (!isFinite(n)) n = fallback;
+  return Math.max(bounds.min, Math.min(bounds.max, Math.round(n)));
+}
+
+function normalizeStreamSettings(input, fallback) {
+  var base = cloneStreamSettings(fallback || DEFAULT_STREAM_SETTINGS);
+  if (input && typeof input === "object") {
+    base.streamRadius = clampSettingInt(input.streamRadius, base.streamRadius, STREAM_SETTINGS_BOUNDS.streamRadius);
+    base.keepRadius = clampSettingInt(input.keepRadius, base.keepRadius, STREAM_SETTINGS_BOUNDS.keepRadius);
+    base.preloadAhead = clampSettingInt(input.preloadAhead, base.preloadAhead, STREAM_SETTINGS_BOUNDS.preloadAhead);
+    base.chunkCreateBudget = clampSettingInt(input.chunkCreateBudget, base.chunkCreateBudget, STREAM_SETTINGS_BOUNDS.chunkCreateBudget);
+    base.activeChunkSoftLimit = clampSettingInt(input.activeChunkSoftLimit, base.activeChunkSoftLimit, STREAM_SETTINGS_BOUNDS.activeChunkSoftLimit);
+    base.activeChunkHardLimit = clampSettingInt(input.activeChunkHardLimit, base.activeChunkHardLimit, STREAM_SETTINGS_BOUNDS.activeChunkHardLimit);
+  }
+
+  base.keepRadius = Math.max(base.keepRadius, base.streamRadius);
+  var minHardLimit = Math.max(STREAM_SETTINGS_BOUNDS.activeChunkHardLimit.min, base.activeChunkSoftLimit + 2);
+  base.activeChunkHardLimit = Math.max(minHardLimit, base.activeChunkHardLimit);
+  if (base.activeChunkHardLimit > STREAM_SETTINGS_BOUNDS.activeChunkHardLimit.max) {
+    base.activeChunkHardLimit = STREAM_SETTINGS_BOUNDS.activeChunkHardLimit.max;
+    base.activeChunkSoftLimit = Math.min(base.activeChunkSoftLimit, base.activeChunkHardLimit - 2);
+  }
+
+  return base;
+}
+
+function ensureStreamSettingsReady() {
+  if (_streamSettings) return;
+  var loaded = null;
+  if (typeof localStorage !== "undefined") {
+    try {
+      var raw = localStorage.getItem(STREAM_SETTINGS_KEY);
+      if (raw) loaded = JSON.parse(raw);
+    } catch (e) {
+      loaded = null;
+    }
+  }
+  _streamSettings = normalizeStreamSettings(loaded, DEFAULT_STREAM_SETTINGS);
+}
+
+function getActiveStreamSettings() {
+  ensureStreamSettingsReady();
+  return _streamSettings;
+}
+
+function persistStreamSettings() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(STREAM_SETTINGS_KEY, JSON.stringify(_streamSettings));
+  } catch (e) { /* ignore */ }
+}
+
+function notifyStreamSettingsChanged() {
+  var snapshot = cloneStreamSettings(_streamSettings);
+  for (var i = 0; i < _streamSettingsSubscribers.length; i++) {
+    _streamSettingsSubscribers[i](snapshot);
+  }
 }
 
 function chunkKey(cx, cy) {
@@ -633,36 +719,82 @@ function computeAvoidanceFromChunks(chunks, worldX, worldZ, range) {
   return out;
 }
 
-function buildDesiredChunkSet(terrain, globalX, globalZ, heading) {
+function addDesiredCandidate(desired, candidates, centerX, centerY, cx, cy, dirX, dirY) {
+  var key = chunkKey(cx, cy);
+  if (desired.has(key)) return;
+  desired.add(key);
+
+  var dx = cx - centerX;
+  var dy = cy - centerY;
+  var ring = Math.max(Math.abs(dx), Math.abs(dy));
+  var d2 = dx * dx + dy * dy;
+  var forward = dx * dirX + dy * dirY;
+
+  candidates.push({
+    key: key,
+    cx: cx,
+    cy: cy,
+    ring: ring,
+    d2: d2,
+    forward: forward
+  });
+}
+
+function buildDesiredChunkSet(terrain, globalX, globalZ, heading, streamSettings) {
   var desired = new Set();
+  var candidates = [];
   var cx = toChunkCoord(globalX);
   var cy = toChunkCoord(globalZ);
+  var dirX = Math.sin(heading || 0);
+  var dirY = Math.cos(heading || 0);
 
   // Base active bubble around player.
-  for (var dx = -STREAM_RADIUS; dx <= STREAM_RADIUS; dx++) {
-    for (var dy = -STREAM_RADIUS; dy <= STREAM_RADIUS; dy++) {
-      desired.add(chunkKey(cx + dx, cy + dy));
+  for (var dx = -streamSettings.streamRadius; dx <= streamSettings.streamRadius; dx++) {
+    for (var dy = -streamSettings.streamRadius; dy <= streamSettings.streamRadius; dy++) {
+      addDesiredCandidate(desired, candidates, cx, cy, cx + dx, cy + dy, dirX, dirY);
     }
   }
 
   // Preload a forward corridor to hide pop-in while sailing.
-  var dirX = Math.sin(heading || 0);
-  var dirZ = Math.cos(heading || 0);
-  for (var step = 1; step <= PRELOAD_AHEAD; step++) {
+  for (var step = 1; step <= streamSettings.preloadAhead; step++) {
     var ax = cx + Math.round(dirX * step);
-    var ay = cy + Math.round(dirZ * step);
+    var ay = cy + Math.round(dirY * step);
     for (var sx = -1; sx <= 1; sx++) {
       for (var sy = -1; sy <= 1; sy++) {
-        desired.add(chunkKey(ax + sx, ay + sy));
+        addDesiredCandidate(desired, candidates, cx, cy, ax + sx, ay + sy, dirX, dirY);
       }
     }
   }
 
-  return { desired: desired, centerX: cx, centerY: cy };
+  // Always prioritize current tile, then rings moving outward.
+  candidates.sort(function (a, b) {
+    if (a.ring !== b.ring) return a.ring - b.ring;
+    if (a.d2 !== b.d2) return a.d2 - b.d2;
+    if (a.forward !== b.forward) return b.forward - a.forward;
+    if (a.cx !== b.cx) return a.cx - b.cx;
+    return a.cy - b.cy;
+  });
+
+  return { desired: desired, candidates: candidates, centerX: cx, centerY: cy };
 }
 
-function forceGcIfNeeded(terrain, centerX, centerY, desiredSet) {
-  if (terrain.chunks.size <= ACTIVE_CHUNK_HARD_LIMIT) return;
+function createDesiredChunks(terrain, candidates, streamSettings) {
+  var created = 0;
+  var budget = Math.max(1, streamSettings.chunkCreateBudget);
+
+  for (var i = 0; i < candidates.length; i++) {
+    var c = candidates[i];
+    if (terrain.chunks.has(c.key)) continue;
+    ensureChunk(terrain, c.cx, c.cy);
+    created++;
+    if (created >= budget) break;
+  }
+
+  return created;
+}
+
+function forceGcIfNeeded(terrain, centerX, centerY, desiredSet, streamSettings) {
+  if (terrain.chunks.size <= streamSettings.activeChunkHardLimit) return;
 
   var candidates = [];
   terrain.chunks.forEach(function (chunk) {
@@ -676,11 +808,60 @@ function forceGcIfNeeded(terrain, centerX, centerY, desiredSet) {
   candidates.sort(function (a, b) { return b.d2 - a.d2; });
 
   var idx = 0;
-  while (terrain.chunks.size - terrain.gcQueue.length > ACTIVE_CHUNK_SOFT_LIMIT && idx < candidates.length) {
+  while (terrain.chunks.size - terrain.gcQueue.length > streamSettings.activeChunkSoftLimit && idx < candidates.length) {
     enqueueChunkForGc(terrain, candidates[idx].chunk);
     terrain.debug.forcedGcCount++;
     idx++;
   }
+}
+
+export function getTerrainStreamSettingBounds() {
+  return {
+    streamRadius: { min: STREAM_SETTINGS_BOUNDS.streamRadius.min, max: STREAM_SETTINGS_BOUNDS.streamRadius.max },
+    keepRadius: { min: STREAM_SETTINGS_BOUNDS.keepRadius.min, max: STREAM_SETTINGS_BOUNDS.keepRadius.max },
+    preloadAhead: { min: STREAM_SETTINGS_BOUNDS.preloadAhead.min, max: STREAM_SETTINGS_BOUNDS.preloadAhead.max },
+    chunkCreateBudget: { min: STREAM_SETTINGS_BOUNDS.chunkCreateBudget.min, max: STREAM_SETTINGS_BOUNDS.chunkCreateBudget.max },
+    activeChunkSoftLimit: { min: STREAM_SETTINGS_BOUNDS.activeChunkSoftLimit.min, max: STREAM_SETTINGS_BOUNDS.activeChunkSoftLimit.max },
+    activeChunkHardLimit: { min: STREAM_SETTINGS_BOUNDS.activeChunkHardLimit.min, max: STREAM_SETTINGS_BOUNDS.activeChunkHardLimit.max }
+  };
+}
+
+export function getTerrainStreamSettings() {
+  return cloneStreamSettings(getActiveStreamSettings());
+}
+
+export function updateTerrainStreamSettings(patch) {
+  var prev = cloneStreamSettings(getActiveStreamSettings());
+  var merged = cloneStreamSettings(prev);
+  if (patch && typeof patch === "object") {
+    for (var k in patch) {
+      if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+      merged[k] = patch[k];
+    }
+  }
+
+  _streamSettings = normalizeStreamSettings(merged, prev);
+  persistStreamSettings();
+  notifyStreamSettingsChanged();
+  return cloneStreamSettings(_streamSettings);
+}
+
+export function resetTerrainStreamSettings() {
+  _streamSettings = normalizeStreamSettings(DEFAULT_STREAM_SETTINGS, DEFAULT_STREAM_SETTINGS);
+  persistStreamSettings();
+  notifyStreamSettingsChanged();
+  return cloneStreamSettings(_streamSettings);
+}
+
+export function onTerrainStreamSettingsChange(cb) {
+  if (typeof cb !== "function") {
+    return function () {};
+  }
+  _streamSettingsSubscribers.push(cb);
+  return function () {
+    var idx = _streamSettingsSubscribers.indexOf(cb);
+    if (idx >= 0) _streamSettingsSubscribers.splice(idx, 1);
+  };
 }
 
 export function createTerrain(seed, difficulty) {
@@ -705,7 +886,9 @@ export function createTerrain(seed, difficulty) {
       chunksCreated: 0,
       chunksDestroyed: 0,
       disposedResources: 0,
-      forcedGcCount: 0
+      forcedGcCount: 0,
+      desiredChunkCount: 0,
+      createdThisFrame: 0
     },
     getDensityAt: function (worldX, worldZ) {
       var globalX = worldX + terrain.originOffsetX;
@@ -721,6 +904,10 @@ export function createTerrain(seed, difficulty) {
         destroyed: terrain.debug.chunksDestroyed,
         disposedResources: terrain.debug.disposedResources,
         forcedGc: terrain.debug.forcedGcCount,
+        desiredChunkCount: terrain.debug.desiredChunkCount,
+        createdThisFrame: terrain.debug.createdThisFrame,
+        chunkSize: CHUNK_SIZE,
+        streamSettings: cloneStreamSettings(getActiveStreamSettings()),
         originOffsetX: terrain.originOffsetX,
         originOffsetZ: terrain.originOffsetZ
       };
@@ -729,38 +916,36 @@ export function createTerrain(seed, difficulty) {
 
   // bootstrap around spawn so first frame has content
   updateTerrainStreaming(terrain, 0, 0, 0, 0);
+  updateTerrainStreaming(terrain, 0, 0, 0, 0);
 
   return terrain;
 }
 
 export function updateTerrainStreaming(terrain, playerX, playerZ, playerHeading) {
   if (!terrain) return;
+  var streamSettings = getActiveStreamSettings();
 
   var globalX = playerX + terrain.originOffsetX;
   var globalZ = playerZ + terrain.originOffsetZ;
 
-  var desiredInfo = buildDesiredChunkSet(terrain, globalX, globalZ, playerHeading || 0);
+  var desiredInfo = buildDesiredChunkSet(terrain, globalX, globalZ, playerHeading || 0, streamSettings);
   var desiredSet = desiredInfo.desired;
 
-  desiredSet.forEach(function (key) {
-    var parts = key.split(",");
-    var cx = parseInt(parts[0], 10);
-    var cy = parseInt(parts[1], 10);
-    ensureChunk(terrain, cx, cy);
-  });
+  terrain.debug.desiredChunkCount = desiredInfo.candidates.length;
+  terrain.debug.createdThisFrame = createDesiredChunks(terrain, desiredInfo.candidates, streamSettings);
 
   terrain.chunks.forEach(function (chunk) {
     if (!chunk || chunk.state === "queued" || chunk.state === "disposed") return;
 
     var dx = Math.abs(chunk.cx - desiredInfo.centerX);
     var dy = Math.abs(chunk.cy - desiredInfo.centerY);
-    var keep = dx <= KEEP_RADIUS && dy <= KEEP_RADIUS;
+    var keep = desiredSet.has(chunk.key) || (dx <= streamSettings.keepRadius && dy <= streamSettings.keepRadius);
     if (!keep) {
       enqueueChunkForGc(terrain, chunk);
     }
   });
 
-  forceGcIfNeeded(terrain, desiredInfo.centerX, desiredInfo.centerY, desiredSet);
+  forceGcIfNeeded(terrain, desiredInfo.centerX, desiredInfo.centerY, desiredSet, streamSettings);
   processGcQueue(terrain);
 }
 
