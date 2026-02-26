@@ -26,13 +26,13 @@ function mulberry32(seed) {
 
 var REGION_FALLBACK = {
   frontier_isles: [
-    { path: "assets/models/vehicles/sailboats/sailboat.glb", fit: 8.5, x: -46, y: 1.2, z: -26, ry: Math.PI * 0.12 },
+    { path: "assets/models/environment/wooden-platforms/wooden-platform.glb", fit: 11.5, x: -46, y: 1.8, z: -26, ry: Math.PI * 0.12 },
     { path: "assets/models/environment/wooden-piers/wooden-pier-4.glb", fit: 12, x: 38, y: 1.8, z: 18, ry: Math.PI * 0.75 },
     { path: "assets/models/environment/boxes/box-2.glb", fit: 2.0, x: 40, y: 3.0, z: 20, ry: 0.4 }
   ],
   storm_belt: [
     { path: "assets/models/environment/smoke-black.glb", fit: 14, x: -22, y: 2.2, z: 36, ry: 0 },
-    { path: "assets/models/ships-palmov/small/ship-small-7.glb", fit: 8.5, x: -36, y: 1.4, z: 32, ry: Math.PI * 1.1 },
+    { path: "assets/models/environment/destroyed-wooden-pier.glb", fit: 10, x: -36, y: 1.4, z: 32, ry: Math.PI * 1.1 },
     { path: "assets/models/stones/ancient/ancient-stone-11.glb", fit: 11, x: 44, y: 1.2, z: -10, ry: 0.3 }
   ],
   forgotten_depths: [
@@ -170,4 +170,3 @@ export function spawnStorySetDressing(manager, terrain, context) {
     return placed;
   });
 }
-

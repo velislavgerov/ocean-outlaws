@@ -1,7 +1,7 @@
 // ship.js — ship physics state, GLB model loading, update loop
 import * as THREE from "three";
 import { buildClassMesh } from "./shipModels.js";
-import { collideWithTerrain, getTerrainAvoidance } from "./terrain.js";
+import { getTerrainAvoidance, terrainBlocksLine, isLand } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
@@ -41,6 +41,11 @@ var NAV_TURN_SPEED = 2.5;
 var TERRAIN_AVOID_RANGE = 15;
 var TERRAIN_SLOW_MULT = 0.72;
 var TERRAIN_AVOID_TURN = 5.5;
+var NAV_BYPASS_MIN_DIST = 10;
+var NAV_BYPASS_MAX_DIST = 44;
+var NAV_BYPASS_STEP = 6;
+var NAV_BYPASS_REACH_RADIUS = 4.8;
+var NAV_REPLAN_COOLDOWN = 0.35;
 
 // --- async GLB override: replace placeholder mesh with Palmov GLB model ---
 export function applyShipOverrideAsync(mesh, classKey) {
@@ -118,7 +123,9 @@ export function createShip(classConfig) {
     _smoothPitch: 0,
     _smoothRoll: 0,
     _buoyancyInit: false,
-    _stuckDetector: createStuckDetector()
+    _stuckDetector: createStuckDetector(),
+    _navBypass: null,
+    _navReplanTimer: 0
   };
 
   return state;
@@ -127,11 +134,15 @@ export function createShip(classConfig) {
 // --- set auto-nav destination ---
 export function setNavTarget(ship, x, z) {
   ship.navTarget = { x: x, z: z };
+  ship._navBypass = null;
+  ship._navReplanTimer = 0;
 }
 
 // --- clear auto-nav ---
 export function clearNavTarget(ship) {
   ship.navTarget = null;
+  ship._navBypass = null;
+  ship._navReplanTimer = 0;
 }
 
 // --- normalize angle to [-PI, PI] ---
@@ -139,6 +150,59 @@ function normalizeAngle(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
   while (a < -Math.PI) a += 2 * Math.PI;
   return a;
+}
+
+function scoreWaterHeading(terrain, fromX, fromZ, heading) {
+  var distances = [8, 12, 16];
+  var score = 0;
+  for (var i = 0; i < distances.length; i++) {
+    var d = distances[i];
+    var fx = fromX + Math.sin(heading) * d;
+    var fz = fromZ + Math.cos(heading) * d;
+    if (isLand(terrain, fx, fz)) {
+      score -= 5;
+      continue;
+    }
+    score += 2;
+    var side = 1.6 + d * 0.08;
+    var lx = fx + Math.sin(heading - Math.PI * 0.5) * side;
+    var lz = fz + Math.cos(heading - Math.PI * 0.5) * side;
+    var rx = fx + Math.sin(heading + Math.PI * 0.5) * side;
+    var rz = fz + Math.cos(heading + Math.PI * 0.5) * side;
+    score += isLand(terrain, lx, lz) ? -1.2 : 0.8;
+    score += isLand(terrain, rx, rz) ? -1.2 : 0.8;
+  }
+  return score;
+}
+
+function findNavBypassWaypoint(terrain, startX, startZ, targetX, targetZ, currentHeading) {
+  if (!terrain) return null;
+  var toTarget = Math.atan2(targetX - startX, targetZ - startZ);
+  var offsets = [0.35, -0.35, 0.65, -0.65, 0.95, -0.95, 1.25, -1.25, 1.55, -1.55];
+  var best = null;
+  var bestScore = -Infinity;
+
+  for (var dist = NAV_BYPASS_MIN_DIST; dist <= NAV_BYPASS_MAX_DIST; dist += NAV_BYPASS_STEP) {
+    for (var i = 0; i < offsets.length; i++) {
+      var heading = normalizeAngle(toTarget + offsets[i]);
+      var x = startX + Math.sin(heading) * dist;
+      var z = startZ + Math.cos(heading) * dist;
+      if (isLand(terrain, x, z)) continue;
+      if (terrainBlocksLine(terrain, startX, startZ, x, z)) continue;
+
+      var score = scoreWaterHeading(terrain, startX, startZ, heading);
+      if (terrainBlocksLine(terrain, x, z, targetX, targetZ)) score -= 8;
+      score -= Math.abs(offsets[i]) * 1.6;
+      score -= Math.abs(normalizeAngle(heading - currentHeading)) * 0.4;
+      score -= dist * 0.01;
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x: x, z: z };
+      }
+    }
+  }
+  return best;
 }
 
 // --- update ship physics (click-to-move only, no keyboard controls) ---
@@ -152,14 +216,44 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
   var effectiveMaxSpeed = baseMax * speedMult * (fuelMult !== undefined ? fuelMult : 1);
   var effectiveAccel = baseAccel * accelMult;
   var avoid = terrain ? getTerrainAvoidance(terrain, ship.posX, ship.posZ, TERRAIN_AVOID_RANGE) : { factor: 0, awayX: 0, awayZ: 0 };
+  ship._navReplanTimer = Math.max(0, (ship._navReplanTimer || 0) - dt);
 
   if (ship.navTarget) {
-    var dx = ship.navTarget.x - ship.posX;
-    var dz = ship.navTarget.z - ship.posZ;
+    if (terrain) {
+      if (ship._navBypass) {
+        var bdx0 = ship._navBypass.x - ship.posX;
+        var bdz0 = ship._navBypass.z - ship.posZ;
+        var bdist0 = Math.sqrt(bdx0 * bdx0 + bdz0 * bdz0);
+        if (bdist0 < NAV_BYPASS_REACH_RADIUS || isLand(terrain, ship._navBypass.x, ship._navBypass.z)) {
+          ship._navBypass = null;
+        } else if (ship._navReplanTimer <= 0 && !terrainBlocksLine(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z)) {
+          ship._navBypass = null;
+        }
+      }
+
+      if (!ship._navBypass && ship._navReplanTimer <= 0 && terrainBlocksLine(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z)) {
+        var bypass = findNavBypassWaypoint(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z, ship.heading);
+        if (bypass) ship._navBypass = bypass;
+        ship._navReplanTimer = NAV_REPLAN_COOLDOWN;
+      }
+    }
+
+    var navGoal = ship._navBypass || ship.navTarget;
+    var dx = navGoal.x - ship.posX;
+    var dz = navGoal.z - ship.posZ;
     var dist = Math.sqrt(dx * dx + dz * dz);
 
-    if (dist < NAV_ARRIVE_RADIUS) {
+    if (ship._navBypass && dist < NAV_BYPASS_REACH_RADIUS) {
+      ship._navBypass = null;
+      navGoal = ship.navTarget;
+      dx = navGoal.x - ship.posX;
+      dz = navGoal.z - ship.posZ;
+      dist = Math.sqrt(dx * dx + dz * dz);
+    }
+
+    if (!ship._navBypass && dist < NAV_ARRIVE_RADIUS) {
       ship.navTarget = null;
+      ship._navBypass = null;
       ship.speed *= 0.8;
     } else {
       var targetAngle = Math.atan2(dx, dz);
@@ -197,6 +291,7 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
       }
     }
   } else {
+    ship._navBypass = null;
     // no nav target — decelerate to stop
     if (ship.speed > 0) {
       ship.speed -= DRAG * dt;

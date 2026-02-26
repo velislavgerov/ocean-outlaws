@@ -17,7 +17,7 @@ var PORT_HP_RESTOCK = 15;        // flat HP restored
 var PORT_WATER_NUDGE = 4;        // move port root slightly toward open water
 var PORT_DOCK_OFFSET = 8;        // interaction anchor placed on water side of port
 var PORT_DOCK_MAX_OFFSET = 22;   // allow farther dock fallback on complex coasts
-var PORT_DOCK_CLEAR_RADIUS = 2.2;
+var PORT_DOCK_CLEAR_RADIUS = 3.6;
 var PORT_DOCK_REFRESH = 0.75;    // refresh dock anchor against visual colliders
 var PORT_CITY_CHANCE = 0.6;      // chance that a spawned port is promoted to a city
 var PORT_CITY_HOSTILE_BASE = 0.55;
@@ -33,6 +33,7 @@ var CITY_PROJECTILE_GRAVITY = 9.2;
 var CITY_PROJECTILE_MAX_RANGE = 120;
 var CITY_PROJECTILE_DAMAGE = 1.2;
 var CITY_GUN_RANGE = 95;
+var CITY_GUN_IGNORE_LOS_RANGE = 34;
 var CITY_GUN_FIRE_COOLDOWN_MIN = 2.0;
 var CITY_GUN_FIRE_COOLDOWN_MAX = 3.8;
 var CITY_BATTERY_COUNT_MIN = 2;
@@ -205,13 +206,29 @@ function findCoastlinePositions(terrain) {
     x += Math.cos(bestWaterAngle) * PORT_WATER_NUDGE;
     z += Math.sin(bestWaterAngle) * PORT_WATER_NUDGE;
 
+    // Validate against full terrain collision (not only heightmap) so docks don't clip into island meshes.
+    if (!hasWaterClearance(terrain, x, z, isLand)) {
+      var rootWater = findDockCandidate(
+        x, z, bestWaterAngle,
+        0,
+        Math.max(PORT_DOCK_OFFSET, PORT_DOCK_MAX_OFFSET * 0.45),
+        1.5,
+        function (rx, rz) {
+          return hasWaterClearance(terrain, rx, rz, isLand);
+        }
+      );
+      if (!rootWater) continue;
+      x = rootWater.x;
+      z = rootWater.z;
+    }
+
     var dock = findDockCandidate(
       x, z, bestWaterAngle,
       Math.max(1, PORT_DOCK_OFFSET * 0.4),
       PORT_DOCK_MAX_OFFSET,
       1.5,
       function (dx, dz) {
-        return hasWaterClearance(terrain, dx, dz, isHeightmapLand);
+        return hasWaterClearance(terrain, dx, dz, isLand);
       }
     );
     var foundDock = !!dock;
@@ -840,7 +857,9 @@ function createCityBatteries(port, terrain) {
     out.push({
       mesh: mesh,
       hp: CITY_BATTERY_HP,
+      maxHp: CITY_BATTERY_HP,
       alive: true,
+      hitRadius: CITY_BATTERY_HIT_RADIUS,
       fireTimer: CITY_GUN_FIRE_COOLDOWN_MIN + nextRandom() * (CITY_GUN_FIRE_COOLDOWN_MAX - CITY_GUN_FIRE_COOLDOWN_MIN)
     });
   }
@@ -908,9 +927,10 @@ function spawnCityProjectile(manager, port, battery, ship, scene) {
   );
 
   var mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 6, 4),
-    new THREE.MeshBasicMaterial({ color: 0xff7755 })
+    new THREE.SphereGeometry(0.24, 9, 7),
+    new THREE.MeshBasicMaterial({ color: 0xffb066, transparent: true, opacity: 0.92, depthWrite: false })
   );
+  mesh.renderOrder = 4;
   mesh.position.copy(muzzle);
   scene.add(mesh);
   manager.cityProjectiles.push({
@@ -1006,7 +1026,8 @@ function processCityBatteryHits(manager, port, weaponState, scene, upgrades) {
         if (manager.cityEvents) {
           manager.cityEvents.push({
             type: "city_battery_destroyed",
-            cityName: port.cityName || "Harbor City"
+            cityName: port.cityName || "Harbor City",
+            rewardGold: CITY_BATTERY_BONUS
           });
         }
       }
@@ -1032,7 +1053,8 @@ function processCityBatteryHits(manager, port, weaponState, scene, upgrades) {
     if (manager.cityEvents) {
       manager.cityEvents.push({
         type: "city_pacified",
-        cityName: port.cityName || "Harbor City"
+        cityName: port.cityName || "Harbor City",
+        rewardGold: CITY_CAPTURE_BONUS
       });
     }
   }
@@ -1066,8 +1088,10 @@ function updateCityBatteries(manager, port, ship, dt, scene, terrain) {
     }
 
     battery.fireTimer -= dt;
-    var hasLOS = !terrain || !terrainBlocksLine(terrain, bPos.x, bPos.z, ship.posX, ship.posZ);
-    if (battery.fireTimer <= 0 && dist <= CITY_GUN_RANGE && hasLOS) {
+    var muzzlePos = getBatteryMuzzleWorldPosition(battery, new THREE.Vector3());
+    var hasLOS = !terrain || !terrainBlocksLine(terrain, muzzlePos.x, muzzlePos.z, ship.posX, ship.posZ);
+    var closeRange = dist <= CITY_GUN_IGNORE_LOS_RANGE;
+    if (battery.fireTimer <= 0 && dist <= CITY_GUN_RANGE && (hasLOS || closeRange)) {
       spawnCityProjectile(manager, port, battery, ship, scene);
       battery.fireTimer = CITY_GUN_FIRE_COOLDOWN_MIN + nextRandom() * (CITY_GUN_FIRE_COOLDOWN_MAX - CITY_GUN_FIRE_COOLDOWN_MIN);
     }

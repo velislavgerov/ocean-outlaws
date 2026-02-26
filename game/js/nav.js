@@ -16,6 +16,7 @@ var markerTargetZ = 0;
 var navShipRef = null;
 var navCameraRef = null;
 var navEnemyMgrRef = null;
+var navPortMgrRef = null;
 var navTerrainRef = null;
 var navBossRef = null;
 var initialized = false;
@@ -23,6 +24,7 @@ var initialized = false;
 // combat target reticle (ring around targeted enemy)
 var reticle = null;
 var combatTarget = null;   // reference to targeted enemy object (or null)
+var targetWorldPos = new THREE.Vector3();
 
 // --- build destination marker (pulsing ring on water) ---
 function buildMarker() {
@@ -100,10 +102,49 @@ function projectToOcean(clientX, clientY, camera) {
 
 // --- check if click hit an enemy (2D distance on XZ plane) ---
 var ENEMY_CLICK_RADIUS = 4.0;
+var BATTERY_CLICK_RADIUS = 5.0;
+
+function syncTargetPosition(target) {
+  if (!target || !target.mesh || !target.mesh.getWorldPosition) return;
+  target.mesh.getWorldPosition(targetWorldPos);
+  target.posX = targetWorldPos.x;
+  target.posZ = targetWorldPos.z;
+}
+
+function isValidTarget(target) {
+  if (!target || !target.alive) return false;
+  if (!target.mesh || !target.mesh.parent) return false;
+  return true;
+}
+
+function findClickedHostileBattery(worldX, worldZ, bestDistSq) {
+  if (!navPortMgrRef || !navPortMgrRef.ports) return null;
+  var best = null;
+  var bestDist = bestDistSq;
+  for (var i = 0; i < navPortMgrRef.ports.length; i++) {
+    var port = navPortMgrRef.ports[i];
+    if (!port || !port.hostileCity || !port.batteries) continue;
+    for (var bi = 0; bi < port.batteries.length; bi++) {
+      var battery = port.batteries[bi];
+      if (!battery || !battery.alive || !battery.mesh || !battery.mesh.parent || !battery.mesh.visible) continue;
+      battery.mesh.getWorldPosition(targetWorldPos);
+      var dx = targetWorldPos.x - worldX;
+      var dz = targetWorldPos.z - worldZ;
+      var distSq = dx * dx + dz * dz;
+      var clickR = Math.max(BATTERY_CLICK_RADIUS, battery.hitRadius || 0);
+      if (distSq > clickR * clickR || distSq >= bestDist) continue;
+      battery.posX = targetWorldPos.x;
+      battery.posZ = targetWorldPos.z;
+      best = battery;
+      bestDist = distSq;
+    }
+  }
+  return best;
+}
 
 function findClickedEnemy(worldX, worldZ) {
   var best = null;
-  var bestDist = ENEMY_CLICK_RADIUS * ENEMY_CLICK_RADIUS;
+  var bestDist = Infinity;
 
   // check boss first (larger click radius)
   if (navBossRef && navBossRef.alive) {
@@ -111,7 +152,7 @@ function findClickedEnemy(worldX, worldZ) {
     var bz = navBossRef.posZ - worldZ;
     var bDistSq = bx * bx + bz * bz;
     var bClickR = (navBossRef.hitRadius || 5.0) + 2.0;
-    if (bDistSq < bClickR * bClickR) {
+    if (bDistSq < bClickR * bClickR && bDistSq < bestDist) {
       best = navBossRef;
       bestDist = bDistSq;
     }
@@ -126,22 +167,28 @@ function findClickedEnemy(worldX, worldZ) {
       var dx = e.posX - worldX;
       var dz = e.posZ - worldZ;
       var distSq = dx * dx + dz * dz;
-      if (distSq < bestDist) {
+      if (distSq <= ENEMY_CLICK_RADIUS * ENEMY_CLICK_RADIUS && distSq < bestDist) {
         bestDist = distSq;
         best = e;
       }
     }
   }
 
+  var clickedBattery = findClickedHostileBattery(worldX, worldZ, bestDist);
+  if (clickedBattery) {
+    best = clickedBattery;
+  }
+
   return best;
 }
 
 // --- init click/tap handler ---
-export function initNav(camera, ship, scene, enemyMgr, terrain) {
+export function initNav(camera, ship, scene, enemyMgr, terrain, portMgr) {
   navShipRef = ship;
   navCameraRef = camera;
   navEnemyMgrRef = enemyMgr || null;
   navTerrainRef = terrain || null;
+  navPortMgrRef = portMgr || null;
 
   if (initialized) return;
   initialized = true;
@@ -214,16 +261,18 @@ export function stopHold() {
 
 // --- get current combat target ---
 export function getCombatTarget() {
-  // clear dead targets
-  if (combatTarget && !combatTarget.alive) {
+  if (!isValidTarget(combatTarget)) {
     combatTarget = null;
+    return combatTarget;
   }
+  syncTargetPosition(combatTarget);
   return combatTarget;
 }
 
 // --- set combat target programmatically (for auto-acquire) ---
 export function setCombatTarget(enemy) {
-  combatTarget = enemy;
+  combatTarget = enemy || null;
+  if (combatTarget) syncTargetPosition(combatTarget);
 }
 
 export function setNavBoss(boss) {
@@ -254,20 +303,20 @@ export function updateNav(ship, elapsed) {
 
   // combat target reticle
   if (reticle) {
-    if (combatTarget && combatTarget.alive) {
+    var target = getCombatTarget();
+    if (target) {
       reticle.visible = true;
+      var targetY = 0.2;
+      if (target.mesh && target.mesh.position) targetY = target.mesh.position.y + 0.2;
       reticle.position.set(
-        combatTarget.posX,
-        combatTarget.mesh.position.y + 0.2,
-        combatTarget.posZ
+        target.posX,
+        targetY,
+        target.posZ
       );
       var rPulse = 1.0 + Math.sin(elapsed * 4) * 0.1;
       reticle.scale.set(rPulse, 1, rPulse);
     } else {
       reticle.visible = false;
-      if (combatTarget && !combatTarget.alive) {
-        combatTarget = null;
-      }
     }
   }
 }

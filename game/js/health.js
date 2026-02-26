@@ -46,7 +46,7 @@ function createBar(color) {
   return { wrapper: wrapper, fill: fill };
 }
 
-export function updateHealthBars(camera, enemies, ship, playerHp, playerMaxHp) {
+export function updateHealthBars(camera, enemies, ship, playerHp, playerMaxHp, hostileBatteries) {
   if (!container) return;
 
   // collect all entities that need bars
@@ -75,6 +75,30 @@ export function updateHealthBars(camera, enemies, ship, playerHp, playerMaxHp) {
       ratio: e.hp / e.maxHp,
       color: "#cc4444"
     });
+  }
+
+  // hostile harbor battery bars
+  if (hostileBatteries && hostileBatteries.length) {
+    for (var bi = 0; bi < hostileBatteries.length; bi++) {
+      var b = hostileBatteries[bi];
+      if (!b || !b.alive) continue;
+      var bx = b.x;
+      var by = b.y;
+      var bz = b.z;
+      if (bx === undefined || by === undefined || bz === undefined) {
+        if (!b.mesh) continue;
+        bx = b.mesh.position.x;
+        by = b.mesh.position.y;
+        bz = b.mesh.position.z;
+      }
+      needed.push({
+        x: bx,
+        y: by + 1.9,
+        z: bz,
+        ratio: Math.max(0, (b.hp || 0) / Math.max(1, b.maxHp || 1)),
+        color: "#ff7744"
+      });
+    }
   }
 
   // ensure we have enough bar DOM elements

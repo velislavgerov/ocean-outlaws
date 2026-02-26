@@ -224,24 +224,25 @@
     ],
     "story.setpiece.default": [
       { "path": "assets/models/stones/small/stone-small-8.glb", "fit": 10, "x": -28, "y": 1.2, "z": 20, "ry": 0.15 },
-      { "path": "assets/models/vehicles/sailboats/sailboat-2.glb", "fit": 8.5, "x": 38, "y": 1.2, "z": -16, "ry": 0.9 }
+      { "path": "assets/models/environment/wooden-platforms/wooden-platform-2.glb", "fit": 9.5, "x": 38, "y": 1.6, "z": -16, "ry": 0.9 }
     ],
     "story.setpiece.region.frontier_isles": [
       { "path": "assets/models/environment/wooden-piers/wooden-pier-4.glb", "fit": 12, "x": 35, "y": 1.8, "z": 16, "ry": 2.1 },
       { "path": "assets/models/environment/bags/bag-grain.glb", "fit": 2.0, "x": 38, "y": 3.0, "z": 18, "ry": 0.25 },
-      { "path": "assets/models/vehicles/sailboats/sailboat.glb", "fit": 8.2, "x": -42, "y": 1.3, "z": -24, "ry": 0.35 }
+      { "path": "assets/models/environment/wooden-platforms/wooden-platform.glb", "fit": 10.5, "x": -42, "y": 1.7, "z": -24, "ry": 0.35 }
     ],
     "story.setpiece.region.frontier_isles.encounter.pirate_counterattack": [
-      { "path": "assets/models/vehicles/pirate-ships/pirate-ship.glb", "fit": 8.8, "x": -36, "y": 1.2, "z": 26, "ry": 0.7 },
-      { "path": "assets/models/environment/barrels/barrel-3.glb", "fit": 2.2, "x": -32, "y": 2.4, "z": 24, "ry": 0 }
+      { "path": "assets/models/environment/smoke-black.glb", "fit": 12.0, "x": -36, "y": 1.2, "z": 26, "ry": 0.7 },
+      { "path": "assets/models/environment/barrels/barrel-3.glb", "fit": 2.2, "x": -32, "y": 2.4, "z": 24, "ry": 0 },
+      { "path": "assets/models/environment/boxes/box-3.glb", "fit": 2.2, "x": -38, "y": 2.3, "z": 23, "ry": 0.2 }
     ],
     "story.setpiece.region.storm_belt": [
       { "path": "assets/models/stones/ancient/ancient-stone-11.glb", "fit": 12, "x": 40, "y": 1.1, "z": -10, "ry": 0.3 },
       { "path": "assets/models/environment/smoke-black.glb", "fit": 15, "x": -24, "y": 2.1, "z": 34, "ry": 0 },
-      { "path": "assets/models/ships-palmov/small/ship-small-7.glb", "fit": 8.5, "x": -34, "y": 1.3, "z": 30, "ry": 1.0 }
+      { "path": "assets/models/environment/destroyed-wooden-pier.glb", "fit": 10.0, "x": -34, "y": 1.3, "z": 30, "ry": 1.0 }
     ],
     "story.setpiece.region.storm_belt.encounter.convoy_defense": [
-      { "path": "assets/models/vehicles/sailboats/sailboat-3.glb", "fit": 8.8, "x": 30, "y": 1.2, "z": 26, "ry": 2.3 },
+      { "path": "assets/models/environment/wooden-platforms/wooden-platform.glb", "fit": 10.5, "x": 30, "y": 1.6, "z": 26, "ry": 2.3 },
       { "path": "assets/models/environment/boxes/box-3.glb", "fit": 2.1, "x": 33, "y": 2.8, "z": 27, "ry": 0.2 }
     ],
     "story.setpiece.region.forgotten_depths": [
@@ -250,7 +251,7 @@
       { "path": "assets/models/environment/smoke-white.glb", "fit": 12, "x": -12, "y": 2.0, "z": -32, "ry": 0 }
     ],
     "story.setpiece.region.forgotten_depths.encounter.ghost_intercept": [
-      { "path": "assets/models/vehicles/destroyed/destroyed-ship.glb", "fit": 10.5, "x": 26, "y": 1.4, "z": 30, "ry": 2.0 },
+      { "path": "assets/models/stones/ancient/ancient-stone-11.glb", "fit": 11.2, "x": 26, "y": 1.2, "z": 30, "ry": 2.0 },
       { "path": "assets/models/environment/tentacles/tentacles-6.glb", "fit": 14, "x": 16, "y": 1.0, "z": 26, "ry": 0.4 }
     ],
     "enemy.pirate.storyregion.forgotten_depths": [

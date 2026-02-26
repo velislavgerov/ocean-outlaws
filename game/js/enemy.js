@@ -88,6 +88,11 @@ var FLOAT_OFFSET = 1.4;
 var BUOYANCY_LERP = 12;
 var TILT_LERP = 8;
 var TILT_DAMPING = 0.3;
+var ENEMY_BYPASS_MIN_DIST = 10;
+var ENEMY_BYPASS_MAX_DIST = 34;
+var ENEMY_BYPASS_STEP = 6;
+var ENEMY_BYPASS_REACH_RADIUS = 6.5;
+var ENEMY_BYPASS_REPLAN_COOLDOWN = 0.5;
 
 // spawn tuning
 var SPAWN_DIST_MIN = 80;
@@ -311,6 +316,59 @@ function normalizeAngle(a) {
   return a;
 }
 
+function scoreEnemyWaterHeading(terrain, fromX, fromZ, heading) {
+  var distances = [7, 11, 15];
+  var score = 0;
+  for (var i = 0; i < distances.length; i++) {
+    var d = distances[i];
+    var fx = fromX + Math.sin(heading) * d;
+    var fz = fromZ + Math.cos(heading) * d;
+    if (isLand(terrain, fx, fz)) {
+      score -= 5;
+      continue;
+    }
+    score += 2;
+    var side = 1.4 + d * 0.07;
+    var lx = fx + Math.sin(heading - Math.PI * 0.5) * side;
+    var lz = fz + Math.cos(heading - Math.PI * 0.5) * side;
+    var rx = fx + Math.sin(heading + Math.PI * 0.5) * side;
+    var rz = fz + Math.cos(heading + Math.PI * 0.5) * side;
+    score += isLand(terrain, lx, lz) ? -1.1 : 0.7;
+    score += isLand(terrain, rx, rz) ? -1.1 : 0.7;
+  }
+  return score;
+}
+
+function findEnemyBypassWaypoint(terrain, startX, startZ, targetX, targetZ, currentHeading) {
+  if (!terrain) return null;
+  var toTarget = Math.atan2(targetX - startX, targetZ - startZ);
+  var offsets = [0.35, -0.35, 0.65, -0.65, 0.95, -0.95, 1.25, -1.25, 1.55, -1.55];
+  var best = null;
+  var bestScore = -Infinity;
+
+  for (var dist = ENEMY_BYPASS_MIN_DIST; dist <= ENEMY_BYPASS_MAX_DIST; dist += ENEMY_BYPASS_STEP) {
+    for (var i = 0; i < offsets.length; i++) {
+      var heading = normalizeAngle(toTarget + offsets[i]);
+      var x = startX + Math.sin(heading) * dist;
+      var z = startZ + Math.cos(heading) * dist;
+      if (isLand(terrain, x, z)) continue;
+      if (terrainBlocksLine(terrain, startX, startZ, x, z)) continue;
+
+      var score = scoreEnemyWaterHeading(terrain, startX, startZ, heading);
+      if (terrainBlocksLine(terrain, x, z, targetX, targetZ)) score -= 7;
+      score -= Math.abs(offsets[i]) * 1.5;
+      score -= Math.abs(normalizeAngle(heading - currentHeading)) * 0.35;
+      score -= dist * 0.01;
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x: x, z: z };
+      }
+    }
+  }
+  return best;
+}
+
 // --- create the enemy manager ---
 export function createEnemyManager() {
   ensureGeo();
@@ -427,6 +485,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleC
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    _landBypass: null,
+    _landPlanTimer: 0,
     visualOverride: pickCombatModelVariant(faction, roleContext),
     _modelLoading: false,
     _modelLoaded: false,
@@ -471,6 +531,8 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    _landBypass: null,
+    _landPlanTimer: 0,
     visualOverride: ambientVisual,
     _modelLoading: false,
     _modelLoaded: false,
@@ -555,22 +617,30 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
     var steerAngle = targetAngle;
     var ePrevX = e.posX;
     var ePrevZ = e.posZ;
+    var goalX = null;
+    var goalZ = null;
 
     if (e.faction === "merchant") {
       if (e.ambient && !e.attacked && e.tradeRoute) {
         // Ambient trade route AI: sail toward endpoint
         steerAngle = Math.atan2(e.tradeRoute.endX - e.posX, e.tradeRoute.endZ - e.posZ);
         moveSpeed = e.speed;
+        goalX = e.tradeRoute.endX;
+        goalZ = e.tradeRoute.endZ;
       } else {
         // Flee AI: no panic burst, speed already below player max
         steerAngle = fleeAngle;
         moveSpeed = e.fleeSpeed || e.speed;
+        goalX = e.posX + Math.sin(fleeAngle) * 28;
+        goalZ = e.posZ + Math.cos(fleeAngle) * 28;
       }
     } else if (e.faction === "navy") {
       if (e.ambient && !e.attacked && e.tradeRoute) {
         // Convoy escort following trade route
         steerAngle = Math.atan2(e.tradeRoute.endX - e.posX, e.tradeRoute.endZ - e.posZ);
         moveSpeed = e.speed;
+        goalX = e.tradeRoute.endX;
+        goalZ = e.tradeRoute.endZ;
       } else {
         // Navy AI: hold formation at engagement range, broadside fire
         if (dist < eEngageDist) {
@@ -578,16 +648,50 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
           steerAngle = normalizeAngle(targetAngle + Math.PI * 0.5);
           moveSpeed = e.speed * 0.6;
         }
+        goalX = ship.posX;
+        goalZ = ship.posZ;
       }
     } else {
       // Pirate AI: aggressive rush, close distance fast
       if (dist < eEngageDist) {
         moveSpeed = e.speed * Math.max(0.3, dist / eEngageDist);
       }
+      goalX = ship.posX;
+      goalZ = ship.posZ;
     }
 
     // terrain avoidance — steer away from nearby obstacles
     if (terrain) {
+      e._landPlanTimer = Math.max(0, (e._landPlanTimer || 0) - dt);
+      if (e._landBypass) {
+        var bdx0 = e._landBypass.x - e.posX;
+        var bdz0 = e._landBypass.z - e.posZ;
+        var bdist0 = Math.sqrt(bdx0 * bdx0 + bdz0 * bdz0);
+        if (bdist0 < ENEMY_BYPASS_REACH_RADIUS || isLand(terrain, e._landBypass.x, e._landBypass.z)) {
+          e._landBypass = null;
+        } else if (goalX !== null && goalZ !== null && e._landPlanTimer <= 0 && !terrainBlocksLine(terrain, e.posX, e.posZ, goalX, goalZ)) {
+          e._landBypass = null;
+        }
+      }
+
+      if (!e._landBypass && goalX !== null && goalZ !== null && e._landPlanTimer <= 0 && terrainBlocksLine(terrain, e.posX, e.posZ, goalX, goalZ)) {
+        var bypass = findEnemyBypassWaypoint(terrain, e.posX, e.posZ, goalX, goalZ, e.heading);
+        if (bypass) e._landBypass = bypass;
+        e._landPlanTimer = ENEMY_BYPASS_REPLAN_COOLDOWN + nextRandom() * 0.25;
+      }
+
+      if (e._landBypass) {
+        var bdx = e._landBypass.x - e.posX;
+        var bdz = e._landBypass.z - e.posZ;
+        var bdist = Math.sqrt(bdx * bdx + bdz * bdz);
+        if (bdist < ENEMY_BYPASS_REACH_RADIUS) {
+          e._landBypass = null;
+        } else {
+          steerAngle = Math.atan2(bdx, bdz);
+          moveSpeed *= 0.92;
+        }
+      }
+
       var avoidRange = e.faction === "merchant" ? 25 : 18;
       var avoid = getTerrainAvoidance(terrain, e.posX, e.posZ, avoidRange);
       if (avoid.factor > 0.1) {

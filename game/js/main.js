@@ -7,7 +7,7 @@ import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVict
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
-import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
+import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
@@ -91,6 +91,56 @@ var HARBOR_STORY_BEATS = {
     text: "A deepwater harbor logbook mentioned phantom hulls and missing escorts near trench lanes."
   }
 };
+
+var batteryTargetWorld = new THREE.Vector3();
+var batteryHudWorld = new THREE.Vector3();
+
+function findNearestHostileBatteryTarget(shipRef, portManager) {
+  if (!shipRef || !portManager || !portManager.ports) return null;
+  var best = null;
+  var bestDistSq = Infinity;
+  for (var i = 0; i < portManager.ports.length; i++) {
+    var port = portManager.ports[i];
+    if (!port || !port.hostileCity || !port.batteries) continue;
+    for (var bi = 0; bi < port.batteries.length; bi++) {
+      var battery = port.batteries[bi];
+      if (!battery || !battery.alive || !battery.mesh || !battery.mesh.parent || !battery.mesh.visible) continue;
+      battery.mesh.getWorldPosition(batteryTargetWorld);
+      var dx = batteryTargetWorld.x - shipRef.posX;
+      var dz = batteryTargetWorld.z - shipRef.posZ;
+      var distSq = dx * dx + dz * dz;
+      if (distSq >= bestDistSq) continue;
+      battery.posX = batteryTargetWorld.x;
+      battery.posZ = batteryTargetWorld.z;
+      best = battery;
+      bestDistSq = distSq;
+    }
+  }
+  return best;
+}
+
+function collectHostileBatteryTargets(portManager) {
+  var out = [];
+  if (!portManager || !portManager.ports) return out;
+  for (var i = 0; i < portManager.ports.length; i++) {
+    var port = portManager.ports[i];
+    if (!port || !port.hostileCity || !port.batteries) continue;
+    for (var bi = 0; bi < port.batteries.length; bi++) {
+      var battery = port.batteries[bi];
+      if (!battery || !battery.alive || !battery.mesh || !battery.mesh.parent || !battery.mesh.visible) continue;
+      battery.mesh.getWorldPosition(batteryHudWorld);
+      out.push({
+        x: batteryHudWorld.x,
+        y: batteryHudWorld.y,
+        z: batteryHudWorld.z,
+        hp: battery.hp,
+        maxHp: battery.maxHp || 1,
+        alive: true
+      });
+    }
+  }
+  return out;
+}
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -271,6 +321,7 @@ createSettingsMenu({
   onNewGame: function () {
     gameFrozen = true;
     gameStarted = false;
+    clearCombatTarget();
     resetWaveManager(waveMgr);
     resetResources(resources);
     resetEnemyManager(enemyMgr, scene);
@@ -762,6 +813,7 @@ function startMultiplayerCombat() {
   runZonesReached = 1;
   activeStoryState = null;
   pendingEncounterOverride = null;
+  clearCombatTarget();
   hideEventModal();
   clearStorySetDressing(storySetDressing);
   // Use the first zone for multiplayer, with shared terrain seed
@@ -802,7 +854,7 @@ function startMultiplayerCombat() {
     sendHitEvent(mpState, targetType, targetId, damage);
   });
   abilityState = createAbilityState(selectedClass);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, "calm");
   setTimeOfDay(dayNight, 0.35);
@@ -842,6 +894,7 @@ showMainMenu(startNewRun, continueRun, hasActiveRun());
 
 function startNewRun() {
   hideMainMenu();
+  clearCombatTarget();
   clearRunState();
   clearVoyageState();
   hideEventModal();
@@ -864,6 +917,7 @@ function continueRun() {
   var run = loadRunState();
   if (!run) return;
   hideMainMenu();
+  clearCombatTarget();
   selectedClass = run.selectedClass;
   upgrades.gold = run.gold;
   if (run.upgradeLevels) {
@@ -963,18 +1017,30 @@ function markHarborStoryBeat(node) {
 function handleCityEvents(cityEvents) {
   if (!cityEvents || !cityEvents.length) return;
   var wroteJournal = false;
+  var rewardGoldTotal = 0;
   for (var i = 0; i < cityEvents.length; i++) {
     var ev = cityEvents[i];
     if (!ev || !ev.type) continue;
     var cityName = ev.cityName || "Harbor City";
+    var rewardGold = Math.max(0, Math.floor(Number(ev.rewardGold) || 0));
     if (ev.type === "city_warning") {
       showBanner("Hostile Batteries: " + cityName, 2.2);
       playStoryCue("boss_omen", { volume: 0.2, rate: 1.2 });
     } else if (ev.type === "city_battery_destroyed") {
-      showBanner("Battery Silenced — " + cityName, 1.8);
+      showBanner("Battery Silenced — " + cityName + (rewardGold > 0 ? "  +" + rewardGold + " gold" : ""), 1.8);
+      if (rewardGold > 0) {
+        rewardGoldTotal += rewardGold;
+        runGoldLooted += rewardGold;
+        addKillFeedEntry(cityName + " battery destroyed +" + rewardGold + " gold", "#ffcc44");
+      }
       playStoryCue("event_positive", { volume: 0.25 });
     } else if (ev.type === "city_pacified") {
-      showBanner("City Pacified: " + cityName, 2.8);
+      showBanner("City Pacified: " + cityName + (rewardGold > 0 ? "  +" + rewardGold + " gold" : ""), 2.8);
+      if (rewardGold > 0) {
+        rewardGoldTotal += rewardGold;
+        runGoldLooted += rewardGold;
+        addKillFeedEntry(cityName + " pacified +" + rewardGold + " gold", "#44dd66");
+      }
       playStoryCue("reputation_up", { volume: 0.35 });
       if (activeStoryState) {
         appendJournalEntry(activeStoryState, {
@@ -987,8 +1053,14 @@ function handleCityEvents(cityEvents) {
     }
   }
 
-  if (wroteJournal && currentRunSeed !== null) {
-    saveActiveRunState(withActiveRunState(currentRunSeed));
+  if (rewardGoldTotal > 0) {
+    showFloatingNumber(window.innerWidth * 0.5, window.innerHeight * 0.45, "+" + rewardGoldTotal, "#ffcc44");
+  }
+
+  if (currentRunSeed !== null && (wroteJournal || rewardGoldTotal > 0)) {
+    var run = withActiveRunState(currentRunSeed);
+    run.gold = upgrades.gold;
+    saveActiveRunState(run);
   }
 }
 
@@ -1244,6 +1316,7 @@ function startNodeCombat(node, runSeed, encounterOverride) {
   var waveConfigs = buildNodeWaveConfigs(encounterType, node.col, activeChart.columns, override);
   resetWaveManager(waveMgr, waveConfigs);
   resetResources(resources);
+  clearCombatTarget();
   resetEnemyManager(enemyMgr, scene);
   resetDrones(droneMgr, scene);
   clearStorySetDressing(storySetDressing);
@@ -1294,7 +1367,7 @@ function startNodeCombat(node, runSeed, encounterOverride) {
   setPlayerArmor(enemyMgr, m.armor + classCfg.stats.armor);
   weapons = createWeaponState(ship);
   abilityState = createAbilityState(selectedClass);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, weatherPreset);
   setEngineClass(selectedClass);
@@ -1330,6 +1403,7 @@ function updateRunAfterNode(hp, maxHp) {
 function endRunVictory() {
   gameFrozen = true;
   gameStarted = false;
+  clearCombatTarget();
   hideEventModal();
   clearStorySetDressing(storySetDressing);
   var vicData = awardRunInfamy("victory");
@@ -1350,6 +1424,7 @@ function endRunVictory() {
 function endRunDefeat() {
   gameFrozen = true;
   gameStarted = false;
+  clearCombatTarget();
   upgrades.gold = 0;
   hideEventModal();
   clearStorySetDressing(storySetDressing);
@@ -1370,6 +1445,7 @@ function endRunDefeat() {
 }
 
 function cleanupCombatScene() {
+  clearCombatTarget();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   clearStorySetDressing(storySetDressing);
   resetEnemyManager(enemyMgr, scene);
@@ -1391,6 +1467,7 @@ function startZoneCombat(classKey, zoneId) {
   runZonesReached = (runZonesReached || 0) + 1;
   activeStoryState = null;
   pendingEncounterOverride = null;
+  clearCombatTarget();
   var classCfg = getShipClass(classKey);
   setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
   var zone = getZone(zoneId);
@@ -1431,7 +1508,7 @@ function startZoneCombat(classKey, zoneId) {
   setPlayerArmor(enemyMgr, classCfg.stats.armor);
   weapons = createWeaponState(ship);
   abilityState = createAbilityState(classKey);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, zone.condition === "stormy" ? "storm" : zone.condition || "calm");
   setEngineClass(classKey);
@@ -1521,6 +1598,7 @@ function handleAbility(mults) {
 setRestartCallback(function () {
   gameFrozen = true;
   gameStarted = false;
+  clearCombatTarget();
   resetWaveManager(waveMgr);
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
@@ -1879,6 +1957,17 @@ function runFrame(dt) {
           }
         }
       }
+      if (!target) {
+        var nearestBattery = findNearestHostileBatteryTarget(ship, portMgr);
+        if (nearestBattery) {
+          var cdx = nearestBattery.posX - ship.posX;
+          var cdz = nearestBattery.posZ - ship.posZ;
+          if (Math.sqrt(cdx * cdx + cdz * cdz) <= getActiveWeaponRange(weapons)) {
+            setCombatTarget(nearestBattery);
+            target = nearestBattery;
+          }
+        }
+      }
     }
     // aim at combat target; fire based on autofire state or click
     if (target && target.alive) {
@@ -1981,6 +2070,7 @@ function runFrame(dt) {
           showBanner("Fleet " + waveMgr.wave + " Approaching!", 3);
         }
       } else if (event === "wave_complete") {
+        clearCombatTarget();
         showBanner("Fleet " + waveMgr.wave + " defeated!", 2.5);
         addKillFeedEntry("Fleet " + waveMgr.wave + " defeated!", "#44dd66");
         clearPickups(pickupMgr, scene);
@@ -2016,6 +2106,7 @@ function runFrame(dt) {
           }
         }
       } else if (event === "game_over") {
+        clearCombatTarget();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
         }
@@ -2035,6 +2126,7 @@ function runFrame(dt) {
           });
         }
       } else if (event === "victory") {
+        clearCombatTarget();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
         }
@@ -2092,7 +2184,8 @@ function runFrame(dt) {
       }
     }
 
-    updateHealthBars(cam.camera, enemyMgr.enemies, ship, hpInfo.hp, hpInfo.maxHp);
+    var hostileBatteryTargets = collectHostileBatteryTargets(portMgr);
+    updateHealthBars(cam.camera, enemyMgr.enemies, ship, hpInfo.hp, hpInfo.maxHp, hostileBatteryTargets);
     var waveState = getWaveState(waveMgr);
     var weaponOrder = getWeaponOrder();
     var weaponIcons = ["\u2022", "\u25C6", "\u25AC"];
@@ -2142,9 +2235,13 @@ function runFrame(dt) {
     if (portMgr.ports) {
       for (var mpi = 0; mpi < portMgr.ports.length; mpi++) {
         var mp = portMgr.ports[mpi];
+        var isHostileCity = !!mp.hostileCity;
+        var px = isHostileCity && mp.cityAnchorX !== undefined ? mp.cityAnchorX : (mp.dockX !== undefined ? mp.dockX : mp.posX);
+        var pz = isHostileCity && mp.cityAnchorZ !== undefined ? mp.cityAnchorZ : (mp.dockZ !== undefined ? mp.dockZ : mp.posZ);
         portPositions.push({
-          x: mp.dockX !== undefined ? mp.dockX : mp.posX,
-          z: mp.dockZ !== undefined ? mp.dockZ : mp.posZ
+          x: px,
+          z: pz,
+          type: isHostileCity ? "port_hostile" : (mp.isCity ? "port_city" : "port")
         });
       }
     }
@@ -2315,6 +2412,20 @@ window.render_game_to_text = function () {
     }
   }
 
+  var combatTarget = getCombatTarget();
+  var combatTargetInfo = null;
+  if (combatTarget) {
+    var targetKind = "enemy";
+    if (activeBoss && combatTarget === activeBoss) targetKind = "boss";
+    else if (combatTarget.mesh && combatTarget.mesh.userData && combatTarget.mesh.userData.cityBattery) targetKind = "city_battery";
+    combatTargetInfo = {
+      kind: targetKind,
+      x: Math.round(combatTarget.posX * 10) / 10,
+      z: Math.round(combatTarget.posZ * 10) / 10,
+      alive: !!combatTarget.alive
+    };
+  }
+
   var payload = {
     coordinateSystem: "X right/east, Z forward/south, Y up. Values are current rebased world coordinates.",
     mode: gameStarted ? (gameFrozen ? "frozen" : "combat") : "menu",
@@ -2331,6 +2442,7 @@ window.render_game_to_text = function () {
         z: Math.round(ship.navTarget.z * 10) / 10
       } : null
     } : null,
+    target: combatTargetInfo,
     enemies: aliveEnemies,
     pickups: pickupMgr && pickupMgr.pickups ? pickupMgr.pickups.length : 0,
     crates: crateMgr && crateMgr.crates ? crateMgr.crates.length : 0,
