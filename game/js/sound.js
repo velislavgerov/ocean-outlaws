@@ -481,7 +481,9 @@ export function updateLowHpWarning(hpRatio) {
 }
 
 // --- music: delegate to music.js ---
-export function updateMusic(inCombat) {
+// accepts explicit mode ("calm"|"combat"|"port"|"boss"), while still handling
+// the previous boolean combat API for compatibility.
+export function updateMusic(modeOrCombat) {
   if (!ctx || !unlocked) return;
-  updateMusicModule(inCombat);
+  updateMusicModule(modeOrCombat);
 }

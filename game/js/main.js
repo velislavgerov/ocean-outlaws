@@ -7,7 +7,7 @@ import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVict
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
-import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, setNavBoss } from "./nav.js";
+import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
@@ -35,7 +35,7 @@ import { createCrewSwap, showCrewSwap, hideCrewSwap } from "./crewSwap.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
 import { createTerrain, removeTerrain, getTerrainMinimapMarkers, updateTerrainStreaming, shiftTerrainOrigin } from "./terrain.js";
-import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo } from "./port.js";
+import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo, consumeCityEvents } from "./port.js";
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
 import { createMerchantManager, updateMerchants, clearMerchants, setMerchantPlayerSpeed } from "./merchant.js";
@@ -53,6 +53,11 @@ import { createMainMenu, showMainMenu, hideMainMenu } from "./mainMenu.js";
 import { createRunState, saveRunState as saveRun, loadRunState, hasActiveRun, clearRunState } from "./runState.js";
 import { createWorldDebugView, updateWorldDebugView, toggleWorldDebugView, isWorldDebugVisible, zoomWorldDebugView, getWorldDebugState } from "./worldDebugView.js";
 import { getRolePickStats, resetRolePickStats } from "./assetRoles.js";
+import { createStoryState, hydrateStoryState, getRegionForNode, getRegionInfo, appendJournalEntry } from "./storyState.js";
+import { selectEvent, applyEventOutcome, getChoiceAvailability } from "./eventEngine.js";
+import { showEventModal, hideEventModal } from "./eventModal.js";
+import { createStorySetDressing, spawnStorySetDressing, clearStorySetDressing, shiftStorySetDressing } from "./storySetDressing.js";
+import { preloadStoryAudio, playStoryCue } from "./storyAudio.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -66,6 +71,76 @@ var runZonesReached = 0; // zones visited during current run
 var currentRunSeed = null; // non-null when in a roguelite run
 var currentNode = null; // current voyage chart node being fought
 var currentRoleContext = null; // active zone/node context for role-based model selection
+var activeStoryState = null; // per-run narrative state (single-player only)
+var pendingEncounterOverride = null; // event-driven encounter modifiers for next combat node
+
+var HARBOR_STORY_BEATS = {
+  frontier_isles: {
+    rep: { merchant: 5, navy: 2 },
+    banner: "Harbor Rumors: Frontier Isles",
+    text: "At a frontier harbor, dockmasters shared ledgers tying local raids to pirate quartermasters."
+  },
+  storm_belt: {
+    rep: { merchant: 4, pirates: 2 },
+    banner: "Harbor Rumors: Storm Belt",
+    text: "In a storm-belt harbor, convoy captains traded warnings about protection rackets and false beacons."
+  },
+  forgotten_depths: {
+    rep: { navy: 3, merchant: 3 },
+    banner: "Harbor Rumors: Forgotten Depths",
+    text: "A deepwater harbor logbook mentioned phantom hulls and missing escorts near trench lanes."
+  }
+};
+
+var batteryTargetWorld = new THREE.Vector3();
+var batteryHudWorld = new THREE.Vector3();
+
+function findNearestHostileBatteryTarget(shipRef, portManager) {
+  if (!shipRef || !portManager || !portManager.ports) return null;
+  var best = null;
+  var bestDistSq = Infinity;
+  for (var i = 0; i < portManager.ports.length; i++) {
+    var port = portManager.ports[i];
+    if (!port || !port.hostileCity || !port.batteries) continue;
+    for (var bi = 0; bi < port.batteries.length; bi++) {
+      var battery = port.batteries[bi];
+      if (!battery || !battery.alive || !battery.mesh || !battery.mesh.parent || !battery.mesh.visible) continue;
+      battery.mesh.getWorldPosition(batteryTargetWorld);
+      var dx = batteryTargetWorld.x - shipRef.posX;
+      var dz = batteryTargetWorld.z - shipRef.posZ;
+      var distSq = dx * dx + dz * dz;
+      if (distSq >= bestDistSq) continue;
+      battery.posX = batteryTargetWorld.x;
+      battery.posZ = batteryTargetWorld.z;
+      best = battery;
+      bestDistSq = distSq;
+    }
+  }
+  return best;
+}
+
+function collectHostileBatteryTargets(portManager) {
+  var out = [];
+  if (!portManager || !portManager.ports) return out;
+  for (var i = 0; i < portManager.ports.length; i++) {
+    var port = portManager.ports[i];
+    if (!port || !port.hostileCity || !port.batteries) continue;
+    for (var bi = 0; bi < port.batteries.length; bi++) {
+      var battery = port.batteries[bi];
+      if (!battery || !battery.alive || !battery.mesh || !battery.mesh.parent || !battery.mesh.visible) continue;
+      battery.mesh.getWorldPosition(batteryHudWorld);
+      out.push({
+        x: batteryHudWorld.x,
+        y: batteryHudWorld.y,
+        z: batteryHudWorld.z,
+        hp: battery.hp,
+        maxHp: battery.maxHp || 1,
+        alive: true
+      });
+    }
+  }
+  return out;
+}
 
 function fireWithSound(w, s, r, m) {
   var before = w.projectiles.length;
@@ -136,6 +211,7 @@ var upgrades = createUpgradeState();
 createCardPicker();
 var crew = createCrewState();
 var crewPickupMgr = createCrewPickupManager();
+var storySetDressing = createStorySetDressing();
 createCrewSwap();
 var techState = loadTechState();
 createTechScreen();
@@ -195,6 +271,7 @@ createWorldDebugView();
 
 var audioUnlockHandler = function () {
   unlockAudio();
+  preloadStoryAudio();
   ["click", "touchstart", "keydown"].forEach(function (e) { window.removeEventListener(e, audioUnlockHandler); });
 };
 ["click", "touchstart", "keydown"].forEach(function (e) { window.addEventListener(e, audioUnlockHandler); });
@@ -244,6 +321,7 @@ createSettingsMenu({
   onNewGame: function () {
     gameFrozen = true;
     gameStarted = false;
+    clearCombatTarget();
     resetWaveManager(waveMgr);
     resetResources(resources);
     resetEnemyManager(enemyMgr, scene);
@@ -264,7 +342,7 @@ createSettingsMenu({
     cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
     setAutofire(true);
     setWeather(weather, "calm");
-    hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
+    hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideEventModal(); hideInfamyScreen();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
     clearVoyageState();
@@ -733,6 +811,11 @@ function startMultiplayerCombat() {
   runEnemiesSunk = 0;
   runGoldLooted = 0;
   runZonesReached = 1;
+  activeStoryState = null;
+  pendingEncounterOverride = null;
+  clearCombatTarget();
+  hideEventModal();
+  clearStorySetDressing(storySetDressing);
   // Use the first zone for multiplayer, with shared terrain seed
   selectedClass = mpState.players[mpState.playerId].shipClass || selectedClass || "cruiser";
   var classCfg = getShipClass(selectedClass);
@@ -771,7 +854,7 @@ function startMultiplayerCombat() {
     sendHitEvent(mpState, targetType, targetId, damage);
   });
   abilityState = createAbilityState(selectedClass);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, "calm");
   setTimeOfDay(dayNight, 0.35);
@@ -791,6 +874,8 @@ function handleShipSelect(classKey) {
   currentRunSeed = runSeed;
   var run = createRunState(runSeed);
   run.selectedClass = classKey;
+  activeStoryState = hydrateStoryState(run.storyState, runSeed);
+  run.storyState = activeStoryState;
   saveRun(run);
   openRunVoyageChart(runSeed);
 }
@@ -809,12 +894,16 @@ showMainMenu(startNewRun, continueRun, hasActiveRun());
 
 function startNewRun() {
   hideMainMenu();
+  clearCombatTarget();
   clearRunState();
   clearVoyageState();
+  hideEventModal();
   activeChart = null;
   activeVoyageState = null;
   currentRunSeed = null;
   currentNode = null;
+  activeStoryState = null;
+  pendingEncounterOverride = null;
   runEnemiesSunk = 0;
   runGoldLooted = 0;
   runZonesReached = 0;
@@ -828,6 +917,7 @@ function continueRun() {
   var run = loadRunState();
   if (!run) return;
   hideMainMenu();
+  clearCombatTarget();
   selectedClass = run.selectedClass;
   upgrades.gold = run.gold;
   if (run.upgradeLevels) {
@@ -842,10 +932,176 @@ function continueRun() {
   runGoldLooted = run.goldLooted || 0;
   runZonesReached = run.nodesCompleted || 0;
   currentRunSeed = run.seed;
+  activeStoryState = hydrateStoryState(run.storyState, run.seed);
+  run.storyState = activeStoryState;
+  saveRun(run);
   openRunVoyageChart(run.seed);
 }
 
+function withActiveRunState(runSeed) {
+  var run = loadRunState();
+  if (!run) {
+    run = createRunState(runSeed || currentRunSeed || Date.now());
+    run.selectedClass = selectedClass;
+  }
+  if (!activeStoryState) {
+    activeStoryState = hydrateStoryState(run.storyState, run.seed || runSeed || 0);
+  }
+  run.storyState = activeStoryState;
+  return run;
+}
+
+function saveActiveRunState(run) {
+  if (!run) return;
+  if (activeStoryState) run.storyState = activeStoryState;
+  saveRun(run);
+}
+
+function regionLabelForNode(node) {
+  if (!node || !activeChart) return getRegionInfo("frontier_isles").label;
+  var regionId = getRegionForNode(node.col, activeChart.columns);
+  return getRegionInfo(regionId).label;
+}
+
+function clampFactionRep(value) {
+  return Math.max(-100, Math.min(100, Math.round(value)));
+}
+
+function applyStoryRepDelta(repDelta) {
+  if (!activeStoryState || !repDelta) return 0;
+  if (!activeStoryState.factionRep) {
+    activeStoryState.factionRep = { navy: 0, pirates: 0, merchant: 0 };
+  }
+  var keys = Object.keys(repDelta);
+  var net = 0;
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var delta = Math.round(Number(repDelta[key]) || 0);
+    if (!delta) continue;
+    var prev = Number(activeStoryState.factionRep[key]) || 0;
+    activeStoryState.factionRep[key] = clampFactionRep(prev + delta);
+    net += delta;
+  }
+  return net;
+}
+
+function markHarborStoryBeat(node) {
+  if (!activeStoryState || !node || !activeChart) return null;
+  var regionId = getRegionForNode(node.col, activeChart.columns);
+  var beat = HARBOR_STORY_BEATS[regionId];
+  if (!beat) return null;
+  if (!activeStoryState.flags) activeStoryState.flags = {};
+
+  var flagKey = "harbor_story_" + regionId;
+  activeStoryState.currentRegion = regionId;
+  activeStoryState.lastEncounterType = "port_call";
+  if (activeStoryState.flags[flagKey]) return null;
+
+  activeStoryState.flags[flagKey] = true;
+  var repNet = applyStoryRepDelta(beat.rep);
+  appendJournalEntry(activeStoryState, {
+    type: "harbor",
+    region: regionId,
+    text: beat.text
+  });
+  playStoryCue("journal_update", { volume: 0.32 });
+  if (repNet !== 0) {
+    playStoryCue(repNet > 0 ? "reputation_up" : "reputation_down", { volume: 0.3 });
+  }
+  return {
+    banner: beat.banner,
+    storyNotice: beat.banner + " — " + beat.text
+  };
+}
+
+function handleCityEvents(cityEvents) {
+  if (!cityEvents || !cityEvents.length) return;
+  var wroteJournal = false;
+  var rewardGoldTotal = 0;
+  for (var i = 0; i < cityEvents.length; i++) {
+    var ev = cityEvents[i];
+    if (!ev || !ev.type) continue;
+    var cityName = ev.cityName || "Harbor City";
+    var rewardGold = Math.max(0, Math.floor(Number(ev.rewardGold) || 0));
+    if (ev.type === "city_warning") {
+      showBanner("Hostile Batteries: " + cityName, 2.2);
+      playStoryCue("boss_omen", { volume: 0.2, rate: 1.2 });
+    } else if (ev.type === "city_battery_destroyed") {
+      showBanner("Battery Silenced — " + cityName + (rewardGold > 0 ? "  +" + rewardGold + " gold" : ""), 1.8);
+      if (rewardGold > 0) {
+        rewardGoldTotal += rewardGold;
+        runGoldLooted += rewardGold;
+        addKillFeedEntry(cityName + " battery destroyed +" + rewardGold + " gold", "#ffcc44");
+      }
+      playStoryCue("event_positive", { volume: 0.25 });
+    } else if (ev.type === "city_pacified") {
+      showBanner("City Pacified: " + cityName + (rewardGold > 0 ? "  +" + rewardGold + " gold" : ""), 2.8);
+      if (rewardGold > 0) {
+        rewardGoldTotal += rewardGold;
+        runGoldLooted += rewardGold;
+        addKillFeedEntry(cityName + " pacified +" + rewardGold + " gold", "#44dd66");
+      }
+      playStoryCue("reputation_up", { volume: 0.35 });
+      if (activeStoryState) {
+        appendJournalEntry(activeStoryState, {
+          type: "city_pacified",
+          region: activeStoryState.currentRegion,
+          text: "You pacified " + cityName + " and reopened its harbor routes."
+        });
+        wroteJournal = true;
+      }
+    }
+  }
+
+  if (rewardGoldTotal > 0) {
+    showFloatingNumber(window.innerWidth * 0.5, window.innerHeight * 0.45, "+" + rewardGoldTotal, "#ffcc44");
+  }
+
+  if (currentRunSeed !== null && (wroteJournal || rewardGoldTotal > 0)) {
+    var run = withActiveRunState(currentRunSeed);
+    run.gold = upgrades.gold;
+    saveActiveRunState(run);
+  }
+}
+
+function markStoryProgressForNode(node) {
+  if (!activeStoryState || !node || !activeChart) return;
+  var regionId = getRegionForNode(node.col, activeChart.columns);
+  var prevRegion = activeStoryState.currentRegion || "frontier_isles";
+  activeStoryState.currentRegion = regionId;
+  activeStoryState.nodesVisited = Math.max(0, Math.floor(activeStoryState.nodesVisited || 0)) + 1;
+  if (!activeStoryState.regionVisitCounts) {
+    activeStoryState.regionVisitCounts = { frontier_isles: 0, storm_belt: 0, forgotten_depths: 0 };
+  }
+  if (activeStoryState.regionVisitCounts[regionId] === undefined) activeStoryState.regionVisitCounts[regionId] = 0;
+  activeStoryState.regionVisitCounts[regionId] += 1;
+  activeStoryState.lastEncounterType = node.type;
+
+  if (prevRegion !== regionId && activeStoryState.nodesVisited > 1) {
+    appendJournalEntry(activeStoryState, {
+      type: "region_transition",
+      region: regionId,
+      text: "The crew entered " + getRegionInfo(regionId).label + ". Seas and loyalties both feel less certain."
+    });
+    playStoryCue("region_transition", { volume: 0.5 });
+    playStoryCue("journal_update", { volume: 0.35 });
+    showBanner("Entering " + getRegionInfo(regionId).label, 2.4);
+  }
+}
+
+function reopenVoyageAfterNode(runSeed) {
+  setTimeout(function () {
+    if (activeVoyageState && activeVoyageState.completed) {
+      endRunVictory();
+    } else {
+      openRunVoyageChart(runSeed);
+    }
+  }, 1500);
+}
+
 function openRunVoyageChart(seed) {
+  var run = withActiveRunState(seed);
+  saveActiveRunState(run);
   activeChart = generateVoyageChart(seed, 3, true);
   var savedVoyage = loadVoyageState();
   if (savedVoyage && savedVoyage.chartSeed === seed) {
@@ -864,47 +1120,124 @@ function openRunVoyageChart(seed) {
     if (!node) return;
     currentNode = node;
     hideVoyageChart();
+    hideEventModal();
     startNodeEncounter(node, seed);
   });
 }
 
 function startNodeEncounter(node, runSeed) {
+  markStoryProgressForNode(node);
+  var run = withActiveRunState(runSeed);
+
   if (node.type === "salvage") {
     var salvageGold = 30 + node.col * 15;
     addGold(upgrades, salvageGold);
     runGoldLooted += salvageGold;
     showBanner("Salvage: +" + salvageGold + " gold!", 2);
+    if (activeStoryState) {
+      appendJournalEntry(activeStoryState, {
+        type: "salvage",
+        region: activeStoryState.currentRegion,
+        text: "Recovered salvage worth " + salvageGold + " gold."
+      });
+      playStoryCue("journal_update", { volume: 0.25 });
+    }
+    saveActiveRunState(run);
     updateRunAfterNode(null, null);
-    setTimeout(function () {
-      if (activeVoyageState && activeVoyageState.completed) {
-        endRunVictory();
-      } else {
-        openRunVoyageChart(runSeed);
-      }
-    }, 1500);
+    reopenVoyageAfterNode(runSeed);
     return;
   }
+
   if (node.type === "event") {
-    var eventRoll = Math.random();
-    if (eventRoll < 0.6) {
+    var visitIndex = activeStoryState ? activeStoryState.eventCount || 0 : 0;
+    var regionId = activeStoryState ? activeStoryState.currentRegion : getRegionForNode(node.col, activeChart ? activeChart.columns : 7);
+    var selectedEvent = selectEvent({
+      node: node,
+      storyState: activeStoryState,
+      runSeed: runSeed,
+      visitIndex: visitIndex,
+      regionId: regionId
+    });
+
+    if (!selectedEvent) {
+      // regression guardrail: preserve old simple event reward flow
       var eventGold = 20 + node.col * 10;
       addGold(upgrades, eventGold);
       runGoldLooted += eventGold;
       showBanner("Parley: +" + eventGold + " gold!", 2);
-    } else {
-      showBanner("Ambush avoided!", 2);
+      saveActiveRunState(run);
+      updateRunAfterNode(null, null);
+      reopenVoyageAfterNode(runSeed);
+      return;
     }
-    updateRunAfterNode(null, null);
-    setTimeout(function () {
-      if (activeVoyageState && activeVoyageState.completed) {
-        endRunVictory();
-      } else {
-        openRunVoyageChart(runSeed);
+
+    var availability = getChoiceAvailability(selectedEvent, activeStoryState, { node: node });
+    showEventModal(
+      selectedEvent,
+      activeStoryState,
+      availability,
+      function (choice) {
+        var choiceResult = applyEventOutcome({
+          eventId: selectedEvent.id,
+          choice: choice,
+          storyState: activeStoryState,
+          runState: run,
+          runtimeRefs: {
+            upgrades: upgrades,
+            classStats: getShipClass(selectedClass).stats
+          },
+          runSeed: runSeed,
+          visitIndex: visitIndex
+        });
+        upgrades.gold = run.gold;
+        if (choiceResult.goldDelta > 0) runGoldLooted += choiceResult.goldDelta;
+        if (choiceResult.journalAdded > 0) {
+          playStoryCue("journal_update", { volume: 0.32 });
+        }
+        if (choiceResult.repChanges && choiceResult.repChanges.length) {
+          var repNet = 0;
+          for (var rci = 0; rci < choiceResult.repChanges.length; rci++) {
+            repNet += choiceResult.repChanges[rci].delta;
+          }
+          playStoryCue(repNet >= 0 ? "reputation_up" : "reputation_down", { volume: 0.35 });
+        }
+        if (choiceResult.storyCues && choiceResult.storyCues.length) {
+          for (var ci = 0; ci < choiceResult.storyCues.length; ci++) {
+            playStoryCue(choiceResult.storyCues[ci], { volume: 0.33 });
+          }
+        }
+
+        saveActiveRunState(run);
+
+        if (choiceResult.combatOverride) {
+          pendingEncounterOverride = choiceResult.combatOverride;
+          if (!pendingEncounterOverride.encounterType && choiceResult.encounterType) {
+            pendingEncounterOverride.encounterType = choiceResult.encounterType;
+          }
+          if (!pendingEncounterOverride.sceneRole && selectedEvent.sceneRole) {
+            pendingEncounterOverride.sceneRole = selectedEvent.sceneRole;
+          }
+          startNodeCombat(node, runSeed, pendingEncounterOverride);
+          return;
+        }
+
+        if (choiceResult.goldDelta > 0) {
+          showBanner("Event: +" + choiceResult.goldDelta + " gold", 2.2);
+        } else {
+          showBanner(selectedEvent.title, 2.0);
+        }
+        updateRunAfterNode(run.hp, run.maxHp);
+        reopenVoyageAfterNode(runSeed);
+      },
+      {
+        regionLabel: regionLabelForNode(node)
       }
-    }, 1500);
+    );
     return;
   }
+
   if (node.type === "port") {
+    var harborBeat = markHarborStoryBeat(node);
     portScreenOpen = true;
     fadeGameAudio();
     var portRun = loadRunState();
@@ -913,9 +1246,15 @@ function startNodeEncounter(node, runSeed) {
       hp: portRun && portRun.hp !== null && portRun.hp !== undefined ? portRun.hp : portClassCfg.stats.hp,
       maxHp: portRun && portRun.maxHp ? portRun.maxHp : portClassCfg.stats.hp
     };
-    showPortScreen({ upgrades: upgrades, hpInfo: portHpInfo, classKey: selectedClass }, function () {
+    showPortScreen({
+      upgrades: upgrades,
+      hpInfo: portHpInfo,
+      classKey: selectedClass,
+      storyNotice: harborBeat ? harborBeat.storyNotice : ""
+    }, function () {
       portScreenOpen = false;
       resumeGameAudio();
+      saveActiveRunState(withActiveRunState(runSeed));
       updateRunAfterNode(null, null);
       if (activeVoyageState && activeVoyageState.completed) {
         endRunVictory();
@@ -925,19 +1264,26 @@ function startNodeEncounter(node, runSeed) {
     });
     return;
   }
-  startNodeCombat(node, runSeed);
+  startNodeCombat(node, runSeed, pendingEncounterOverride);
 }
 
-function buildNodeWaveConfigs(nodeType, col, totalCols) {
+function buildNodeWaveConfigs(nodeType, col, totalCols, encounterOverride) {
+  var override = encounterOverride || null;
   var waves = nodeType === "boss" ? 2 : (col < 3 ? 2 : 3);
+  if (override && Number(override.waves) > 0) waves = Math.max(1, Math.floor(override.waves));
   var enemyBase = 2 + Math.floor(col * 0.5);
+  if (override && override.enemyBaseAdd !== undefined) {
+    enemyBase += Math.floor(Number(override.enemyBaseAdd) || 0);
+  }
   var hpScale = 1.0 + col * 0.15;
   var speedScale = 1.0 + col * 0.05;
   if (nodeType === "merchant_chase") {
     waves = Math.max(1, waves - 1);
     enemyBase = Math.max(1, enemyBase - 1);
   }
-  var factions = ["pirate", "navy"];
+  var factions = (override && Array.isArray(override.factions) && override.factions.length > 0)
+    ? override.factions.slice()
+    : ["pirate", "navy"];
   var configs = [];
   for (var wi = 1; wi <= waves; wi++) {
     var cfg = {
@@ -948,7 +1294,10 @@ function buildNodeWaveConfigs(nodeType, col, totalCols) {
       fireRateMult: 1.0 + col * 0.1,
       faction: factions[(col + wi) % factions.length]
     };
-    if (nodeType === "boss" && wi === waves) {
+    if (override && override.boss && wi === waves) {
+      cfg.boss = override.boss;
+      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
+    } else if (nodeType === "boss" && wi === waves) {
       var difficulty = 1 + Math.floor(col * 5 / Math.max(1, totalCols - 1));
       cfg.boss = difficulty >= 4 ? "kraken" : "battleship";
       cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
@@ -958,14 +1307,19 @@ function buildNodeWaveConfigs(nodeType, col, totalCols) {
   return configs;
 }
 
-function startNodeCombat(node, runSeed) {
+function startNodeCombat(node, runSeed, encounterOverride) {
+  var override = encounterOverride || pendingEncounterOverride || null;
+  pendingEncounterOverride = null;
   var classCfg = getShipClass(selectedClass);
   setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
-  var waveConfigs = buildNodeWaveConfigs(node.type, node.col, activeChart.columns);
+  var encounterType = override && override.encounterType ? override.encounterType : node.type;
+  var waveConfigs = buildNodeWaveConfigs(encounterType, node.col, activeChart.columns, override);
   resetWaveManager(waveMgr, waveConfigs);
   resetResources(resources);
+  clearCombatTarget();
   resetEnemyManager(enemyMgr, scene);
   resetDrones(droneMgr, scene);
+  clearStorySetDressing(storySetDressing);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
@@ -973,16 +1327,26 @@ function startNodeCombat(node, runSeed) {
   seedRNG(terrainSeed);
   var terrainDiff = 1 + Math.floor(node.col * 5 / Math.max(1, activeChart.columns - 1));
   var weatherPreset = "calm";
-  if (node.type === "storm_crossing") weatherPreset = "storm";
+  if (override && override.weather) weatherPreset = override.weather;
+  else if (node.type === "storm_crossing") weatherPreset = "storm";
   else if (node.col >= 5) weatherPreset = "rough";
+  var storyRegion = activeStoryState ? getRegionForNode(node.col, activeChart.columns) : null;
   var nodePortRoleContext = {
     zoneId: "run_node_" + node.id,
     condition: weatherPreset === "storm" ? "stormy" : weatherPreset,
-    difficulty: Math.min(terrainDiff, 6)
+    difficulty: Math.min(terrainDiff, 6),
+    storyRegion: storyRegion,
+    encounterType: encounterType
   };
   currentRoleContext = nodePortRoleContext;
   activeTerrain = createTerrain(terrainSeed, Math.min(terrainDiff, 6));
   scene.add(activeTerrain.mesh);
+  spawnStorySetDressing(storySetDressing, activeTerrain, {
+    storyRegion: storyRegion,
+    encounterType: encounterType,
+    sceneRole: override && override.sceneRole ? override.sceneRole : null,
+    seed: terrainSeed + 991
+  });
   clearPorts(portMgr, scene);
   initPorts(portMgr, activeTerrain, scene, nodePortRoleContext);
   clearCrates(crateMgr, scene);
@@ -1003,7 +1367,7 @@ function startNodeCombat(node, runSeed) {
   setPlayerArmor(enemyMgr, m.armor + classCfg.stats.armor);
   weapons = createWeaponState(ship);
   abilityState = createAbilityState(selectedClass);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, weatherPreset);
   setEngineClass(selectedClass);
@@ -1013,7 +1377,7 @@ function startNodeCombat(node, runSeed) {
   activeZoneId = "run_node_" + node.id;
   fadeIn(0.6);
   var nodeTypes = getNodeTypes();
-  var nodeLabel = nodeTypes[node.type] ? nodeTypes[node.type].label : "Combat";
+  var nodeLabel = (override && override.nodeLabel) || (nodeTypes[node.type] ? nodeTypes[node.type].label : "Combat");
   showBanner(nodeLabel + " — Prepare for Battle!", 3);
 }
 
@@ -1028,6 +1392,7 @@ function updateRunAfterNode(hp, maxHp) {
   run.enemiesSunk = runEnemiesSunk;
   run.goldLooted = runGoldLooted;
   run.nodesCompleted = runZonesReached;
+  if (activeStoryState) run.storyState = activeStoryState;
   if (hp !== null && hp !== undefined) {
     run.hp = hp;
     run.maxHp = maxHp;
@@ -1038,11 +1403,16 @@ function updateRunAfterNode(hp, maxHp) {
 function endRunVictory() {
   gameFrozen = true;
   gameStarted = false;
+  clearCombatTarget();
+  hideEventModal();
+  clearStorySetDressing(storySetDressing);
   var vicData = awardRunInfamy("victory");
   clearRunState();
   clearVoyageState();
   currentRunSeed = null;
   currentNode = null;
+  activeStoryState = null;
+  pendingEncounterOverride = null;
   fadeOut(0.4, function () {
     showInfamyScreen(vicData, function () {
       showMainMenu(startNewRun, continueRun, hasActiveRun());
@@ -1054,13 +1424,18 @@ function endRunVictory() {
 function endRunDefeat() {
   gameFrozen = true;
   gameStarted = false;
+  clearCombatTarget();
   upgrades.gold = 0;
+  hideEventModal();
+  clearStorySetDressing(storySetDressing);
   hideBossHud();
   var goData = awardRunInfamy("defeat");
   clearRunState();
   clearVoyageState();
   currentRunSeed = null;
   currentNode = null;
+  activeStoryState = null;
+  pendingEncounterOverride = null;
   fadeOut(0.4, function () {
     showInfamyScreen(goData, function () {
       showMainMenu(startNewRun, continueRun, hasActiveRun());
@@ -1070,7 +1445,9 @@ function endRunDefeat() {
 }
 
 function cleanupCombatScene() {
+  clearCombatTarget();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+  clearStorySetDressing(storySetDressing);
   resetEnemyManager(enemyMgr, scene);
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
@@ -1088,6 +1465,9 @@ function startZoneCombat(classKey, zoneId) {
   runEnemiesSunk = 0;
   runGoldLooted = 0;
   runZonesReached = (runZonesReached || 0) + 1;
+  activeStoryState = null;
+  pendingEncounterOverride = null;
+  clearCombatTarget();
   var classCfg = getShipClass(classKey);
   setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
   var zone = getZone(zoneId);
@@ -1097,6 +1477,7 @@ function startZoneCombat(classKey, zoneId) {
   resetUpgrades(upgrades);
   resetDrones(droneMgr, scene);
   resetCrew(crew);
+  clearStorySetDressing(storySetDressing);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
@@ -1127,7 +1508,7 @@ function startZoneCombat(classKey, zoneId) {
   setPlayerArmor(enemyMgr, classCfg.stats.armor);
   weapons = createWeaponState(ship);
   abilityState = createAbilityState(classKey);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, zone.condition === "stormy" ? "storm" : zone.condition || "calm");
   setEngineClass(classKey);
@@ -1217,6 +1598,7 @@ function handleAbility(mults) {
 setRestartCallback(function () {
   gameFrozen = true;
   gameStarted = false;
+  clearCombatTarget();
   resetWaveManager(waveMgr);
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
@@ -1231,16 +1613,18 @@ setRestartCallback(function () {
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
+  clearStorySetDressing(storySetDressing);
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
   setAutofire(true);
   setWeather(weather, "calm");
-  hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideInfamyScreen();
+  hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideEventModal(); hideInfamyScreen();
   clearVoyageState();
   clearRunState();
   activeChart = null; activeVoyageState = null;
   currentRunSeed = null; currentNode = null;
+  activeStoryState = null; pendingEncounterOverride = null;
   if (isMultiplayerActive(mpState)) {
     leaveRoom(mpState);
     mpReady = false;
@@ -1269,6 +1653,10 @@ function shiftPosXZ(obj, shiftX, shiftZ) {
   if (obj.posZ !== undefined) obj.posZ -= shiftZ;
   if (obj.x !== undefined) obj.x -= shiftX;
   if (obj.z !== undefined) obj.z -= shiftZ;
+  if (obj.dockX !== undefined) obj.dockX -= shiftX;
+  if (obj.dockZ !== undefined) obj.dockZ -= shiftZ;
+  if (obj.cityAnchorX !== undefined) obj.cityAnchorX -= shiftX;
+  if (obj.cityAnchorZ !== undefined) obj.cityAnchorZ -= shiftZ;
   shiftMeshXZ(obj.mesh, shiftX, shiftZ);
 }
 
@@ -1342,6 +1730,16 @@ function applyRollingOriginShift(shiftX, shiftZ) {
 
   // ports
   for (var por = 0; por < portMgr.ports.length; por++) shiftPosXZ(portMgr.ports[por], shiftX, shiftZ);
+  if (portMgr.cityProjectiles) {
+    for (var cpp = 0; cpp < portMgr.cityProjectiles.length; cpp++) {
+      var cp = portMgr.cityProjectiles[cpp];
+      shiftMeshXZ(cp.mesh, shiftX, shiftZ);
+      if (cp.origin) {
+        cp.origin.x -= shiftX;
+        cp.origin.z -= shiftZ;
+      }
+    }
+  }
 
   // drones
   for (var dr = 0; dr < droneMgr.drones.length; dr++) shiftPosXZ(droneMgr.drones[dr], shiftX, shiftZ);
@@ -1349,6 +1747,7 @@ function applyRollingOriginShift(shiftX, shiftZ) {
 
   // streamed terrain chunks
   if (activeTerrain) shiftTerrainOrigin(activeTerrain, shiftX, shiftZ);
+  shiftStorySetDressing(storySetDressing, shiftX, shiftZ);
 
   rollingOriginShifts++;
   console.log("[WORLD] rolling-origin shift", {
@@ -1558,6 +1957,17 @@ function runFrame(dt) {
           }
         }
       }
+      if (!target) {
+        var nearestBattery = findNearestHostileBatteryTarget(ship, portMgr);
+        if (nearestBattery) {
+          var cdx = nearestBattery.posX - ship.posX;
+          var cdz = nearestBattery.posZ - ship.posZ;
+          if (Math.sqrt(cdx * cdx + cdz * cdz) <= getActiveWeaponRange(weapons)) {
+            setCombatTarget(nearestBattery);
+            target = nearestBattery;
+          }
+        }
+      }
     }
     // aim at combat target; fire based on autofire state or click
     if (target && target.alive) {
@@ -1607,7 +2017,8 @@ function runFrame(dt) {
     updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain, roleContext);
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateCrewPickups(crewPickupMgr, ship, dt, elapsed, weatherWaveHeight, scene);
-    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass, activeTerrain);
+    updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass, activeTerrain, scene, weapons);
+    handleCityEvents(consumeCityEvents(portMgr));
     updateCrates(crateMgr, ship, resources, activeTerrain, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateMerchants(merchantMgr, ship, dt, scene, activeTerrain, elapsed, weatherWaveHeight, enemyMgr, activeZone, activeZoneId, roleContext);
     if (mults.autoRepair) {
@@ -1647,6 +2058,7 @@ function runFrame(dt) {
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
         setNavBoss(activeBoss);
         playWaveHorn();
+        playStoryCue("boss_omen", { volume: 0.42 });
         if (activeBoss) {
           showBossHud(activeBoss.def.name);
           showBanner("BOSS: " + activeBoss.def.name + "!", 4);
@@ -1658,6 +2070,7 @@ function runFrame(dt) {
           showBanner("Fleet " + waveMgr.wave + " Approaching!", 3);
         }
       } else if (event === "wave_complete") {
+        clearCombatTarget();
         showBanner("Fleet " + waveMgr.wave + " defeated!", 2.5);
         addKillFeedEntry("Fleet " + waveMgr.wave + " defeated!", "#44dd66");
         clearPickups(pickupMgr, scene);
@@ -1693,6 +2106,7 @@ function runFrame(dt) {
           }
         }
       } else if (event === "game_over") {
+        clearCombatTarget();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
         }
@@ -1712,6 +2126,7 @@ function runFrame(dt) {
           });
         }
       } else if (event === "victory") {
+        clearCombatTarget();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
         }
@@ -1769,7 +2184,8 @@ function runFrame(dt) {
       }
     }
 
-    updateHealthBars(cam.camera, enemyMgr.enemies, ship, hpInfo.hp, hpInfo.maxHp);
+    var hostileBatteryTargets = collectHostileBatteryTargets(portMgr);
+    updateHealthBars(cam.camera, enemyMgr.enemies, ship, hpInfo.hp, hpInfo.maxHp, hostileBatteryTargets);
     var waveState = getWaveState(waveMgr);
     var weaponOrder = getWeaponOrder();
     var weaponIcons = ["\u2022", "\u25C6", "\u25AC"];
@@ -1819,9 +2235,13 @@ function runFrame(dt) {
     if (portMgr.ports) {
       for (var mpi = 0; mpi < portMgr.ports.length; mpi++) {
         var mp = portMgr.ports[mpi];
+        var isHostileCity = !!mp.hostileCity;
+        var px = isHostileCity && mp.cityAnchorX !== undefined ? mp.cityAnchorX : (mp.dockX !== undefined ? mp.dockX : mp.posX);
+        var pz = isHostileCity && mp.cityAnchorZ !== undefined ? mp.cityAnchorZ : (mp.dockZ !== undefined ? mp.dockZ : mp.posZ);
         portPositions.push({
-          x: mp.dockX !== undefined ? mp.dockX : mp.posX,
-          z: mp.dockZ !== undefined ? mp.dockZ : mp.posZ
+          x: px,
+          z: pz,
+          type: isHostileCity ? "port_hostile" : (mp.isCity ? "port_city" : "port")
         });
       }
     }
@@ -1866,7 +2286,11 @@ function runFrame(dt) {
 
     updateEngine(speedRatio);
     updateAmbience(weather.current, dt);
-    updateMusic(aliveEnemyCount > 0 || bossAlive);
+    var musicMode = "calm";
+    if (portScreenOpen) musicMode = "port";
+    else if (bossAlive) musicMode = "boss";
+    else if (aliveEnemyCount > 0) musicMode = "combat";
+    updateMusic(musicMode);
     updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
     if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) {
       playPlayerHit();
@@ -1971,6 +2395,37 @@ window.render_game_to_text = function () {
     });
   }
 
+  var cityPorts = 0;
+  var hostileCities = 0;
+  var hostileBatteries = 0;
+  if (portMgr && portMgr.ports) {
+    for (var pidx = 0; pidx < portMgr.ports.length; pidx++) {
+      var p = portMgr.ports[pidx];
+      if (!p || !p.isCity) continue;
+      cityPorts++;
+      if (p.hostileCity) hostileCities++;
+      if (p.hostileCity && p.batteries) {
+        for (var bi = 0; bi < p.batteries.length; bi++) {
+          if (p.batteries[bi] && p.batteries[bi].alive) hostileBatteries++;
+        }
+      }
+    }
+  }
+
+  var combatTarget = getCombatTarget();
+  var combatTargetInfo = null;
+  if (combatTarget) {
+    var targetKind = "enemy";
+    if (activeBoss && combatTarget === activeBoss) targetKind = "boss";
+    else if (combatTarget.mesh && combatTarget.mesh.userData && combatTarget.mesh.userData.cityBattery) targetKind = "city_battery";
+    combatTargetInfo = {
+      kind: targetKind,
+      x: Math.round(combatTarget.posX * 10) / 10,
+      z: Math.round(combatTarget.posZ * 10) / 10,
+      alive: !!combatTarget.alive
+    };
+  }
+
   var payload = {
     coordinateSystem: "X right/east, Z forward/south, Y up. Values are current rebased world coordinates.",
     mode: gameStarted ? (gameFrozen ? "frozen" : "combat") : "menu",
@@ -1987,10 +2442,16 @@ window.render_game_to_text = function () {
         z: Math.round(ship.navTarget.z * 10) / 10
       } : null
     } : null,
+    target: combatTargetInfo,
     enemies: aliveEnemies,
     pickups: pickupMgr && pickupMgr.pickups ? pickupMgr.pickups.length : 0,
     crates: crateMgr && crateMgr.crates ? crateMgr.crates.length : 0,
     ports: portMgr && portMgr.ports ? portMgr.ports.length : 0,
+    portCities: {
+      cities: cityPorts,
+      hostileCities: hostileCities,
+      hostileBatteries: hostileBatteries
+    },
     enemyModels: {
       modeled: enemyModeled,
       placeholders: enemyPlaceholders
@@ -2001,6 +2462,14 @@ window.render_game_to_text = function () {
       placedModels: visualModelCount,
       minimapMarkers: terrainMarkerCount
     },
+    story: activeStoryState ? {
+      region: activeStoryState.currentRegion || null,
+      regionLabel: activeStoryState.currentRegion ? getRegionInfo(activeStoryState.currentRegion).label : null,
+      factionRep: activeStoryState.factionRep || { navy: 0, pirates: 0, merchant: 0 },
+      flagsCount: activeStoryState.flags ? Object.keys(activeStoryState.flags).length : 0,
+      journalCount: activeStoryState.journal ? activeStoryState.journal.length : 0,
+      lastEventId: activeStoryState.lastEventId || null
+    } : null,
     worldDebug: getWorldDebugState(),
     rollingOriginShifts: rollingOriginShifts,
     simElapsed: Math.round(simElapsed * 100) / 100

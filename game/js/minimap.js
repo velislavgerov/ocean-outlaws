@@ -23,8 +23,32 @@ export function createMinimap(parentEl) {
 
 function drawMarker(ctx, x, y, type, sizePx) {
   var s = Math.max(1.4, Math.min(4.8, sizePx || 2.2));
+  if (type === "port_hostile") {
+    ctx.fillStyle = "#cc4444";
+    ctx.fillRect(x - s - 0.8, y - s - 0.8, (s + 0.8) * 2, (s + 0.8) * 2);
+    ctx.strokeStyle = "#ffd37a";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - s, y - s);
+    ctx.lineTo(x + s, y + s);
+    ctx.moveTo(x + s, y - s);
+    ctx.lineTo(x - s, y + s);
+    ctx.stroke();
+    return;
+  }
+  if (type === "port_city") {
+    ctx.fillStyle = "#6cb9ff";
+    ctx.beginPath();
+    ctx.moveTo(x, y - s - 0.9);
+    ctx.lineTo(x + s + 0.9, y);
+    ctx.lineTo(x, y + s + 0.9);
+    ctx.lineTo(x - s - 0.9, y);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
   if (type === "port") {
-    ctx.fillStyle = "#4aa3ff";
+    ctx.fillStyle = "#d4a44a";
     ctx.fillRect(x - s, y - s, s * 2, s * 2);
     return;
   }
@@ -121,15 +145,14 @@ export function updateMinimap(playerX, playerZ, playerHeading, enemies, pickups,
     }
   }
 
-  // ports — golden squares
+  // ports/cities — keyed markers
   if (ports) {
-    ctx.fillStyle = T.gold;
     for (var pi = 0; pi < ports.length; pi++) {
       var p = ports[pi];
       var pdx = (p.x - playerX) * scale;
       var pdz = (p.z - playerZ) * scale;
       if (pdx * pdx + pdz * pdz < radius * radius) {
-        ctx.fillRect(cx + pdx - 2, cy + pdz - 2, 4, 4);
+        drawMarker(ctx, cx + pdx, cy + pdz, p.type || "port", 2.5);
       }
     }
   }

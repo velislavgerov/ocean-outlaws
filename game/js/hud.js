@@ -457,9 +457,19 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
 
   // Port proximity
   if (portLabel) {
-    if (portInfo && portInfo.dist < 50) {
-      portLabel.textContent = portInfo.available ? "PORT " + Math.round(portInfo.dist) + "m" : "PORT " + Math.ceil(portInfo.cooldown) + "s";
-      portLabel.style.color = portInfo.available ? C.portGreen : T.brownDark;
+    var showDist = portInfo && portInfo.hostile ? 90 : 50;
+    if (portInfo && portInfo.dist < showDist) {
+      var baseLabel = portInfo.label || "PORT";
+      if (portInfo.hostile) {
+        portLabel.textContent = baseLabel + " " + Math.round(portInfo.dist) + "m";
+        portLabel.style.color = C.red;
+      } else if (portInfo.available) {
+        portLabel.textContent = baseLabel + " " + Math.round(portInfo.dist) + "m";
+        portLabel.style.color = C.portGreen;
+      } else {
+        portLabel.textContent = baseLabel + " " + Math.ceil(portInfo.cooldown) + "s";
+        portLabel.style.color = T.brownDark;
+      }
     } else { portLabel.textContent = ""; }
   }
 

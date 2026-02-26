@@ -93,10 +93,14 @@ function pickPickupModelWithContext(type, roleContext) {
   var zoneId = roleContext ? normalizeRoleToken(roleContext.zoneId || roleContext.id) : null;
   var condition = roleContext ? normalizeRoleToken(roleContext.condition) : null;
   var difficulty = roleContext ? normalizeRoleToken(roleContext.difficulty) : null;
+  var storyRegion = roleContext ? normalizeRoleToken(roleContext.storyRegion || roleContext.region) : null;
+  var encounterType = roleContext ? normalizeRoleToken(roleContext.encounterType || roleContext.nodeType) : null;
   var candidates = [];
   if (zoneId) candidates.push(baseRole + ".zone." + zoneId);
   if (condition) candidates.push(baseRole + ".condition." + condition);
   if (difficulty) candidates.push(baseRole + ".difficulty." + difficulty);
+  if (storyRegion) candidates.push(baseRole + ".storyregion." + storyRegion);
+  if (encounterType) candidates.push(baseRole + ".encounter." + encounterType);
   for (var i = 0; i < candidates.length; i++) {
     var contextual = pickRoleVariant(candidates[i], null, nextRandom);
     if (contextual) return contextual;

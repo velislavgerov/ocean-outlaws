@@ -1,6 +1,8 @@
 // runState.js — roguelite run state persistence
 // Tracks current run progress between encounters in the voyage chart.
 
+import { createStoryState, hydrateStoryState } from "./storyState.js";
+
 var RUN_KEY = "ocean_outlaws_run";
 
 export function createRunState(seed) {
@@ -16,8 +18,19 @@ export function createRunState(seed) {
     nodesCompleted: 0,
     active: true,
     hp: null,
-    maxHp: null
+    maxHp: null,
+    storyState: createStoryState(seed)
   };
+}
+
+export function hydrateRunState(state) {
+  if (!state || typeof state !== "object") return null;
+  if (!state.storyState) {
+    state.storyState = createStoryState(state.seed || 0);
+    return state;
+  }
+  state.storyState = hydrateStoryState(state.storyState, state.seed || 0);
+  return state;
 }
 
 export function saveRunState(state) {
@@ -29,7 +42,7 @@ export function saveRunState(state) {
 export function loadRunState() {
   try {
     var raw = localStorage.getItem(RUN_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return hydrateRunState(JSON.parse(raw));
   } catch (e) { /* ignore */ }
   return null;
 }
