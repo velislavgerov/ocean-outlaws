@@ -51,10 +51,24 @@ export function startMusic() {
   };
 }
 
-export function updateMusic(inCombat) {
+function normalizeMusicMode(modeOrCombat) {
+  if (typeof modeOrCombat === "string") {
+    var mode = modeOrCombat.toLowerCase();
+    if (mode === "combat" || mode === "port" || mode === "boss" || mode === "calm") {
+      return mode;
+    }
+  }
+  if (modeOrCombat && typeof modeOrCombat === "object" && typeof modeOrCombat.mode === "string") {
+    return normalizeMusicMode(modeOrCombat.mode);
+  }
+  // backwards compatibility with old boolean API
+  return modeOrCombat ? "combat" : "calm";
+}
+
+export function updateMusic(modeOrCombat) {
   if (!musicCtx || !musicGainNode || !musicState) return;
   var now = musicCtx.currentTime;
-  var targetMode = inCombat ? "combat" : "calm";
+  var targetMode = normalizeMusicMode(modeOrCombat);
   if (targetMode !== musicState.mode) {
     musicState.mode = targetMode;
   }

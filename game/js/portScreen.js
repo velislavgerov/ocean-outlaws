@@ -9,6 +9,7 @@ var goldLabel = null;
 var repairSection = null;
 var repairBtn = null;
 var repairInfo = null;
+var storyNoticeEl = null;
 var categoryEls = {};
 var categoryPanels = {};
 var onCloseCallback = null;
@@ -69,6 +70,23 @@ export function createPortScreen() {
     "text-shadow: 0 1px 2px rgba(0,0,0,0.3)"
   ].join(";");
   root.appendChild(subtitle);
+
+  storyNoticeEl = document.createElement("div");
+  storyNoticeEl.style.cssText = [
+    PARCHMENT_BG,
+    "display:none",
+    "max-width: 92%",
+    "padding: 10px 14px",
+    "margin-bottom: " + (_mob ? "10px" : "12px"),
+    "border: 1px solid " + T.borderGold,
+    "border-radius: 6px",
+    "font-size: " + (_mob ? "12px" : "13px"),
+    "line-height: 1.45",
+    "color:" + T.text,
+    "text-align:center",
+    "box-shadow: inset 0 0 15px rgba(0,0,0,0.2)"
+  ].join(";");
+  root.appendChild(storyNoticeEl);
 
   // gold display
   goldLabel = document.createElement("div");
@@ -454,6 +472,11 @@ export function showPortScreen(state, closeCb) {
   if (!root) return;
   currentState = state;
   onCloseCallback = closeCb;
+  if (storyNoticeEl) {
+    var notice = state && typeof state.storyNotice === "string" ? state.storyNotice.trim() : "";
+    storyNoticeEl.textContent = notice;
+    storyNoticeEl.style.display = notice ? "block" : "none";
+  }
   refreshPortUI();
   root.style.display = "flex";
 }

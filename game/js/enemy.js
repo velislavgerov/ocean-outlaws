@@ -180,9 +180,13 @@ function pickFactionRoleVariant(rolePrefix, faction, fallbackPools, roleContext)
     var zoneId = normalizeRoleToken(roleContext.zoneId || roleContext.id);
     var condition = normalizeRoleToken(roleContext.condition);
     var difficulty = normalizeRoleToken(roleContext.difficulty);
+    var storyRegion = normalizeRoleToken(roleContext.storyRegion || roleContext.region);
+    var encounterType = normalizeRoleToken(roleContext.encounterType || roleContext.nodeType);
     if (zoneId) candidates.push(baseRole + ".zone." + zoneId);
     if (condition) candidates.push(baseRole + ".condition." + condition);
     if (difficulty) candidates.push(baseRole + ".difficulty." + difficulty);
+    if (storyRegion) candidates.push(baseRole + ".storyregion." + storyRegion);
+    if (encounterType) candidates.push(baseRole + ".encounter." + encounterType);
   }
   for (var i = 0; i < candidates.length; i++) {
     var roleKey = candidates[i];
