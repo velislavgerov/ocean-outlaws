@@ -5,6 +5,7 @@ import { getTerrainAvoidance, terrainBlocksLine, isLand } from "./terrain.js";
 import { slideCollision, createStuckDetector, updateStuck, isStuck, nudgeToOpenWater } from "./collision.js";
 import { getOverridePath, getOverrideSize } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
+import { planWaterPath } from "./waterPath.js";
 
 // --- error placeholder for failed model loads ---
 // Returns a group with a bright magenta box and fire points so turret code doesn't break
@@ -45,6 +46,7 @@ var NAV_BYPASS_MIN_DIST = 10;
 var NAV_BYPASS_MAX_DIST = 44;
 var NAV_BYPASS_STEP = 6;
 var NAV_BYPASS_REACH_RADIUS = 4.8;
+var NAV_PATH_REACH_RADIUS = 5.2;
 var NAV_REPLAN_COOLDOWN = 0.35;
 
 // --- async GLB override: replace placeholder mesh with Palmov GLB model ---
@@ -124,6 +126,8 @@ export function createShip(classConfig) {
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    _navPath: null,
+    _navPathIndex: 0,
     _navBypass: null,
     _navReplanTimer: 0
   };
@@ -134,6 +138,8 @@ export function createShip(classConfig) {
 // --- set auto-nav destination ---
 export function setNavTarget(ship, x, z) {
   ship.navTarget = { x: x, z: z };
+  ship._navPath = null;
+  ship._navPathIndex = 0;
   ship._navBypass = null;
   ship._navReplanTimer = 0;
 }
@@ -141,6 +147,8 @@ export function setNavTarget(ship, x, z) {
 // --- clear auto-nav ---
 export function clearNavTarget(ship) {
   ship.navTarget = null;
+  ship._navPath = null;
+  ship._navPathIndex = 0;
   ship._navBypass = null;
   ship._navReplanTimer = 0;
 }
@@ -220,6 +228,24 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
 
   if (ship.navTarget) {
     if (terrain) {
+      if (ship._navPath && ship._navPathIndex < ship._navPath.length) {
+        while (ship._navPathIndex < ship._navPath.length) {
+          var wp = ship._navPath[ship._navPathIndex];
+          var wdx0 = wp.x - ship.posX;
+          var wdz0 = wp.z - ship.posZ;
+          var wdist0 = Math.sqrt(wdx0 * wdx0 + wdz0 * wdz0);
+          if (wdist0 < NAV_PATH_REACH_RADIUS || isLand(terrain, wp.x, wp.z)) ship._navPathIndex++;
+          else break;
+        }
+        if (ship._navPathIndex >= ship._navPath.length) {
+          ship._navPath = null;
+          ship._navPathIndex = 0;
+        } else if (ship._navReplanTimer <= 0 && !terrainBlocksLine(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z)) {
+          ship._navPath = null;
+          ship._navPathIndex = 0;
+        }
+      }
+
       if (ship._navBypass) {
         var bdx0 = ship._navBypass.x - ship.posX;
         var bdz0 = ship._navBypass.z - ship.posZ;
@@ -231,17 +257,48 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
         }
       }
 
-      if (!ship._navBypass && ship._navReplanTimer <= 0 && terrainBlocksLine(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z)) {
-        var bypass = findNavBypassWaypoint(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z, ship.heading);
-        if (bypass) ship._navBypass = bypass;
+      if (!ship._navPath && !ship._navBypass && ship._navReplanTimer <= 0 && terrainBlocksLine(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z)) {
+        var path = planWaterPath(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z, {
+          cellSize: 6,
+          margin: 28,
+          clearance: 2.2,
+          maxAxis: 58,
+          maxVisited: 2000,
+          maxSnapRadius: 22
+        });
+        if (path && path.length > 0) {
+          ship._navPath = path;
+          ship._navPathIndex = 0;
+        } else {
+          var bypass = findNavBypassWaypoint(terrain, ship.posX, ship.posZ, ship.navTarget.x, ship.navTarget.z, ship.heading);
+          if (bypass) ship._navBypass = bypass;
+        }
         ship._navReplanTimer = NAV_REPLAN_COOLDOWN;
       }
     }
 
-    var navGoal = ship._navBypass || ship.navTarget;
+    var navGoal = ship.navTarget;
+    if (ship._navPath && ship._navPathIndex < ship._navPath.length) navGoal = ship._navPath[ship._navPathIndex];
+    else if (ship._navBypass) navGoal = ship._navBypass;
     var dx = navGoal.x - ship.posX;
     var dz = navGoal.z - ship.posZ;
     var dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (ship._navPath && ship._navPathIndex < ship._navPath.length) {
+      while (ship._navPathIndex < ship._navPath.length && dist < NAV_PATH_REACH_RADIUS) {
+        ship._navPathIndex++;
+        if (ship._navPathIndex >= ship._navPath.length) {
+          ship._navPath = null;
+          ship._navPathIndex = 0;
+          navGoal = ship._navBypass || ship.navTarget;
+        } else {
+          navGoal = ship._navPath[ship._navPathIndex];
+        }
+        dx = navGoal.x - ship.posX;
+        dz = navGoal.z - ship.posZ;
+        dist = Math.sqrt(dx * dx + dz * dz);
+      }
+    }
 
     if (ship._navBypass && dist < NAV_BYPASS_REACH_RADIUS) {
       ship._navBypass = null;
@@ -251,8 +308,10 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
       dist = Math.sqrt(dx * dx + dz * dz);
     }
 
-    if (!ship._navBypass && dist < NAV_ARRIVE_RADIUS) {
+    if (!ship._navPath && !ship._navBypass && dist < NAV_ARRIVE_RADIUS) {
       ship.navTarget = null;
+      ship._navPath = null;
+      ship._navPathIndex = 0;
       ship._navBypass = null;
       ship.speed *= 0.8;
     } else {
@@ -291,6 +350,8 @@ export function updateShip(ship, input, dt, getWaveHeight, elapsed, fuelMult, up
       }
     }
   } else {
+    ship._navPath = null;
+    ship._navPathIndex = 0;
     ship._navBypass = null;
     // no nav target — decelerate to stop
     if (ship.speed > 0) {

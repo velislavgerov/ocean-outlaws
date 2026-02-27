@@ -6,6 +6,7 @@ import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides
 import { loadGlbVisual } from "./glbVisual.js";
 import { ensureAssetRoles, pickRoleVariant } from "./assetRoles.js";
 import { nextRandom } from "./rng.js";
+import { planWaterPath } from "./waterPath.js";
 
 // --- faction definitions ---
 var FACTIONS = {
@@ -92,6 +93,7 @@ var ENEMY_BYPASS_MIN_DIST = 10;
 var ENEMY_BYPASS_MAX_DIST = 34;
 var ENEMY_BYPASS_STEP = 6;
 var ENEMY_BYPASS_REACH_RADIUS = 6.5;
+var ENEMY_PATH_REACH_RADIUS = 8.0;
 var ENEMY_BYPASS_REPLAN_COOLDOWN = 0.5;
 
 // spawn tuning
@@ -485,6 +487,8 @@ function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleC
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    _navPath: null,
+    _navPathIndex: 0,
     _landBypass: null,
     _landPlanTimer: 0,
     visualOverride: pickCombatModelVariant(faction, roleContext),
@@ -531,6 +535,8 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     _smoothRoll: 0,
     _buoyancyInit: false,
     _stuckDetector: createStuckDetector(),
+    _navPath: null,
+    _navPathIndex: 0,
     _landBypass: null,
     _landPlanTimer: 0,
     visualOverride: ambientVisual,
@@ -663,6 +669,24 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
     // terrain avoidance — steer away from nearby obstacles
     if (terrain) {
       e._landPlanTimer = Math.max(0, (e._landPlanTimer || 0) - dt);
+      if (e._navPath && e._navPathIndex < e._navPath.length) {
+        while (e._navPathIndex < e._navPath.length) {
+          var pwp = e._navPath[e._navPathIndex];
+          var pwdx = pwp.x - e.posX;
+          var pwdz = pwp.z - e.posZ;
+          var pwdist = Math.sqrt(pwdx * pwdx + pwdz * pwdz);
+          if (pwdist < ENEMY_PATH_REACH_RADIUS || isLand(terrain, pwp.x, pwp.z)) e._navPathIndex++;
+          else break;
+        }
+        if (e._navPathIndex >= e._navPath.length) {
+          e._navPath = null;
+          e._navPathIndex = 0;
+        } else if (goalX !== null && goalZ !== null && e._landPlanTimer <= 0 && !terrainBlocksLine(terrain, e.posX, e.posZ, goalX, goalZ)) {
+          e._navPath = null;
+          e._navPathIndex = 0;
+        }
+      }
+
       if (e._landBypass) {
         var bdx0 = e._landBypass.x - e.posX;
         var bdz0 = e._landBypass.z - e.posZ;
@@ -674,13 +698,43 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
         }
       }
 
-      if (!e._landBypass && goalX !== null && goalZ !== null && e._landPlanTimer <= 0 && terrainBlocksLine(terrain, e.posX, e.posZ, goalX, goalZ)) {
-        var bypass = findEnemyBypassWaypoint(terrain, e.posX, e.posZ, goalX, goalZ, e.heading);
-        if (bypass) e._landBypass = bypass;
+      if (!e._navPath && !e._landBypass && goalX !== null && goalZ !== null && e._landPlanTimer <= 0 && terrainBlocksLine(terrain, e.posX, e.posZ, goalX, goalZ)) {
+        var plannedPath = planWaterPath(terrain, e.posX, e.posZ, goalX, goalZ, {
+          cellSize: 6,
+          margin: 24,
+          clearance: 2.0,
+          maxAxis: 52,
+          maxVisited: 1600,
+          maxSnapRadius: 20
+        });
+        if (plannedPath && plannedPath.length > 0) {
+          e._navPath = plannedPath;
+          e._navPathIndex = 0;
+        } else {
+          var bypass = findEnemyBypassWaypoint(terrain, e.posX, e.posZ, goalX, goalZ, e.heading);
+          if (bypass) e._landBypass = bypass;
+        }
         e._landPlanTimer = ENEMY_BYPASS_REPLAN_COOLDOWN + nextRandom() * 0.25;
       }
 
-      if (e._landBypass) {
+      if (e._navPath && e._navPathIndex < e._navPath.length) {
+        var waypoint = e._navPath[e._navPathIndex];
+        var wdx = waypoint.x - e.posX;
+        var wdz = waypoint.z - e.posZ;
+        var wdist = Math.sqrt(wdx * wdx + wdz * wdz);
+        if (wdist < ENEMY_PATH_REACH_RADIUS) {
+          e._navPathIndex++;
+          if (e._navPathIndex >= e._navPath.length) {
+            e._navPath = null;
+            e._navPathIndex = 0;
+          }
+        } else {
+          steerAngle = Math.atan2(wdx, wdz);
+          moveSpeed *= 0.93;
+          goalX = waypoint.x;
+          goalZ = waypoint.z;
+        }
+      } else if (e._landBypass) {
         var bdx = e._landBypass.x - e.posX;
         var bdz = e._landBypass.z - e.posZ;
         var bdist = Math.sqrt(bdx * bdx + bdz * bdz);

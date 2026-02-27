@@ -1,6 +1,6 @@
 // nav.js — click-to-move navigation + destination marker + enemy click targeting
 import * as THREE from "three";
-import { setNavTarget } from "./ship.js";
+import { setNavTarget, clearNavTarget } from "./ship.js";
 import { getWaveHeight } from "./ocean.js";
 import { isLand } from "./terrain.js";
 
@@ -256,7 +256,7 @@ export function handleHold(clientX, clientY) {
 // --- stop hold movement (clear nav target when pointer released) ---
 export function stopHold() {
   if (!navShipRef) return;
-  navShipRef.navTarget = null;
+  clearNavTarget(navShipRef);
 }
 
 // --- get current combat target ---

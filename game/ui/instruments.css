@@ -1,0 +1,71 @@
+.sailing-hud {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: 'Courier New', monospace;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.instrument {
+  background: rgba(0, 10, 20, 0.72);
+  border: 1px solid rgba(100, 200, 255, 0.25);
+  border-radius: 4px;
+  padding: 5px 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.instrument label { color: #5bc8f5; font-size: 9px; text-transform: uppercase; width: 38px; }
+.instrument span { color: #e8f8ff; font-size: 15px; font-weight: bold; flex: 1; text-align: right; }
+.instrument unit { color: #7a9db0; font-size: 9px; }
+
+.trim-bar {
+  background: rgba(0, 10, 20, 0.72);
+  border: 1px solid rgba(100, 200, 255, 0.25);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trim-bar label { color: #5bc8f5; font-size: 9px; text-transform: uppercase; }
+.trim-bar .bar-track {
+  width: 70px;
+  height: 8px;
+  background: #1a2a3a;
+  border-radius: 4px;
+  position: relative;
+}
+
+.trim-bar .bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--trim-colour, #00ff88);
+  transition: width 0.1s, background 0.1s;
+}
+
+.trim-bar .optimal-marker {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 12px;
+  background: white;
+  opacity: 0.6;
+}
+
+@keyframes gustFlash {
+  0%,
+  100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.gust-active .instrument[data-id='inst-tws'] {
+  animation: gustFlash 0.4s ease-in-out infinite;
+}
