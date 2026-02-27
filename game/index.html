@@ -1,24 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1">
-  <meta name="theme-color" content="#0a0e1a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Browser-based naval combat game">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Ocean Outlaws</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png" type="image/png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <base href="./">
   <style>
+    :root {
+      color-scheme: dark;
+    }
+
     * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
     }
 
     html,
@@ -26,50 +20,72 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #0a0e1a;
-      /* Prevent text selection everywhere */
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-      /* Default cursor — no text cursor on UI */
-      cursor: default;
-      /* Prevent iOS touch callout */
-      -webkit-touch-callout: none;
-      /* Prevent tap highlight on mobile */
-      -webkit-tap-highlight-color: transparent;
-      /* Prevent pull-to-refresh & pinch-to-zoom */
-      overscroll-behavior: none;
-      touch-action: none;
+      background: radial-gradient(circle at 20% 20%, #15304a 0%, #0a1521 60%, #050b12 100%);
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      color: #d6ecff;
     }
 
-    canvas {
+    #canvas {
+      width: 100%;
+      height: 100%;
       display: block;
-      /* Prevent canvas drag */
-      -webkit-user-drag: none;
-      touch-action: none;
     }
 
-    img,
-    svg {
-      -webkit-user-drag: none;
-      user-drag: none;
-      pointer-events: none;
+    #fallback {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(5, 10, 16, 0.92);
+      text-align: center;
+    }
+
+    #fallback[hidden] {
+      display: none;
+    }
+
+    .panel {
+      max-width: 560px;
+      border: 1px solid rgba(148, 196, 230, 0.35);
+      border-radius: 12px;
+      padding: 24px;
+      background: rgba(11, 22, 34, 0.85);
+      backdrop-filter: blur(3px);
+    }
+
+    .panel h1 {
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+      letter-spacing: 0.04em;
+    }
+
+    .panel p {
+      line-height: 1.45;
+      margin-bottom: 10px;
+      color: #b9d8ef;
+    }
+
+    .panel a {
+      color: #7fd1ff;
+      text-decoration: none;
+    }
+
+    .panel a:hover {
+      text-decoration: underline;
     }
   </style>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
-    }
-  }
-  </script>
 </head>
-
 <body>
-  <script type="module" src="js/main.js"></script>
+  <canvas id="canvas" aria-label="Ocean Outlaws WebGPU canvas"></canvas>
+  <section id="fallback" hidden>
+    <div class="panel">
+      <h1>WebGPU Unavailable</h1>
+      <p id="fallback-message">This browser cannot start the WebGPU renderer.</p>
+      <p>Try a recent Chromium-based browser with WebGPU enabled.</p>
+      <p><a href="./legacy.html">Open legacy build</a></p>
+    </div>
+  </section>
+  <script type="module" src="./main.js"></script>
 </body>
-
 </html>

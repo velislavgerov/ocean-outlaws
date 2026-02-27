@@ -58,6 +58,7 @@ import { selectEvent, applyEventOutcome, getChoiceAvailability } from "./eventEn
 import { showEventModal, hideEventModal } from "./eventModal.js";
 import { createStorySetDressing, spawnStorySetDressing, clearStorySetDressing, shiftStorySetDressing } from "./storySetDressing.js";
 import { preloadStoryAudio, playStoryCue } from "./storyAudio.js";
+import { createRendererRuntime } from "./rendererRuntime.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -152,11 +153,11 @@ function fireWithSound(w, s, r, m) {
 }
 
 var qCfg = getQualityConfig();
-var renderer = new THREE.WebGLRenderer({ antialias: qCfg.antialias });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, qCfg.pixelRatioCap));
-renderer.setClearColor(0x0a0e1a);
-document.body.appendChild(renderer.domElement);
+var rendererRuntime = createRendererRuntime(THREE, qCfg);
+var renderer = rendererRuntime.renderer;
+if (renderer.domElement && !renderer.domElement.parentNode) {
+  document.body.appendChild(renderer.domElement);
+}
 
 var scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0e1a, 0.006);
@@ -365,7 +366,7 @@ if ("serviceWorker" in navigator) {
 createOrientationPrompt();
 onQualityChange(function (q) {
   var cfg = getQualityConfig();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, cfg.pixelRatioCap));
+  rendererRuntime.setQualityPixelRatio(cfg);
   ocean.uniforms.uShaderDetail.value = cfg.shaderDetail;
 });
 
@@ -1634,7 +1635,7 @@ setRestartCallback(function () {
 });
 
 window.addEventListener("resize", function () {
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  rendererRuntime.resize(window.innerWidth, window.innerHeight);
   resizeCamera(cam, window.innerWidth / window.innerHeight);
 });
 
@@ -1766,7 +1767,8 @@ function maybeApplyRollingOrigin() {
   applyRollingOriginShift(shiftX, shiftZ);
 }
 
-var clock = new THREE.Clock();
+var timer = new THREE.Timer();
+timer.connect(document);
 var simElapsed = 0;
 
 function buildWorldDebugSnapshot() {
@@ -2336,7 +2338,8 @@ function runFrame(dt) {
 
 function animate() {
   requestAnimationFrame(animate);
-  runFrame(Math.min(clock.getDelta(), 0.1));
+  timer.update();
+  runFrame(Math.min(timer.getDelta(), 0.1));
 }
 
 window.advanceTime = function (ms) {
@@ -2427,6 +2430,12 @@ window.render_game_to_text = function () {
   }
 
   var payload = {
+    renderer: {
+      backend: rendererRuntime && rendererRuntime.backend ? rendererRuntime.backend : "unknown",
+      className: renderer && renderer.constructor ? renderer.constructor.name : "unknown",
+      requested: window.__ooRequestedRenderer || "default",
+      fallbackReason: window.__ooRendererFallbackReason || null
+    },
     coordinateSystem: "X right/east, Z forward/south, Y up. Values are current rebased world coordinates.",
     mode: gameStarted ? (gameFrozen ? "frozen" : "combat") : "menu",
     weather: weather ? weather.current : "calm",
