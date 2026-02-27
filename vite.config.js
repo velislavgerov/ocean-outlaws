@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  base: '/ocean-outlaws/game/',
   root: './game',
   publicDir: '../static',
   build: {
-    outDir: '../dist',
+    outDir: '../dist/game',
     emptyOutDir: true,
     rollupOptions: {
       output: {

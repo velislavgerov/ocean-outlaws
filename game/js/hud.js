@@ -35,7 +35,7 @@ var hpBarBg = null, hpBar = null, hpLabel = null;
 var fuelBarBg = null, fuelBar = null;
 var minimapContainer = null;
 var abilityBar = null;
-var SLOT_SIZE = _mob ? 48 : 40, SLOT_GAP = _mob ? 6 : 4;
+var SLOT_SIZE = _mob ? 56 : 40, SLOT_GAP = _mob ? 8 : 4;
 var abilitySlots = [];
 var statsRow = null, ammoLabel = null, salvageLabel = null;
 var ammoPopup = null, ammoPopupTimer = 0, prevAmmo = -1;
@@ -137,14 +137,22 @@ export function createHUD() {
   createMinimap(minimapContainer);
   document.body.appendChild(minimapContainer);
 
-  // === BOTTOM-CENTER: QWER ability bar ===
+  // === QWER ability bar (bottom-center on desktop, bottom-right on mobile) ===
   abilityBar = document.createElement("div");
   var botPad = _mob ? "bottom:env(safe-area-inset-bottom,16px);" : "bottom:16px;";
-  abilityBar.style.cssText = [
-    "position:fixed", "left:50%", "transform:translateX(-50%)",
-    "pointer-events:none", "font-family:" + FONT, "color:" + C.text,
-    "user-select:none", "z-index:10", "text-align:center"
-  ].join(";") + ";" + botPad;
+  if (_mob) {
+    abilityBar.style.cssText = [
+      "position:fixed", "right:16px",
+      "pointer-events:none", "font-family:" + FONT, "color:" + C.text,
+      "user-select:none", "z-index:20", "text-align:center"
+    ].join(";") + ";" + botPad;
+  } else {
+    abilityBar.style.cssText = [
+      "position:fixed", "left:50%", "transform:translateX(-50%)",
+      "pointer-events:none", "font-family:" + FONT, "color:" + C.text,
+      "user-select:none", "z-index:10", "text-align:center"
+    ].join(";") + ";" + botPad;
+  }
 
   var slotRow = document.createElement("div");
   slotRow.style.cssText = "display:flex;gap:" + SLOT_GAP + "px;justify-content:center;";
@@ -184,6 +192,18 @@ export function createHUD() {
         if (onAbilityBarCallback) onAbilityBarCallback(idx);
       };
     })(i));
+
+    // touch handler for multitouch support on mobile
+    if (_mob) {
+      container.style.touchAction = "none";
+      container.addEventListener("touchstart", (function (idx) {
+        return function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (onAbilityBarCallback) onAbilityBarCallback(idx);
+        };
+      })(i), { passive: false });
+    }
 
     slotRow.appendChild(container);
     abilitySlots.push({ container: container, canvas: canvas, ctx: ctx, keyLabel: keyLabel });

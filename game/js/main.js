@@ -1,8 +1,10 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
-import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern } from "./ship.js";
-import { initInput, getInput, getMouse, consumeClick, getKeyActions, getAutofire, toggleAutofire, setAutofire, getFireTouch } from "./input.js";
+import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern, setNavTarget, clearNavTarget } from "./ship.js";
+import { initInput, getInput, getMouse, consumeClick, getKeyActions } from "./input.js";
+import { isMobile } from "./mobile.js";
+import { initMobileControls, getJoystickState } from "./mobileControls.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setAbilityBarCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
 import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
@@ -63,7 +65,7 @@ var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
 var lastZoneResult = null; // "victory" or "game_over"
 var wasHeld = false; // tracks previous frame hold state for release detection
-var wasFireTouchActive = false; // tracks previous frame fire-touch state for transition detection
+var wasJoystickActive = false; // tracks previous frame joystick state for release detection
 var HOLD_THRESHOLD = 200; // ms — presses shorter than this count as click, not hold
 var runEnemiesSunk = 0; // enemies sunk during current run
 var runGoldLooted = 0; // gold earned during current run
@@ -152,7 +154,7 @@ function fireWithSound(w, s, r, m) {
 }
 
 var qCfg = getQualityConfig();
-var renderer = new THREE.WebGLRenderer({ antialias: qCfg.antialias });
+var renderer = new THREE.WebGPURenderer({ antialias: qCfg.antialias });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, qCfg.pixelRatioCap));
 renderer.setClearColor(0x0a0e1a);
@@ -266,6 +268,7 @@ setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
 
 var waveMgr = createWaveManager();
 initInput(renderer.domElement);
+initMobileControls();
 createHUD();
 createWorldDebugView();
 
@@ -317,7 +320,6 @@ createShipSelectScreen();
 createSettingsMenu({
   onMute: function () { updateMuteButton(toggleMute()); },
   onVolume: function (vol) { setMasterVolume(vol); },
-  onAutofireToggle: function () { toggleAutofire(); playClick(); },
   onNewGame: function () {
     gameFrozen = true;
     gameStarted = false;
@@ -340,7 +342,7 @@ createSettingsMenu({
     if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
     if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
     cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
-    setAutofire(true);
+
     setWeather(weather, "calm");
     hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideEventModal(); hideInfamyScreen();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
@@ -1617,7 +1619,6 @@ setRestartCallback(function () {
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
-  setAutofire(true);
   setWeather(weather, "calm");
   hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideEventModal(); hideInfamyScreen();
   clearVoyageState();
@@ -1885,28 +1886,36 @@ function runFrame(dt) {
       consumeClick();
     }
 
-    // press-and-hold: continuously update nav target while pointer is held
-    // Only activate hold mode after HOLD_THRESHOLD ms — shorter presses are clicks (waypoints)
-    var holdElapsed = mouse.held ? performance.now() - mouse.holdStart : 0;
-    if (mouse.held && holdElapsed >= HOLD_THRESHOLD) {
-      handleHold(mouse.x, mouse.y);
-      wasHeld = true;
-    } else if (!mouse.held && wasHeld) {
-      // pointer released after a hold — stop continuous movement
-      stopHold();
-      wasHeld = false;
-    } else if (!mouse.held) {
-      wasHeld = false;
+    // mobile joystick movement
+    if (isMobile()) {
+      var joy = getJoystickState();
+      if (joy.active) {
+        var joyMag = Math.sqrt(joy.dx * joy.dx + joy.dy * joy.dy);
+        if (joyMag > 0.15) {
+          var NAV_JOYSTICK_DIST = 25;
+          var scaledDist = NAV_JOYSTICK_DIST * joyMag;
+          var dirX = joy.dx / joyMag;
+          var dirZ = joy.dy / joyMag;
+          setNavTarget(ship, ship.posX + dirX * scaledDist, ship.posZ + dirZ * scaledDist);
+        }
+        wasJoystickActive = true;
+      } else if (wasJoystickActive) {
+        clearNavTarget(ship);
+        wasJoystickActive = false;
+      }
+    } else {
+      // desktop: press-and-hold continuous movement
+      var holdElapsed = mouse.held ? performance.now() - mouse.holdStart : 0;
+      if (mouse.held && holdElapsed >= HOLD_THRESHOLD) {
+        handleHold(mouse.x, mouse.y);
+        wasHeld = true;
+      } else if (!mouse.held && wasHeld) {
+        stopHold();
+        wasHeld = false;
+      } else if (!mouse.held) {
+        wasHeld = false;
+      }
     }
-
-    // fire-touch: right-half touch enables enemy targeting and manual fire
-    var fireTouchState = getFireTouch();
-    if (fireTouchState.active && !wasFireTouchActive) {
-      // newly pressed fire touch — attempt enemy targeting at touch position
-      var ftResult = handleClick(fireTouchState.x, fireTouchState.y);
-      if (ftResult === "enemy") clickedEnemy = true;
-    }
-    wasFireTouchActive = fireTouchState.active;
 
     if (abilityState) {
       updateAbility(abilityState, dt);
@@ -1989,21 +1998,15 @@ function runFrame(dt) {
         }
       }
     }
-    // aim at combat target; fire based on autofire state or click
+    // aim at combat target; fire on click/tap
     if (target && target.alive) {
       aimAtEnemy(weapons, target);
-      if (canFire) {
+      if (canFire && clickedEnemy) {
         var fdx = target.posX - ship.posX;
         var fdz = target.posZ - ship.posZ;
         var inRange = Math.sqrt(fdx * fdx + fdz * fdz) <= getActiveWeaponRange(weapons);
         if (inRange) {
-          if (getAutofire()) {
-            // autofire ON: fire continuously
-            fireWithSound(weapons, scene, resources, mults);
-          } else if (clickedEnemy) {
-            // autofire OFF: fire on click
-            fireWithSound(weapons, scene, resources, mults);
-          }
+          fireWithSound(weapons, scene, resources, mults);
         }
       }
     }
@@ -2248,7 +2251,7 @@ function runFrame(dt) {
     var portInfo = getPortsInfo(portMgr, ship);
     updateHUD(speedRatio, getDisplaySpeed(ship), ship.heading, resources.ammo, resources.maxAmmo,
       hpInfo.hp, hpInfo.maxHp, resources.fuel, resources.maxFuel, resources.parts,
-      waveMgr.wave, waveState, dt, upgrades.gold, weaponInfo, abilityHudInfo, getWeatherLabel(weather), getAutofire(), portInfo, abilityBarSlots, crew);
+      waveMgr.wave, waveState, dt, upgrades.gold, weaponInfo, abilityHudInfo, getWeatherLabel(weather), false, portInfo, abilityBarSlots, crew);
 
     // minimap: collect port positions
     var portPositions = [];
@@ -2275,7 +2278,7 @@ function runFrame(dt) {
 
     // multiplayer: send ship state and update remote ships
     if (isMultiplayerActive(mpState)) {
-      sendShipState(mpState, ship, hpInfo.hp, hpInfo.maxHp, weapons.activeWeapon, getAutofire());
+      sendShipState(mpState, ship, hpInfo.hp, hpInfo.maxHp, weapons.activeWeapon, false);
       updateRemoteShips(dt, weatherWaveHeight, elapsed, scene);
       updateRemoteLabels(cam.camera);
       // Host sends enemy state and boss state to other clients

@@ -42,10 +42,6 @@ var waveInfo = null, ammoInfo = null;
 var muteBtn = null, volumeSlider = null;
 var onMuteCallback = null, onVolumeCallback = null;
 
-// --- autofire toggle (moved from HUD) ---
-var autofireBtn = null;
-var onAutofireToggleCallback = null;
-
 // --- game data from HUD ---
 var _gameData = null;
 
@@ -63,7 +59,6 @@ export function createSettingsMenu(callbacks) {
   onNewGameCallback = callbacks.onNewGame || null;
   onMuteCallback = callbacks.onMute || null;
   onVolumeCallback = callbacks.onVolume || null;
-  onAutofireToggleCallback = callbacks.onAutofireToggle || null;
 
   var _mob = isMobile();
 
@@ -156,12 +151,6 @@ export function createSettingsMenu(callbacks) {
   infoSection.appendChild(compassInfo);
 
   menuPanel.appendChild(infoSection);
-
-  // === AUTOFIRE TOGGLE ===
-  autofireBtn = makeButton("AUTOFIRE: OFF [F]", T.textDim, function () {
-    if (onAutofireToggleCallback) onAutofireToggleCallback();
-  });
-  menuPanel.appendChild(autofireBtn);
 
   // === SOUND CONTROLS ===
   var soundRow = document.createElement("div");
@@ -491,10 +480,6 @@ function refreshInfoLabels() {
     var deg = ((d.heading * 180 / Math.PI) % 360 + 360) % 360;
     var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
     compassInfo.textContent = "HEADING: " + dirs[Math.round(deg / 45) % 8] + " " + Math.round(deg) + "\u00B0";
-  }
-  if (autofireBtn && d.autofireOn !== undefined) {
-    autofireBtn.textContent = d.autofireOn ? "AUTOFIRE: ON [F]" : "AUTOFIRE: OFF [F]";
-    autofireBtn.style.color = d.autofireOn ? T.green : T.textDim;
   }
 }
 
