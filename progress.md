@@ -125,3 +125,21 @@ Next TODO suggestions:
 - Fixed deprecated time source in legacy game loop:
   - replaced `THREE.Clock` with `THREE.Timer` (`timer.connect(document); timer.update(); timer.getDelta()`).
 - Revalidated: `npm run smoke` and `npm run build` pass.
+
+## Update 8: Optional Water Pro adapter integrated (low-regression path)
+- Refactored `game/js/ocean.js` into a hybrid runtime:
+  - Legacy low-poly tiled ocean remains the default backend and visual path.
+  - Optional Water Pro runtime can be requested via `?water=pro`.
+  - Water Pro load/boot is async and guarded; legacy ocean remains active on any failure.
+- Added Water Pro runtime routing details:
+  - Query params: `water`, `waterVisual`, `waterPreset`, `waterLib`.
+  - Candidate module lookup paths: `/lib/threejs-water-pro.js`, `/water/threejs-water-pro.js`, `/vendor/threejs-water-pro.js`, `/threejs-water-pro.js`.
+- Added global water diagnostics for regression checks:
+  - `window.__ooWaterRequested`, `window.__ooWaterBackend`, `window.__ooWaterFallbackReason`.
+- Updated real-game state export (`render_game_to_text`) to include `water` block.
+- `game/js/main.js` now passes renderer + quality hint into ocean runtime and exposes renderer object/backend globally for feature adapters.
+- README updated with setup and route flags for Water Pro integration.
+
+Next TODO suggestions:
+- Add the licensed Water Pro module file into one of the documented paths and run manual browser validation on `/?renderer=webgpu&water=pro`.
+- If Water Pro exposes a deterministic height sampler, wire it fully into gameplay/weather scaling to replace legacy wave math for buoyancy and AI float sampling.

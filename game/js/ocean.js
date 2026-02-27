@@ -1,4 +1,4 @@
-// ocean.js — tiled flat-shaded CPU vertex-color ocean for effectively infinite traversal
+// ocean.js — low-poly legacy ocean with optional Water Pro runtime adapter.
 import * as THREE from "three";
 
 var BASE_DEEP = new THREE.Color("#2a5577");
@@ -7,6 +7,42 @@ var TMP_COLOR = new THREE.Color();
 
 var OCEAN_SIZE = 400;
 var OCEAN_TILE_RADIUS = 1; // 3x3 tiles around camera anchor
+
+var activeOceanUniforms = null;
+var waterQueryConfig = null;
+var waterProModulePromise = null;
+
+function getWaterQueryConfig() {
+  if (waterQueryConfig) return waterQueryConfig;
+  var params = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  var mode = (params.get("water") || "legacy").toLowerCase();
+  if (mode !== "pro") mode = "legacy";
+
+  var visualMode = (params.get("waterVisual") || "legacy").toLowerCase();
+  if (visualMode !== "pro") visualMode = "legacy";
+
+  var preset = params.get("waterPreset");
+  var libPath = params.get("waterLib");
+
+  waterQueryConfig = {
+    mode: mode,
+    visualMode: visualMode,
+    preset: preset ? String(preset) : null,
+    libPath: libPath ? String(libPath) : null
+  };
+  return waterQueryConfig;
+}
+
+function normalizeQualityHint(input) {
+  if (!input) return "high";
+  var q = String(input).toLowerCase();
+  if (q === "low") return "low";
+  if (q === "medium" || q === "mid") return "medium";
+  return "high";
+}
 
 function createCompatUniforms() {
   return {
@@ -32,7 +68,7 @@ function buildOceanTile(size, segments, material) {
   return { mesh: mesh, geometry: geometry };
 }
 
-export function createOcean(segments) {
+function createLegacyOcean(segments) {
   var segs = Math.max(8, Math.floor(segments || 56));
   var size = OCEAN_SIZE;
 
@@ -65,6 +101,16 @@ export function createOcean(segments) {
   uniforms.__tileRadius = OCEAN_TILE_RADIUS;
 
   return { mesh: group, uniforms: uniforms };
+}
+
+function getLegacyWaveHeight(worldX, worldZ, time, waveAmp, waveSteps) {
+  var amp = waveAmp !== undefined ? waveAmp : 1.0;
+  var h = 0;
+  h += Math.sin(worldX * 0.22 + time * 0.9) * 0.8 * amp;
+  h += Math.sin(worldZ * 0.18 + time * 0.7) * 0.65 * amp;
+  h += Math.sin(worldX * 0.55 + worldZ * 0.4 + time * 1.1) * 0.25 * amp;
+  if (waveSteps !== undefined && waveSteps > 0.5) h = Math.floor(h * waveSteps) / waveSteps;
+  return h;
 }
 
 function updateTileHeights(tile, elapsed, amp, steps, deepColor, shallowColor) {
@@ -107,7 +153,7 @@ function positionTilesAroundCamera(uniforms, camera) {
   }
 }
 
-export function updateOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, camera, weatherDim, foamIntensity, cloudShadow) {
+function updateLegacyOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, camera, weatherDim) {
   if (!uniforms || !uniforms.__tiles || uniforms.__tiles.length === 0) return;
 
   var amp = waveAmplitude !== undefined ? waveAmplitude : uniforms.uWaveAmp.value;
@@ -141,12 +187,253 @@ export function updateOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTi
   }
 }
 
+function syncWindowWaterState(uniforms) {
+  if (typeof window === "undefined") return;
+  window.__ooWaterRequested = uniforms ? uniforms.__waterRequested : "legacy";
+  window.__ooWaterBackend = uniforms ? uniforms.__waterBackend : "legacy";
+  window.__ooWaterFallbackReason = uniforms ? (uniforms.__waterFallbackReason || null) : null;
+}
+
+function getWaterLibCandidates() {
+  var cfg = getWaterQueryConfig();
+  var candidates = [];
+  if (cfg.libPath) candidates.push(cfg.libPath);
+  candidates.push("/lib/threejs-water-pro.js");
+  candidates.push("/water/threejs-water-pro.js");
+  candidates.push("/vendor/threejs-water-pro.js");
+  candidates.push("/threejs-water-pro.js");
+  return candidates;
+}
+
+function getWaterSystemCtor(moduleNs) {
+  if (!moduleNs) return null;
+  if (moduleNs.WaterSystem) return moduleNs.WaterSystem;
+  if (moduleNs.default && moduleNs.default.WaterSystem) return moduleNs.default.WaterSystem;
+  if (typeof moduleNs.default === "function") return moduleNs.default;
+  return null;
+}
+
+async function loadWaterProModule() {
+  if (waterProModulePromise) return waterProModulePromise;
+  waterProModulePromise = (async function () {
+    var candidates = getWaterLibCandidates();
+    var lastError = null;
+    for (var i = 0; i < candidates.length; i++) {
+      var path = candidates[i];
+      try {
+        var mod = await import(/* @vite-ignore */ path);
+        if (mod) return mod;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("Water Pro module was not found.");
+  })();
+  return waterProModulePromise;
+}
+
+async function instantiateWaterSystem(WaterSystem, renderer, scene, camera, qualityHint) {
+  var attempts = [];
+  if (typeof WaterSystem.create === "function") {
+    attempts.push(function () { return WaterSystem.create(renderer, scene, camera, qualityHint); });
+    attempts.push(function () { return WaterSystem.create(renderer, scene, camera); });
+    attempts.push(function () { return WaterSystem.create({ renderer: renderer, scene: scene, camera: camera, quality: qualityHint }); });
+    attempts.push(function () { return WaterSystem.create({ renderer: renderer, scene: scene, camera: camera }); });
+  }
+  if (typeof WaterSystem === "function") {
+    attempts.push(function () { return new WaterSystem(renderer, scene, camera, qualityHint); });
+    attempts.push(function () { return new WaterSystem({ renderer: renderer, scene: scene, camera: camera, quality: qualityHint }); });
+    attempts.push(function () { return new WaterSystem(); });
+  }
+
+  var lastError = null;
+  for (var i = 0; i < attempts.length; i++) {
+    try {
+      var instance = await attempts[i]();
+      if (instance) return instance;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Water Pro factory did not return an instance.");
+}
+
+function detectRuntimeRoot(instance) {
+  if (!instance) return null;
+  return instance.object3d || instance.object || instance.mesh || instance.group || instance.surface || null;
+}
+
+function updateWaterRuntime(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, weatherDim, foamIntensity, cloudShadow) {
+  var runtime = uniforms.__waterRuntime;
+  if (!runtime || !runtime.instance || runtime.updateFailed) return;
+
+  var dt = uniforms.__lastWaterElapsed === null
+    ? 0
+    : Math.max(0, Math.min(0.1, elapsed - uniforms.__lastWaterElapsed));
+  uniforms.__lastWaterElapsed = elapsed;
+
+  try {
+    if (typeof runtime.instance.update === "function") {
+      runtime.instance.update(dt);
+    }
+    if (typeof runtime.instance.setWeather === "function") {
+      runtime.instance.setWeather({
+        waveAmplitude: waveAmplitude,
+        waveSteps: waveSteps,
+        waterTint: waterTint,
+        weatherDim: weatherDim,
+        foamIntensity: foamIntensity,
+        cloudShadow: cloudShadow,
+        dayNight: dayNight
+      });
+    }
+  } catch (error) {
+    runtime.updateFailed = true;
+    uniforms.__waterFallbackReason = "water-pro-update-failed";
+    console.warn("[water] Water Pro update failed, keeping legacy ocean active", error);
+    syncWindowWaterState(uniforms);
+  }
+}
+
+function tryWaterRuntimeHeight(uniforms, worldX, worldZ, time) {
+  if (!uniforms || uniforms.__waterBackend !== "water-pro" || !uniforms.__waterRuntime) return null;
+  var runtime = uniforms.__waterRuntime.instance;
+  if (!runtime || typeof runtime.getHeightAt !== "function") return null;
+  try {
+    var sampled = runtime.getHeightAt(worldX, worldZ, time);
+    if (typeof sampled === "number" && Number.isFinite(sampled)) return sampled;
+  } catch (error) {
+    uniforms.__waterFallbackReason = "water-pro-height-sample-failed";
+    syncWindowWaterState(uniforms);
+  }
+  return null;
+}
+
+function maybeInitWaterPro(uniforms, camera) {
+  if (!uniforms || uniforms.__waterRequested !== "pro" || uniforms.__waterInitStarted) return;
+  if (!camera) return;
+
+  var renderer = uniforms.__renderer || (typeof window !== "undefined" ? window.__ooRendererObject : null);
+  var scene = uniforms.__container ? uniforms.__container.parent : null;
+  if (!renderer || !scene) return;
+
+  var backend = typeof window !== "undefined" ? window.__ooRendererBackend : null;
+  var rendererName = renderer && renderer.constructor ? renderer.constructor.name : "";
+  var webgpuActive = backend === "webgpu" || rendererName.indexOf("WebGPU") !== -1;
+  if (!webgpuActive) {
+    uniforms.__waterFallbackReason = "water-pro-needs-webgpu";
+    syncWindowWaterState(uniforms);
+    return;
+  }
+
+  uniforms.__waterInitStarted = true;
+  uniforms.__waterInitPromise = (async function () {
+    try {
+      var moduleNs = await loadWaterProModule();
+      var WaterSystem = getWaterSystemCtor(moduleNs);
+      if (!WaterSystem) throw new Error("WaterSystem export is missing.");
+
+      var instance = await instantiateWaterSystem(
+        WaterSystem,
+        renderer,
+        scene,
+        camera,
+        uniforms.__waterQualityHint
+      );
+      if (!instance) throw new Error("Water Pro returned an empty instance.");
+
+      if (uniforms.__waterPreset && typeof instance.loadPreset === "function") {
+        await instance.loadPreset(uniforms.__waterPreset);
+      }
+
+      var root = detectRuntimeRoot(instance);
+      if (root && root.isObject3D && !root.parent) {
+        scene.add(root);
+      }
+
+      uniforms.__waterRuntime = {
+        instance: instance,
+        root: root,
+        updateFailed: false
+      };
+      uniforms.__waterBackend = "water-pro";
+      uniforms.__waterFallbackReason = null;
+
+      if (root && root.isObject3D && uniforms.__waterVisualMode !== "pro") {
+        root.visible = false;
+      }
+      if (uniforms.__waterVisualMode === "pro" && uniforms.__oceanMesh) {
+        uniforms.__oceanMesh.visible = false;
+      }
+
+      syncWindowWaterState(uniforms);
+      console.info("[water] Water Pro initialized", {
+        visualMode: uniforms.__waterVisualMode,
+        quality: uniforms.__waterQualityHint
+      });
+    } catch (error) {
+      uniforms.__waterBackend = "legacy";
+      uniforms.__waterRuntime = null;
+      uniforms.__waterFallbackReason = "water-pro-load-failed";
+      syncWindowWaterState(uniforms);
+      console.warn("[water] Water Pro unavailable, continuing with legacy ocean", error);
+    }
+  })();
+}
+
+export function createOcean(segments, options) {
+  var legacy = createLegacyOcean(segments);
+  var group = new THREE.Group();
+  group.add(legacy.mesh);
+
+  var query = getWaterQueryConfig();
+  var uniforms = legacy.uniforms;
+  uniforms.__container = group;
+  uniforms.__renderer = options && options.renderer ? options.renderer : null;
+  uniforms.__waterRequested = query.mode;
+  uniforms.__waterBackend = "legacy";
+  uniforms.__waterFallbackReason = null;
+  uniforms.__waterVisualMode = query.visualMode;
+  uniforms.__waterPreset = query.preset;
+  uniforms.__waterQualityHint = normalizeQualityHint(options && options.qualityHint ? options.qualityHint : "high");
+  uniforms.__waterRuntime = null;
+  uniforms.__waterInitStarted = false;
+  uniforms.__waterInitPromise = null;
+  uniforms.__lastWaterElapsed = null;
+  uniforms.__setQualityHint = function (nextQualityHint) {
+    uniforms.__waterQualityHint = normalizeQualityHint(nextQualityHint);
+  };
+
+  activeOceanUniforms = uniforms;
+  syncWindowWaterState(uniforms);
+
+  return { mesh: group, uniforms: uniforms };
+}
+
+export function updateOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, camera, weatherDim, foamIntensity, cloudShadow) {
+  if (!uniforms) return;
+
+  maybeInitWaterPro(uniforms, camera);
+
+  var useLegacyVisual = uniforms.__waterVisualMode !== "pro" || uniforms.__waterBackend !== "water-pro";
+  if (useLegacyVisual) {
+    updateLegacyOcean(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, camera, weatherDim);
+  }
+
+  if (uniforms.__waterBackend === "water-pro" && uniforms.__waterRuntime) {
+    updateWaterRuntime(uniforms, elapsed, waveAmplitude, waveSteps, waterTint, dayNight, weatherDim, foamIntensity, cloudShadow);
+  }
+}
+
 export function getWaveHeight(worldX, worldZ, time, waveAmp, waveSteps) {
-  var amp = waveAmp !== undefined ? waveAmp : 1.0;
-  var h = 0;
-  h += Math.sin(worldX * 0.22 + time * 0.9) * 0.8 * amp;
-  h += Math.sin(worldZ * 0.18 + time * 0.7) * 0.65 * amp;
-  h += Math.sin(worldX * 0.55 + worldZ * 0.4 + time * 1.1) * 0.25 * amp;
-  if (waveSteps !== undefined && waveSteps > 0.5) h = Math.floor(h * waveSteps) / waveSteps;
-  return h;
+  var runtimeHeight = tryWaterRuntimeHeight(activeOceanUniforms, worldX, worldZ, time);
+  if (runtimeHeight !== null) {
+    var ampScale = waveAmp !== undefined ? waveAmp : 1.0;
+    var shaped = runtimeHeight * ampScale;
+    if (waveSteps !== undefined && waveSteps > 0.5) {
+      shaped = Math.floor(shaped * waveSteps) / waveSteps;
+    }
+    return shaped;
+  }
+  return getLegacyWaveHeight(worldX, worldZ, time, waveAmp, waveSteps);
 }

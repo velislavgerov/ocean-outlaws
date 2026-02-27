@@ -155,6 +155,10 @@ function fireWithSound(w, s, r, m) {
 var qCfg = getQualityConfig();
 var rendererRuntime = createRendererRuntime(THREE, qCfg);
 var renderer = rendererRuntime.renderer;
+if (typeof window !== "undefined") {
+  window.__ooRendererObject = renderer;
+  window.__ooRendererBackend = rendererRuntime && rendererRuntime.backend ? rendererRuntime.backend : "webgl";
+}
 if (renderer.domElement && !renderer.domElement.parentNode) {
   document.body.appendChild(renderer.domElement);
 }
@@ -169,7 +173,17 @@ scene.add(sun);
 var hemi = new THREE.HemisphereLight(0x1a1a3a, 0x050510, 0.3);
 scene.add(hemi);
 
-var ocean = createOcean(qCfg.oceanSegments);
+function getWaterQualityHint(cfg) {
+  if (!cfg) return "high";
+  if (cfg.shaderDetail <= 0 || cfg.oceanSegments <= 64) return "low";
+  if (cfg.shaderDetail <= 1 || cfg.oceanSegments <= 96) return "medium";
+  return "high";
+}
+
+var ocean = createOcean(qCfg.oceanSegments, {
+  renderer: renderer,
+  qualityHint: getWaterQualityHint(qCfg)
+});
 ocean.uniforms.uShaderDetail.value = qCfg.shaderDetail;
 scene.add(ocean.mesh);
 
@@ -368,6 +382,9 @@ onQualityChange(function (q) {
   var cfg = getQualityConfig();
   rendererRuntime.setQualityPixelRatio(cfg);
   ocean.uniforms.uShaderDetail.value = cfg.shaderDetail;
+  if (ocean.uniforms.__setQualityHint) {
+    ocean.uniforms.__setQualityHint(getWaterQualityHint(cfg));
+  }
 });
 
 // --- multiplayer ---
@@ -2435,6 +2452,12 @@ window.render_game_to_text = function () {
       className: renderer && renderer.constructor ? renderer.constructor.name : "unknown",
       requested: window.__ooRequestedRenderer || "default",
       fallbackReason: window.__ooRendererFallbackReason || null
+    },
+    water: {
+      requested: window.__ooWaterRequested || "legacy",
+      backend: window.__ooWaterBackend || "legacy",
+      fallbackReason: window.__ooWaterFallbackReason || null,
+      visualMode: ocean && ocean.uniforms ? ocean.uniforms.__waterVisualMode || "legacy" : "legacy"
     },
     coordinateSystem: "X right/east, Z forward/south, Y up. Values are current rebased world coordinates.",
     mode: gameStarted ? (gameFrozen ? "frozen" : "combat") : "menu",

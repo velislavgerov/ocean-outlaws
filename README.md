@@ -42,3 +42,21 @@ Route notes:
 - `/` loads the real Ocean Outlaws game.
 - `/?renderer=webgpu` loads the real game and requests WebGPU renderer runtime (falls back safely if unavailable).
 - `/?bootstrap=1` loads the isolated WebGPU bootstrap scene.
+
+## Water Pro (Optional)
+
+Water Pro is integrated as an optional runtime path with safe fallback to the existing low-poly ocean.
+
+1. Add the Water Pro module file from your licensed package to one of:
+   - `game/lib/threejs-water-pro.js`
+   - `game/water/threejs-water-pro.js`
+   - `game/vendor/threejs-water-pro.js`
+2. Start the game with WebGPU + Water Pro:
+   - `http://127.0.0.1:1234/?renderer=webgpu&water=pro`
+
+Useful query params:
+- `water=pro` enables Water Pro runtime loading.
+- `waterVisual=legacy` keeps current low-poly visual ocean (default).
+- `waterVisual=pro` switches visible surface to Water Pro when it initializes.
+- `waterPreset=<name>` forwards a preset name if Water Pro exposes `loadPreset`.
+- `waterLib=<path>` overrides module path (example: `/lib/threejs-water-pro.js`).
