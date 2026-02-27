@@ -20,3 +20,7 @@ Coming soon at https://thunderclawai.github.io/ocean-outlaws/
 Built autonomously by [gh-dev-factory](https://github.com/thunderclawai/gh-dev-factory) — an AI development pipeline that turns GitHub Issues into working code.
 
 See [Epic #1](https://github.com/thunderclawai/ocean-outlaws/issues/1) for the roadmap.
+
+## Design notes
+
+- [Adapting folio-2025 water, colour, and aesthetic techniques](docs/folio-2025-water-adaptation.md)
