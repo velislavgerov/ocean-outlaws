@@ -32,10 +32,20 @@ var DROP_CHANCE_GOLD = 0.20;
 var crateGeo = null;
 var barrelGeo = null;
 
+var cachedPickupMat = {};
+var cachedPickupLight = {};
+
 function ensureGeo() {
   if (crateGeo) return;
   crateGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
   barrelGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.7, 8);
+  var types = ["ammo", "fuel", "parts", "gold"];
+  for (var i = 0; i < types.length; i++) {
+    var t = types[i];
+    cachedPickupMat[t] = new THREE.MeshToonMaterial({ color: TYPE_COLORS[t] });
+    cachedPickupLight[t] = new THREE.PointLight(GLOW_COLORS[t] || 0xffffff, 1.0, 6);
+    cachedPickupLight[t].position.set(0, 0.5, 0);
+  }
 }
 
 var PICKUP_MODEL_POOLS = {
@@ -113,8 +123,7 @@ function buildPickupMesh(type) {
   ensureGeo();
   var group = new THREE.Group();
 
-  var color = TYPE_COLORS[type] || 0xffffff;
-  var mat = new THREE.MeshToonMaterial({ color: color });
+  var mat = cachedPickupMat[type] || new THREE.MeshToonMaterial({ color: TYPE_COLORS[type] || 0xffffff });
 
   var mesh;
   if (type === "fuel") {
@@ -125,7 +134,7 @@ function buildPickupMesh(type) {
   mesh.userData.pickupFallback = true;
   group.add(mesh);
 
-  // glow point light
+  // glow point light — create a fresh one per pickup (lights need separate instances for position)
   var glowColor = GLOW_COLORS[type] || 0xffffff;
   var light = new THREE.PointLight(glowColor, 1.0, 6);
   light.position.set(0, 0.5, 0);
@@ -285,4 +294,21 @@ function collectPickup(pickup, resources, upgrades) {
     addGold(upgrades, GOLD_DROP_AMOUNT);
   }
   console.log("[PICKUP] Collected " + pickup.type);
+}
+
+// --- pre-warm GLB models to avoid shader compile stutter on first pickup ---
+export function preloadPickupModels(scene) {
+  var types = ["ammo", "fuel", "parts", "gold"];
+  for (var i = 0; i < types.length; i++) {
+    var models = PICKUP_MODEL_POOLS[types[i]];
+    for (var j = 0; j < models.length; j++) {
+      (function(model) {
+        loadGlbVisual(model.path, model.fit, true).then(function(obj) {
+          obj.position.set(99999, 0, 99999);
+          obj.visible = false;
+          scene.add(obj);
+        }).catch(function() {});
+      })(models[j]);
+    }
+  }
 }

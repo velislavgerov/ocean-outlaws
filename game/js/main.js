@@ -14,7 +14,7 @@ import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOr
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
-import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext } from "./pickup.js";
+import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext, preloadPickupModels } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
 import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost, applyFreeUpgrade } from "./upgrade.js";
 import { createCardPicker, showCardPicker, hideCardPicker } from "./cardPicker.js";
@@ -188,6 +188,7 @@ if (renderer.domElement && !renderer.domElement.parentNode) {
 updateLoadingBar(10, "Renderer ready...");
 
 var scene = new THREE.Scene();
+preloadPickupModels(scene);
 scene.fog = new THREE.FogExp2(0x0a0e1a, 0.006);
 var ambient = new THREE.AmbientLight(0x1a2040, 0.6);
 scene.add(ambient);
