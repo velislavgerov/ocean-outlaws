@@ -61,6 +61,10 @@ import { showEventModal, hideEventModal } from "./eventModal.js";
 import { createStorySetDressing, spawnStorySetDressing, clearStorySetDressing, shiftStorySetDressing } from "./storySetDressing.js";
 import { preloadStoryAudio, playStoryCue } from "./storyAudio.js";
 import { createRendererRuntime } from "./rendererRuntime.js";
+import { createTicker } from "./ticker.js";
+import { initDebug, addDebugFolder, addDebugBinding, addFPSMonitor, updateDebugFPS } from "./debug.js";
+import { updateTimeUniforms, updateCameraUniforms, updateWindUniforms, updateDayNightUniforms, updateWeatherUniforms } from "./sharedUniforms.js";
+import { preCompileShaders } from "./preRenderer.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -200,6 +204,24 @@ weather.splashes = splashes;
 
 var dayNight = createDayNight();
 var stars = createStars(scene);
+
+// Debug panel — activated by #debug in URL (folio-2025 pattern)
+initDebug().then(function (debugPane) {
+  if (!debugPane) return;
+  addFPSMonitor();
+  var oceanFolder = addDebugFolder("Ocean");
+  if (oceanFolder && ocean.uniforms) {
+    addDebugBinding(oceanFolder, ocean.uniforms.uWaveAmp, "value", { label: "Wave Amplitude", min: 0, max: 5, step: 0.1 });
+  }
+  var fogFolder = addDebugFolder("Fog");
+  if (fogFolder && scene.fog) {
+    addDebugBinding(fogFolder, scene.fog, "density", { label: "Fog Density", min: 0, max: 0.05, step: 0.001 });
+  }
+  var rendererFolder = addDebugFolder("Renderer");
+  if (rendererFolder) {
+    addDebugBinding(rendererFolder, { backend: rendererRuntime.backend }, "backend", { readonly: true, label: "Backend" });
+  }
+});
 
 var ship = null;
 var weapons = null;
@@ -1781,8 +1803,7 @@ function maybeApplyRollingOrigin() {
   applyRollingOriginShift(shiftX, shiftZ);
 }
 
-var timer = new THREE.Timer();
-timer.connect(document);
+var ticker = createTicker();
 var simElapsed = 0;
 
 function buildWorldDebugSnapshot() {
@@ -1826,6 +1847,8 @@ function buildWorldDebugSnapshot() {
 function runFrame(dt) {
   dt = Math.min(dt || 0, 0.1);
   simElapsed += dt;
+  updateTimeUniforms(dt, simElapsed);
+  updateDebugFPS(dt);
   var elapsed = simElapsed;
   var input = getInput();
   var mouse = getMouse();
@@ -1928,6 +1951,7 @@ function runFrame(dt) {
     if (ship.speedBoostActive) { mults = Object.assign({}, mults); mults.maxSpeed = mults.maxSpeed * 2; }
     var canFire = !ship.diveActive;
     var wp = getWeatherPreset(weather);
+    updateWindUniforms(wp.windX || 0, wp.windZ || 0, 1.0);
     mults = Object.assign({}, mults);
     mults.windX = wp.windX;
     mults.windZ = wp.windZ;
@@ -1936,7 +1960,9 @@ function runFrame(dt) {
     var weatherWaveHeight = function (wx, wz, wt) { return getWaveHeight(wx, wz, wt, waveAmp, waveSteps); };
     // day/night cycle
     updateDayNight(dayNight, dt);
+    updateDayNightUniforms(dayNight.timeOfDay || 0);
     var wDim = getWeatherDim(weather);
+    updateWeatherUniforms(wDim, scene.fog.density);
     var lightDim = weather.lightningActive ? 3.0 : wDim;
     applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, lightDim);
     updateStars(stars, dayNight.timeOfDay);
@@ -1965,6 +1991,7 @@ function runFrame(dt) {
     consumeFuel(resources, speedRatio, dt);
     updateNav(ship, elapsed);
     updateCamera(cam, dt, ship.posX, ship.posZ);
+    updateCameraUniforms(cam.camera.position.x, cam.camera.position.z);
     // auto-targeting: acquire nearest enemy if no combat target
     var target = getCombatTarget();
     if (!target) {
@@ -2354,18 +2381,24 @@ function runFrame(dt) {
     updateUIEffects(dt);
   }
 
+}
+
+// Register the game loop at tick order 0 (highest priority)
+ticker.events.on("tick", function (dt) {
+  runFrame(dt);
+}, 0);
+
+// Register render pass at tick order 998 (last)
+ticker.events.on("tick", function () {
   if (isWorldDebugVisible()) {
     updateWorldDebugView(buildWorldDebugSnapshot());
   }
-
   renderer.render(scene, cam.camera);
-}
+}, 998);
 
-function animate() {
-  requestAnimationFrame(animate);
-  timer.update();
-  runFrame(Math.min(timer.getDelta(), 0.1));
-}
+// Pre-compile shaders before starting the loop
+preCompileShaders(renderer, scene, cam.camera);
+ticker.start();
 
 window.advanceTime = function (ms) {
   var add = Number(ms) || 0;
@@ -2373,7 +2406,7 @@ window.advanceTime = function (ms) {
   var steps = Math.max(1, Math.round(add / (1000 / 60)));
   var dt = (add / 1000) / steps;
   for (var i = 0; i < steps; i++) {
-    runFrame(dt);
+    ticker.manualTick(dt);
   }
   return Promise.resolve();
 };
@@ -2517,8 +2550,6 @@ window.render_game_to_text = function () {
 
   return JSON.stringify(payload);
 };
-
-animate();
 
 // Debug helpers for tuning weighted role entries during playtests.
 window.get_role_pick_stats = function () {
