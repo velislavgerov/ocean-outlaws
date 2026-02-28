@@ -68,29 +68,7 @@ var HOLD_THRESHOLD = 200; // ms — presses shorter than this count as click, no
 var runEnemiesSunk = 0; // enemies sunk during current run
 var runGoldLooted = 0; // gold earned during current run
 var runZonesReached = 0; // zones visited during current run
-var currentRunSeed = null; // non-null when in a roguelite run
-var currentNode = null; // current voyage chart node being fought
 var currentRoleContext = null; // active zone/node context for role-based model selection
-var activeStoryState = null; // per-run narrative state (single-player only)
-var pendingEncounterOverride = null; // event-driven encounter modifiers for next combat node
-
-var HARBOR_STORY_BEATS = {
-  frontier_isles: {
-    rep: { merchant: 5, navy: 2 },
-    banner: "Harbor Rumors: Frontier Isles",
-    text: "At a frontier harbor, dockmasters shared ledgers tying local raids to pirate quartermasters."
-  },
-  storm_belt: {
-    rep: { merchant: 4, pirates: 2 },
-    banner: "Harbor Rumors: Storm Belt",
-    text: "In a storm-belt harbor, convoy captains traded warnings about protection rackets and false beacons."
-  },
-  forgotten_depths: {
-    rep: { navy: 3, merchant: 3 },
-    banner: "Harbor Rumors: Forgotten Depths",
-    text: "A deepwater harbor logbook mentioned phantom hulls and missing escorts near trench lanes."
-  }
-};
 
 var batteryTargetWorld = new THREE.Vector3();
 var batteryHudWorld = new THREE.Vector3();
@@ -249,8 +227,6 @@ var portScreenOpen = false;
 var mapState = loadMapState();
 var activeZoneId = null;
 var activeTerrain = null;
-var activeChart = null;
-var activeVoyageState = null;
 var resources = createResources();
 var pickupMgr = createPickupManager();
 var portMgr = createPortManager();
@@ -262,7 +238,6 @@ var upgrades = createUpgradeState();
 createCardPicker();
 var crew = createCrewState();
 var crewPickupMgr = createCrewPickupManager();
-var storySetDressing = createStorySetDressing();
 createCrewSwap();
 var techState = loadTechState();
 createTechScreen();
