@@ -1978,25 +1978,13 @@ function runFrame(dt) {
     if (ship.speedBoostActive) { mults = Object.assign({}, mults); mults.maxSpeed = mults.maxSpeed * 2; }
     var canFire = !ship.diveActive;
     var wp = getWeatherPreset(weather);
-    updateWindUniforms(wp.windX || 0, wp.windZ || 0, 1.0);
     mults = Object.assign({}, mults);
     mults.windX = wp.windX;
     mults.windZ = wp.windZ;
     var waveAmp = wp.waveAmplitude;
     var waveSteps = wp.waveSteps !== undefined ? wp.waveSteps : 0;
     var weatherWaveHeight = function (wx, wz, wt) { return getWaveHeight(wx, wz, wt, waveAmp, waveSteps); };
-    // day/night cycle
-    updateDayNight(dayNight, dt);
-    updateDayNightUniforms(dayNight.timeOfDay || 0);
-    var wDim = getWeatherDim(weather);
-    updateWeatherUniforms(wDim, scene.fog.density);
-    var lightDim = weather.lightningActive ? 3.0 : wDim;
-    applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, lightDim);
-    updateStars(stars, dayNight.timeOfDay);
-    updateShipLantern(ship, getNightness(dayNight.timeOfDay));
-    // ocean must update before ships so wave height is current-frame
-    updateOcean(ocean.uniforms, elapsed, wp.waveAmplitude, waveSteps, wp.waterTint, dayNight, cam.camera, wDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
-    updateWeather(weather, dt, scene, ship.posX, ship.posZ);
+    // day/night, ocean, and weather visual updates extracted to tick order 8
     // Weather changes: host-only in multiplayer, broadcast to all
     var prevWeather = weather.current;
     if (!isMultiplayerActive(mpState) || mpState.isHost) {
@@ -2361,16 +2349,7 @@ function runFrame(dt) {
       cam.camera.position.z += shake.offsetY;
     }
 
-    if (!gameFrozen) {
-      updateSailing(speedRatio);
-      updateAmbience(weather.current, dt);
-      updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
-    }
-    var musicMode = "calm";
-    if (portScreenOpen) musicMode = "port";
-    else if (bossAlive) musicMode = "boss";
-    else if (aliveEnemyCount > 0) musicMode = "combat";
-    updateMusic(musicMode);
+    // sound updates extracted to tick order 11
     if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) {
       playPlayerHit();
       var dmgAmount = prevPlayerHp - hpInfo.hp;
@@ -2390,14 +2369,7 @@ function runFrame(dt) {
     }
     prevPlayerHp = hpInfo.hp;
   } else {
-    var wpIdle = getWeatherPreset(weather);
-    updateDayNight(dayNight, dt);
-    var idleDim = getWeatherDim(weather);
-    applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, idleDim);
-    updateStars(stars, dayNight.timeOfDay);
-    if (ship) updateShipLantern(ship, getNightness(dayNight.timeOfDay));
-    updateOcean(ocean.uniforms, elapsed, wpIdle.waveAmplitude, wpIdle.waveSteps !== undefined ? wpIdle.waveSteps : 0, wpIdle.waterTint, dayNight, cam.camera, idleDim, getWeatherFoam(weather), getWeatherCloudShadow(weather));
-    updateWeather(weather, dt, scene, ship ? ship.posX : 0, ship ? ship.posZ : 0);
+    // day/night, ocean, and weather extracted to tick order 8
     if (ship) {
       updateCamera(cam, dt, ship.posX, ship.posZ);
     } else {
@@ -2412,10 +2384,53 @@ ticker.events.on("tick", function (dt) {
   runFrame(dt);
 }, 0);
 
+// Day/night and weather visual updates at tick order 8 (folio-2025 pattern)
+ticker.events.on("tick", function (dt) {
+  var wp = getWeatherPreset(weather);
+  var wDim = getWeatherDim(weather);
+  var lightDim = weather.lightningActive ? 3.0 : wDim;
+
+  updateDayNight(dayNight, dt);
+  updateDayNightUniforms(dayNight.timeOfDay || 0);
+  updateWindUniforms(wp.windX || 0, wp.windZ || 0, 1.0);
+  updateWeatherUniforms(wDim, scene.fog.density);
+  applyDayNight(dayNight, ambient, sun, hemi, scene.fog, renderer, lightDim);
+  updateStars(stars, dayNight.timeOfDay);
+  if (ship) updateShipLantern(ship, getNightness(dayNight.timeOfDay));
+
+  updateOcean(ocean.uniforms, simElapsed, wp.waveAmplitude,
+    wp.waveSteps !== undefined ? wp.waveSteps : 0,
+    wp.waterTint, dayNight, cam.camera, wDim,
+    getWeatherFoam(weather), getWeatherCloudShadow(weather));
+  updateWeather(weather, dt, scene,
+    ship ? ship.posX : 0, ship ? ship.posZ : 0);
+}, 8);
+
 // Register UI effects at tick order 10
 ticker.events.on("tick", function (dt) {
   updateUIEffects(dt);
 }, 10);
+
+// Sound updates at tick order 11
+ticker.events.on("tick", function (dt) {
+  if (gameFrozen || !gameStarted) return;
+  var speedRatio = ship ? getSpeedRatio(ship) : 0;
+  updateSailing(speedRatio);
+  updateAmbience(weather.current, dt);
+  var hpInfo = getPlayerHp(enemyMgr);
+  updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
+
+  var aliveEnemyCount = 0;
+  for (var i = 0; i < enemyMgr.enemies.length; i++) {
+    if (enemyMgr.enemies[i].alive && !enemyMgr.enemies[i].ambient) aliveEnemyCount++;
+  }
+  var bossAlive = activeBoss && activeBoss.alive;
+  var musicMode = "calm";
+  if (portScreenOpen) musicMode = "port";
+  else if (bossAlive) musicMode = "boss";
+  else if (aliveEnemyCount > 0) musicMode = "combat";
+  updateMusic(musicMode);
+}, 11);
 
 // Register render pass at tick order 998 (last)
 ticker.events.on("tick", function () {
