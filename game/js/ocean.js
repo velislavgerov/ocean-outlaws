@@ -437,3 +437,24 @@ export function getWaveHeight(worldX, worldZ, time, waveAmp, waveSteps) {
   }
   return getLegacyWaveHeight(worldX, worldZ, time, waveAmp, waveSteps);
 }
+
+// Conditional material rebuild on quality change (folio-2025 pattern)
+export function rebuildOceanForQuality(ocean, qualityCfg) {
+  if (!ocean || !ocean.uniforms || !ocean.uniforms.__tiles) return;
+
+  var tiles = ocean.uniforms.__tiles;
+  var size = ocean.uniforms.__size || OCEAN_SIZE;
+  var newSegs = Math.max(8, Math.floor(qualityCfg.oceanSegments || 56));
+
+  if (newSegs === ocean.uniforms.__segments) return;
+  ocean.uniforms.__segments = newSegs;
+
+  for (var i = 0; i < tiles.length; i++) {
+    var tile = tiles[i];
+    var oldGeo = tile.geometry;
+    var newGeo = buildOceanGeometry(size, newSegs);
+    tile.mesh.geometry = newGeo;
+    tile.geometry = newGeo;
+    if (oldGeo) oldGeo.dispose();
+  }
+}

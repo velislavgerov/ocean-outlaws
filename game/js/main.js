@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
+import { createOcean, updateOcean, getWaveHeight, rebuildOceanForQuality } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern, setNavTarget, clearNavTarget } from "./ship.js";
 import { initInput, getInput, getMouse, consumeClick, getKeyActions } from "./input.js";
@@ -158,6 +158,23 @@ function fireWithSound(w, s, r, m) {
   }
 }
 
+// --- Loading screen helpers (two-phase init, folio-2025 pattern) ---
+function updateLoadingBar(pct, text) {
+  var bar = document.getElementById("loading-bar");
+  var label = document.getElementById("loading-text");
+  if (bar) bar.style.width = Math.min(100, Math.round(pct)) + "%";
+  if (label) label.textContent = text || "Loading...";
+}
+
+function hideLoadingScreen() {
+  var screen = document.getElementById("loading-screen");
+  if (screen) {
+    screen.style.transition = "opacity 0.5s";
+    screen.style.opacity = "0";
+    setTimeout(function () { screen.remove(); }, 500);
+  }
+}
+
 var qCfg = getQualityConfig();
 var rendererRuntime = createRendererRuntime(THREE, qCfg);
 var renderer = rendererRuntime.renderer;
@@ -168,6 +185,7 @@ if (typeof window !== "undefined") {
 if (renderer.domElement && !renderer.domElement.parentNode) {
   document.body.appendChild(renderer.domElement);
 }
+updateLoadingBar(10, "Renderer ready...");
 
 var scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0e1a, 0.006);
@@ -202,6 +220,7 @@ weather.rain = rain;
 var splashes = createSplashes(scene, qCfg.splashCount);
 weather.splashes = splashes;
 
+updateLoadingBar(30, "Ocean ready...");
 var dayNight = createDayNight();
 var stars = createStars(scene);
 
@@ -258,6 +277,7 @@ createPortScreen();
 var infamyState = loadInfamy();
 createInfamyScreen();
 createMainMenu();
+updateLoadingBar(50, "Systems ready...");
 
 setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   spawnPickup(pickupMgr, x, y, z, scene);
@@ -402,13 +422,14 @@ if ("serviceWorker" in navigator) {
 
 // --- mobile: orientation prompt + quality change handler ---
 createOrientationPrompt();
-onQualityChange(function (q) {
+onQualityChange(function () {
   var cfg = getQualityConfig();
   rendererRuntime.setQualityPixelRatio(cfg);
   ocean.uniforms.uShaderDetail.value = cfg.shaderDetail;
   if (ocean.uniforms.__setQualityHint) {
     ocean.uniforms.__setQualityHint(getWaterQualityHint(cfg));
   }
+  rebuildOceanForQuality(ocean, cfg);
 });
 
 // --- multiplayer ---
@@ -2397,8 +2418,11 @@ ticker.events.on("tick", function () {
 }, 998);
 
 // Pre-compile shaders before starting the loop
+updateLoadingBar(90, "Compiling shaders...");
 preCompileShaders(renderer, scene, cam.camera);
+updateLoadingBar(100, "Starting...");
 ticker.start();
+hideLoadingScreen();
 
 window.advanceTime = function (ms) {
   var add = Number(ms) || 0;

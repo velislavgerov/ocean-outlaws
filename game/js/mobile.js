@@ -14,9 +14,18 @@ function detectMobile() {
 
 _isMobile = detectMobile();
 
+// Smarter auto-quality: factor in pixel ratio and GPU hints (folio-2025 pattern)
+function autoDetectQuality() {
+  if (!_isMobile) return "high";
+  var ratio = window.devicePixelRatio || 1;
+  if (ratio >= 3) return "low";
+  if (ratio >= 2) return "medium";
+  return "medium";
+}
+
 // auto-set quality on first load
 if (_isMobile) {
-  _quality = "medium";
+  _quality = autoDetectQuality();
 }
 
 // re-detect on resize (e.g. desktop user resizes small)
@@ -84,14 +93,15 @@ export function getQualityConfig() {
       maxCompositeInstances: _isMobile ? 2 : 5
     };
   }
-  // high
+  // high — disable AA on high-DPI screens (folio-2025: pixelRatio >= 2 already smooths)
+  var ratio = window.devicePixelRatio || 1;
   return {
     oceanSegments: 128,
     rainCount: 4000,
     splashCount: 200,
     terrainOctaves: 4,
     pixelRatioCap: 2,
-    antialias: true,
+    antialias: ratio < 2,
     shaderDetail: 2, // 2 = full
     maxTriangles: 0, // 0 = unlimited
     maxCompositeInstances: 7
