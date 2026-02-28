@@ -1,4 +1,4 @@
-import * as THREE from "three/webgpu";
+import * as THREE from "three";
 import { createOcean, updateOcean, getWaveHeight } from "./ocean.js";
 import { createCamera, updateCamera, resizeCamera } from "./camera.js";
 import { createShip, updateShip, getSpeedRatio, getDisplaySpeed, updateShipLantern, setNavTarget, clearNavTarget } from "./ship.js";
@@ -60,6 +60,7 @@ import { selectEvent, applyEventOutcome, getChoiceAvailability } from "./eventEn
 import { showEventModal, hideEventModal } from "./eventModal.js";
 import { createStorySetDressing, spawnStorySetDressing, clearStorySetDressing, shiftStorySetDressing } from "./storySetDressing.js";
 import { preloadStoryAudio, playStoryCue } from "./storyAudio.js";
+import { createRendererRuntime } from "./rendererRuntime.js";
 
 var GOLD_PER_KILL = 25;
 var prevPlayerHp = -1;
@@ -154,11 +155,15 @@ function fireWithSound(w, s, r, m) {
 }
 
 var qCfg = getQualityConfig();
-var renderer = new THREE.WebGPURenderer({ antialias: qCfg.antialias });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, qCfg.pixelRatioCap));
-renderer.setClearColor(0x0a0e1a);
-document.body.appendChild(renderer.domElement);
+var rendererRuntime = createRendererRuntime(THREE, qCfg);
+var renderer = rendererRuntime.renderer;
+if (typeof window !== "undefined") {
+  window.__ooRendererObject = renderer;
+  window.__ooRendererBackend = rendererRuntime && rendererRuntime.backend ? rendererRuntime.backend : "webgl";
+}
+if (renderer.domElement && !renderer.domElement.parentNode) {
+  document.body.appendChild(renderer.domElement);
+}
 
 var scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0e1a, 0.006);
@@ -170,7 +175,17 @@ scene.add(sun);
 var hemi = new THREE.HemisphereLight(0x1a1a3a, 0x050510, 0.3);
 scene.add(hemi);
 
-var ocean = createOcean(qCfg.oceanSegments);
+function getWaterQualityHint(cfg) {
+  if (!cfg) return "high";
+  if (cfg.shaderDetail <= 0 || cfg.oceanSegments <= 64) return "low";
+  if (cfg.shaderDetail <= 1 || cfg.oceanSegments <= 96) return "medium";
+  return "high";
+}
+
+var ocean = createOcean(qCfg.oceanSegments, {
+  renderer: renderer,
+  qualityHint: getWaterQualityHint(qCfg)
+});
 ocean.uniforms.uShaderDetail.value = qCfg.shaderDetail;
 scene.add(ocean.mesh);
 
@@ -367,8 +382,11 @@ if ("serviceWorker" in navigator) {
 createOrientationPrompt();
 onQualityChange(function (q) {
   var cfg = getQualityConfig();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, cfg.pixelRatioCap));
+  rendererRuntime.setQualityPixelRatio(cfg);
   ocean.uniforms.uShaderDetail.value = cfg.shaderDetail;
+  if (ocean.uniforms.__setQualityHint) {
+    ocean.uniforms.__setQualityHint(getWaterQualityHint(cfg));
+  }
 });
 
 // --- multiplayer ---
@@ -1635,7 +1653,7 @@ setRestartCallback(function () {
 });
 
 window.addEventListener("resize", function () {
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  rendererRuntime.resize(window.innerWidth, window.innerHeight);
   resizeCamera(cam, window.innerWidth / window.innerHeight);
 });
 
@@ -1767,7 +1785,8 @@ function maybeApplyRollingOrigin() {
   applyRollingOriginShift(shiftX, shiftZ);
 }
 
-var clock = new THREE.Clock();
+var timer = new THREE.Timer();
+timer.connect(document);
 var simElapsed = 0;
 
 function buildWorldDebugSnapshot() {
@@ -2339,7 +2358,8 @@ function runFrame(dt) {
 
 function animate() {
   requestAnimationFrame(animate);
-  runFrame(Math.min(clock.getDelta(), 0.1));
+  timer.update();
+  runFrame(Math.min(timer.getDelta(), 0.1));
 }
 
 window.advanceTime = function (ms) {
@@ -2430,6 +2450,18 @@ window.render_game_to_text = function () {
   }
 
   var payload = {
+    renderer: {
+      backend: rendererRuntime && rendererRuntime.backend ? rendererRuntime.backend : "unknown",
+      className: renderer && renderer.constructor ? renderer.constructor.name : "unknown",
+      requested: window.__ooRequestedRenderer || "default",
+      fallbackReason: window.__ooRendererFallbackReason || null
+    },
+    water: {
+      requested: window.__ooWaterRequested || "legacy",
+      backend: window.__ooWaterBackend || "legacy",
+      fallbackReason: window.__ooWaterFallbackReason || null,
+      visualMode: ocean && ocean.uniforms ? ocean.uniforms.__waterVisualMode || "legacy" : "legacy"
+    },
     coordinateSystem: "X right/east, Z forward/south, Y up. Values are current rebased world coordinates.",
     mode: gameStarted ? (gameFrozen ? "frozen" : "combat") : "menu",
     weather: weather ? weather.current : "calm",
