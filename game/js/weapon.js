@@ -7,27 +7,54 @@ import { isLand } from "./terrain.js";
 import { playImpactSound } from "./soundFx.js";
 
 var WEAPON_TYPES = {
-  turret: {
-    name: "Cannon", key: 0, fireRate: 1.0, damage: 1, projSpeed: 35,
+  cannon: {
+    name: "Iron Cannon", key: 0, fireRate: 1.0, damage: 1, projSpeed: 35,
     ammoCost: 1, color: 0xffcc44, trailColor: 0xffcc44, projRadius: 0.12,
     gravity: 9.8, loft: 0.08, maxRange: 40, homing: false,
-    waterLevel: false, splashScale: 1.0
+    waterLevel: false, splashScale: 1.0,
+    tiers: [
+      { name: "Iron Cannon" },
+      { name: "Bronze Cannon", damage: 1.5, fireRate: 0.85, projSpeed: 40 },
+      { name: "Steel Cannon",  damage: 2.2, fireRate: 0.7,  projSpeed: 45, perk: "pierce" }
+    ]
   },
-  missile: {
-    name: "Chain Shot", key: 1, fireRate: 2.5, damage: 3, projSpeed: 28,
+  chainshot: {
+    name: "Rope Shot", key: 1, fireRate: 2.5, damage: 3, projSpeed: 28,
     ammoCost: 3, color: 0xff6644, trailColor: 0xff8844, projRadius: 0.2,
     gravity: 2.0, loft: 0.15, maxRange: 50, homing: true,
-    homingTurnRate: 1.8, waterLevel: false, splashScale: 2.0
+    homingTurnRate: 1.8, waterLevel: false, splashScale: 2.0,
+    tiers: [
+      { name: "Rope Shot" },
+      { name: "Barbed Chain",  damage: 4.5, homingTurnRate: 2.4 },
+      { name: "Anchor Chain",  damage: 6,   homingTurnRate: 3.0, perk: "slow" }
+    ]
   },
-  torpedo: {
-    name: "Fire Bomb", key: 2, fireRate: 4.0, damage: 6, projSpeed: 18,
+  firebomb: {
+    name: "Tar Bomb", key: 2, fireRate: 4.0, damage: 6, projSpeed: 18,
     ammoCost: 5, color: 0x44aaff, trailColor: 0x88ccff, projRadius: 0.25,
     gravity: 0, loft: 0, maxRange: 35, homing: false,
-    waterLevel: true, splashScale: 3.5, wakeTrail: true
+    waterLevel: true, splashScale: 3.5, wakeTrail: true,
+    tiers: [
+      { name: "Tar Bomb" },
+      { name: "Greek Fire",     damage: 9, splashScale: 4.5 },
+      { name: "Hellfire Bomb",  damage: 13, splashScale: 6.0, perk: "burn" }
+    ]
   }
 };
 
-var WEAPON_ORDER = ["turret", "missile", "torpedo"];
+var WEAPON_ORDER = ["cannon", "chainshot", "firebomb"];
+
+export function getEffectiveConfig(weaponKey, tier) {
+  var base = WEAPON_TYPES[weaponKey];
+  if (!base) return null;
+  var tierDef = base.tiers && base.tiers[tier];
+  if (!tierDef) return base;
+  // Shallow merge — tier properties override base
+  var cfg = {};
+  for (var k in base) { if (base.hasOwnProperty(k) && k !== "tiers") cfg[k] = base[k]; }
+  for (var k in tierDef) { if (tierDef.hasOwnProperty(k)) cfg[k] = tierDef[k]; }
+  return cfg;
+}
 
 var sharedGeo = {}, sharedMat = {};
 var wakeGeo = null, wakeMat = null;
@@ -65,13 +92,13 @@ function ensureMaterials() {
     }
     projPool[key] = [];
     for (var j = 0; j < PROJ_POOL_SIZE; j++) {
-      var geo = key === "torpedo" ? new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6) : sharedGeo[key];
+      var geo = key === "firebomb" ? new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6) : sharedGeo[key];
       var pm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: cfg.color }));
       pm.visible = false;
       projPool[key].push(pm);
     }
   }
-  sharedGeo.torpedo = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6);
+  sharedGeo.firebomb = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6);
   flashGeo = new THREE.SphereGeometry(0.3, 6, 4);
   flashMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
   for (var i = 0; i < FLASH_POOL_SIZE; i++) {
@@ -118,7 +145,7 @@ function acquireProjMesh(weaponKey, scene) {
       }
     }
   }
-  var geo = weaponKey === "torpedo" ? sharedGeo.torpedo : sharedGeo[weaponKey];
+  var geo = weaponKey === "firebomb" ? sharedGeo.firebomb : sharedGeo[weaponKey];
   var pm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: WEAPON_TYPES[weaponKey].color }));
   scene.add(pm);
   return pm;
@@ -219,7 +246,17 @@ export function getActiveWeapon(state) {
 }
 
 export function getActiveWeaponName(state) {
-  return WEAPON_TYPES[WEAPON_ORDER[state.activeWeapon]].name;
+  var key = WEAPON_ORDER[state.activeWeapon];
+  var tier = state.weaponTiers ? (state.weaponTiers[key] || 0) : 0;
+  var cfg = getEffectiveConfig(key, tier);
+  return cfg ? cfg.name : WEAPON_TYPES[key].name;
+}
+
+export function getActiveTierName(state) {
+  var key = WEAPON_ORDER[state.activeWeapon];
+  var tier = state.weaponTiers ? (state.weaponTiers[key] || 0) : 0;
+  var cfg = getEffectiveConfig(key, tier);
+  return cfg ? cfg.name : key;
 }
 
 export function getWeaponOrder() { return WEAPON_ORDER; }
@@ -277,7 +314,7 @@ export function fireWeapon(state, scene, resources, upgradeMults) {
 
   var projMesh = acquireProjMesh(weaponKey, scene);
   projMesh.position.copy(barrelTip);
-  if (weaponKey === "torpedo") {
+  if (weaponKey === "firebomb") {
     projMesh.rotation.x = Math.PI / 2;
     projMesh.rotation.order = "YXZ";
     projMesh.rotation.y = Math.atan2(dir.x, dir.z);
