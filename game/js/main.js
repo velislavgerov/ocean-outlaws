@@ -70,6 +70,18 @@ var runGoldLooted = 0; // gold earned during current run
 var runZonesReached = 0; // zones visited during current run
 var currentRoleContext = null; // active zone/node context for role-based model selection
 
+// --- Open world spatial spawning ---
+var PATROL_SPAWN_RADIUS = 120;
+var PATROL_DESPAWN_RADIUS = 180;
+var PATROL_MAX_ENEMIES = 8;
+var PATROL_SPAWN_INTERVAL = 4.0;
+var patrolSpawnTimer = 0;
+
+// --- Boss zones ---
+var BOSS_ZONE_RADIUS = 60;
+var bossZones = [];
+var bossZonesInitialized = false;
+
 var batteryTargetWorld = new THREE.Vector3();
 var batteryHudWorld = new THREE.Vector3();
 
@@ -889,10 +901,155 @@ function startMultiplayerCombat() {
   showBanner("Multiplayer — Fleet Approaching!", 3);
 }
 
+function initBossZones() {
+  bossZones = [
+    { x: 300, z: 300, type: "battleship", difficulty: 2, defeated: false, label: "Pirate Stronghold" },
+    { x: -400, z: 200, type: "battleship", difficulty: 3, defeated: false, label: "Navy Blockade" },
+    { x: 0, z: -500, type: "kraken", difficulty: 4, defeated: false, label: "Kraken's Lair" },
+    { x: 500, z: -300, type: "carrier", difficulty: 5, defeated: false, label: "Armada Flagship" }
+  ];
+  bossZonesInitialized = true;
+}
+
+function updatePatrolSpawning(dt) {
+  if (!ship || !gameStarted || gameFrozen) return;
+  if (waveMgr && waveMgr.maxWave > 0) return; // in boss combat, skip patrol spawning
+  patrolSpawnTimer -= dt;
+  if (patrolSpawnTimer > 0) return;
+  patrolSpawnTimer = PATROL_SPAWN_INTERVAL;
+
+  var aliveCount = 0;
+  for (var i = 0; i < enemyMgr.enemies.length; i++) {
+    if (enemyMgr.enemies[i].alive && !enemyMgr.enemies[i].ambient) aliveCount++;
+  }
+  if (aliveCount >= PATROL_MAX_ENEMIES) return;
+
+  var distFromOrigin = Math.sqrt(ship.posX * ship.posX + ship.posZ * ship.posZ);
+  var difficultyScale = Math.min(6, 1 + Math.floor(distFromOrigin / 200));
+
+  var faction = "pirate";
+  if (distFromOrigin > 600) faction = (nextRandom() < 0.5) ? "pirate" : "navy";
+  else if (distFromOrigin > 300) faction = nextRandom() < 0.6 ? "pirate" : "navy";
+
+  var angle = nextRandom() * Math.PI * 2;
+  var spawnDist = PATROL_SPAWN_RADIUS * (0.8 + nextRandom() * 0.4);
+  var spawnX = ship.posX + Math.cos(angle) * spawnDist;
+  var spawnZ = ship.posZ + Math.sin(angle) * spawnDist;
+
+  var waveConfig = {
+    hpMult: 1.0 + (difficultyScale - 1) * 0.2,
+    speedMult: 1.0 + (difficultyScale - 1) * 0.05,
+    fireRateMult: 1.0 + (difficultyScale - 1) * 0.1,
+    faction: faction
+  };
+  spawnEnemy(enemyMgr, spawnX, spawnZ, scene, waveConfig, activeTerrain, currentRoleContext);
+}
+
+function despawnDistantEnemies() {
+  if (!ship) return;
+  for (var i = 0; i < enemyMgr.enemies.length; i++) {
+    var e = enemyMgr.enemies[i];
+    if (!e.alive || e.ambient) continue;
+    var dx = e.posX - ship.posX;
+    var dz = e.posZ - ship.posZ;
+    if (dx * dx + dz * dz > PATROL_DESPAWN_RADIUS * PATROL_DESPAWN_RADIUS) {
+      e.alive = false;
+      if (e.mesh) scene.remove(e.mesh);
+    }
+  }
+}
+
+function checkBossZoneEntry() {
+  if (!ship || !gameStarted || gameFrozen) return;
+  if (activeBoss && activeBoss.alive) return;
+  if (waveMgr && waveMgr.maxWave > 0) return; // already in wave combat
+
+  for (var i = 0; i < bossZones.length; i++) {
+    var zone = bossZones[i];
+    if (zone.defeated || zone._active) continue;
+    var dx = ship.posX - zone.x;
+    var dz = ship.posZ - zone.z;
+    if (dx * dx + dz * dz < BOSS_ZONE_RADIUS * BOSS_ZONE_RADIUS) {
+      activeBoss = createBoss(zone.type, zone.x, zone.z, scene, zone.difficulty);
+      if (activeBoss) {
+        setNavBoss(activeBoss);
+        showBossHud(activeBoss.def.name);
+        showBanner("BOSS: " + zone.label + "!", 4);
+        playWaveHorn();
+        triggerScreenShake(0.8);
+        var bossWaves = [
+          { wave: 1, enemies: 2 + zone.difficulty, hpMult: 1.0 + zone.difficulty * 0.2, speedMult: 1.0, fireRateMult: 1.0, faction: "pirate" },
+          { wave: 2, enemies: 1 + Math.floor(zone.difficulty / 2), hpMult: 1.0 + zone.difficulty * 0.3, speedMult: 1.1, fireRateMult: 1.1, faction: "navy", boss: zone.type, bossDifficulty: zone.difficulty }
+        ];
+        resetWaveManager(waveMgr, bossWaves);
+        zone._active = true;
+      }
+      return;
+    }
+  }
+}
+
 function handleShipSelect(classKey) {
   selectedClass = classKey;
   hideShipSelectScreen();
-  startZoneCombat(classKey, "frontier_isles");
+  startOpenWorld(classKey);
+}
+
+function startOpenWorld(classKey) {
+  runEnemiesSunk = 0;
+  runGoldLooted = 0;
+  runZonesReached = 0;
+  clearCombatTarget();
+  var classCfg = getShipClass(classKey);
+  setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
+  resetResources(resources);
+  resetEnemyManager(enemyMgr, scene);
+  resetUpgrades(upgrades);
+  resetDrones(droneMgr, scene);
+  resetCrew(crew);
+  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
+  hideBossHud();
+  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
+
+  var worldSeed = Date.now() + Math.floor(Math.random() * 10000);
+  seedRNG(worldSeed);
+  activeTerrain = createTerrain(worldSeed, 3);
+  scene.add(activeTerrain.mesh);
+
+  var worldRoleContext = {
+    zoneId: "open_world",
+    condition: "calm",
+    difficulty: 3
+  };
+  currentRoleContext = worldRoleContext;
+  clearPorts(portMgr, scene);
+  initPorts(portMgr, activeTerrain, scene, worldRoleContext);
+  clearCrates(crateMgr, scene);
+  clearMerchants(merchantMgr, scene);
+  setPickupRoleContext(pickupMgr, worldRoleContext);
+
+  if (ship && ship.mesh) scene.remove(ship.mesh);
+  ship = createShip(classCfg);
+  scene.add(ship.mesh);
+  setPlayerMaxHp(enemyMgr, classCfg.stats.hp);
+  setPlayerHp(enemyMgr, classCfg.stats.hp);
+  setPlayerArmor(enemyMgr, classCfg.stats.armor);
+  weapons = createWeaponState(ship);
+  abilityState = createAbilityState(classKey);
+  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
+  resetDrones(droneMgr, scene);
+  setWeather(weather, "calm");
+  setTimeOfDay(dayNight, 0.35);
+  setSailClass(classKey);
+  gameFrozen = false;
+  gameStarted = true;
+  cardPickerOpen = false;
+  activeZoneId = "open_world";
+  // No waves until a boss zone is entered
+  resetWaveManager(waveMgr, []);
+  initBossZones();
+  fadeIn(0.6);
+  showBanner("Open Seas — Explore at Will!", 3);
 }
 
 // --- load save on startup ---
@@ -1512,6 +1669,9 @@ function runFrame(dt) {
     } : currentRoleContext;
     if (activeZone && roleContext) currentRoleContext = roleContext;
     updateEnemies(enemyMgr, ship, dt, scene, weatherWaveHeight, elapsed, waveMgr, getWaveConfig(waveMgr), activeTerrain, roleContext);
+    updatePatrolSpawning(dt);
+    despawnDistantEnemies();
+    checkBossZoneEntry();
     updatePickups(pickupMgr, ship, resources, dt, elapsed, weatherWaveHeight, scene, upgrades);
     updateCrewPickups(crewPickupMgr, ship, dt, elapsed, weatherWaveHeight, scene);
     updatePorts(portMgr, ship, resources, enemyMgr, dt, upgrades, selectedClass, activeTerrain, scene, weapons);
@@ -1604,6 +1764,10 @@ function runFrame(dt) {
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
         }
+        for (var bzig = 0; bzig < bossZones.length; bzig++) {
+          if (bossZones[bzig]._active) bossZones[bzig]._active = false;
+        }
+        resetWaveManager(waveMgr, []);
         lastZoneResult = "game_over";
         gameFrozen = true;
         upgrades.gold = 0;
@@ -1620,6 +1784,13 @@ function runFrame(dt) {
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
         }
+        for (var bziv = 0; bziv < bossZones.length; bziv++) {
+          if (bossZones[bziv]._active) {
+            bossZones[bziv].defeated = true;
+            bossZones[bziv]._active = false;
+          }
+        }
+        resetWaveManager(waveMgr, []);
         lastZoneResult = "victory";
         performAutoSave();
         gameFrozen = true;
@@ -1627,7 +1798,10 @@ function runFrame(dt) {
         var vicData = awardRunInfamy("victory");
         fadeOut(0.4, function () {
           showInfamyScreen(vicData, function () {
-            showVictory(waveMgr.wave);
+            // Return to open world after boss defeat
+            gameFrozen = false;
+            fadeIn(0.4);
+            showBanner("Boss defeated! Continue exploring.", 3);
           });
           fadeIn(0.4);
         });
