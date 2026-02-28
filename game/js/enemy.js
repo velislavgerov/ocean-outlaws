@@ -730,9 +730,16 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       e.heading += Math.sign(angleDiff) * maxTurn;
     }
 
+    // Apply slow debuff from Anchor Chain perk
+    if (e.slowTimer && e.slowTimer > 0) {
+      e.slowTimer -= dt;
+      if (e.slowTimer < 0) e.slowTimer = 0;
+    }
+    var effectiveSpeed = moveSpeed * (e.slowTimer > 0 ? (e.slowMult || 1) : 1);
+
     if (Math.abs(angleDiff) < Math.PI * 0.6) {
-      e.posX += Math.sin(e.heading) * moveSpeed * dt;
-      e.posZ += Math.cos(e.heading) * moveSpeed * dt;
+      e.posX += Math.sin(e.heading) * effectiveSpeed * dt;
+      e.posZ += Math.cos(e.heading) * effectiveSpeed * dt;
     }
 
     if (terrain) {
@@ -1019,10 +1026,14 @@ function updateParticles(manager, dt, scene) {
 
 // --- called when an enemy is hit by player projectile ---
 // damageMult: multiplier from upgrades (optional, defaults to 1)
-export function damageEnemy(manager, enemy, scene, damageMult) {
+export function damageEnemy(manager, enemy, scene, damageMult, slowHit) {
   var dmg = Math.round(1 * (damageMult || 1));
   if (dmg < 1) dmg = 1;
   enemy.hp -= dmg;
+  if (slowHit) {
+    enemy.slowTimer = 3.0;
+    enemy.slowMult = 0.5;
+  }
   // mark ambient enemies as attacked (triggers flee/combat AI)
   if (enemy.ambient && !enemy.attacked) {
     enemy.attacked = true;
