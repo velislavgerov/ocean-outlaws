@@ -19,6 +19,9 @@ output/
 # Build output
 dist/
 
+# Worktrees
+.worktrees/
+
 # Editor
 *.swp
 *.swo
