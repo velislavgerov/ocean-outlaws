@@ -6,13 +6,15 @@
     "dev": "vite",
     "build": "vite build && cp -r game/assets game/data dist/",
     "preview": "vite preview",
-    "smoke": "node scripts/smoke-real-game.mjs"
+    "smoke": "node scripts/smoke-real-game.mjs",
+    "test": "npx playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "three": "^0.183.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "vite": "^7.3.1"
   }
 }
