@@ -34,6 +34,9 @@ var wakeGeo = null, wakeMat = null;
 var bigSplashGeo = null, bigSplashMat = null;
 var flashGeo = null, flashMat = null;
 var aimRaycaster = null, aimNdc = null, waterPlane = null;
+var trailPool = {};
+
+var TRAIL_POOL_SIZE = 64;
 
 function ensureMaterials() {
   if (flashGeo) return;
@@ -42,6 +45,15 @@ function ensureMaterials() {
     var cfg = WEAPON_TYPES[key];
     sharedGeo[key] = new THREE.SphereGeometry(cfg.projRadius, 6, 4);
     sharedMat[key] = new THREE.MeshBasicMaterial({ color: cfg.color });
+    var trailColor = cfg.trailColor || cfg.color;
+    sharedMat[key + "_trail"] = new THREE.MeshBasicMaterial({ color: trailColor, transparent: true, opacity: 0.6 });
+    trailPool[key] = [];
+    for (var j = 0; j < TRAIL_POOL_SIZE; j++) {
+      var tm = new THREE.Mesh(sharedGeo[key], sharedMat[key + "_trail"].clone());
+      tm.scale.setScalar(0.5);
+      tm.visible = false;
+      trailPool[key].push(tm);
+    }
   }
   sharedGeo.torpedo = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6);
   flashGeo = new THREE.SphereGeometry(0.3, 6, 4);
@@ -53,6 +65,28 @@ function ensureMaterials() {
   aimRaycaster = new THREE.Raycaster();
   aimNdc = new THREE.Vector2();
   waterPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.3);
+}
+
+function acquireTrailMesh(weaponKey, scene) {
+  var pool = trailPool[weaponKey];
+  if (pool) {
+    for (var i = 0; i < pool.length; i++) {
+      if (!pool[i].visible) {
+        pool[i].visible = true;
+        if (!pool[i].parent) scene.add(pool[i]);
+        return pool[i];
+      }
+    }
+  }
+  // pool exhausted — fallback
+  var tm = new THREE.Mesh(sharedGeo[weaponKey], sharedMat[weaponKey + "_trail"].clone());
+  tm.scale.setScalar(0.5);
+  scene.add(tm);
+  return tm;
+}
+
+function releaseTrailMesh(mesh) {
+  mesh.visible = false;
 }
 
 export function createWeaponState(ship) {
@@ -213,19 +247,16 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
       p.mesh.rotation.y = Math.atan2(p.velocity.x, p.velocity.z);
     }
 
-    var trailColor = cfg.trailColor || cfg.color;
-    var trailMat = new THREE.MeshBasicMaterial({ color: trailColor, transparent: true, opacity: 0.6 });
-    var trailMesh = new THREE.Mesh(sharedGeo[p.weaponKey], trailMat);
-    trailMesh.scale.setScalar(0.5);
+    var trailMesh = acquireTrailMesh(p.weaponKey, scene);
     trailMesh.position.copy(p.mesh.position);
-    scene.add(trailMesh);
+    trailMesh.material.opacity = 0.6;
     p.trail.push({ mesh: trailMesh, life: 0.3 });
 
     var aliveTrail = [];
     for (var t = 0; t < p.trail.length; t++) {
       p.trail[t].life -= dt;
       if (p.trail[t].life <= 0) {
-        scene.remove(p.trail[t].mesh);
+        releaseTrailMesh(p.trail[t].mesh);
       } else {
         p.trail[t].mesh.material.opacity = p.trail[t].life / 0.3;
         aliveTrail.push(p.trail[t]);
@@ -257,7 +288,7 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
         else if (hitWater) playImpactSound("water");
       }
       for (var t = 0; t < p.trail.length; t++) {
-        scene.remove(p.trail[t].mesh);
+        releaseTrailMesh(p.trail[t].mesh);
       }
       scene.remove(p.mesh);
     } else {
