@@ -1880,8 +1880,15 @@ function runFrame(dt) {
     // handle click: nav or enemy targeting
     var clickedEnemy = false;
     if (mouse.clicked && !mouse.clickConsumed) {
-      var clickResult = handleClick(mouse.x, mouse.y);
-      if (clickResult === "enemy") clickedEnemy = true;
+      if (isMobile()) {
+        // Mobile: tap only targets enemies, joystick handles movement
+        var clickResult = handleClick(mouse.x, mouse.y);
+        if (clickResult === "enemy") clickedEnemy = true;
+        else if (clickResult === "nav") clearNavTarget(ship);
+      } else {
+        var clickResult = handleClick(mouse.x, mouse.y);
+        if (clickResult === "enemy") clickedEnemy = true;
+      }
       consumeClick();
     }
 
@@ -2226,7 +2233,7 @@ function runFrame(dt) {
       abilityBarSlots.push({
         icon: weaponIcons[si], color: weaponColors[si],
         active: false, cooldownPct: wCooldownPct, cooldownSecs: wCooldownSecs,
-        isActiveSlot: si === weapons.activeWeapon
+        isActiveSlot: false
       });
     }
     // R slot = class ability
