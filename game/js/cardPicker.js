@@ -13,7 +13,8 @@ export function createCardPicker() {
   overlay = document.createElement("div");
   overlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
-    "display:none", "flex-direction:column", "align-items:center", "justify-content:center",
+    "display:none", "flex-direction:column", "align-items:center", "justify-content:flex-start",
+    "overflow-y:auto", "padding:24px 0",
     "background:rgba(10,8,4,0.78)", "z-index:90",
     "font-family:" + FONT, "user-select:none"
   ].join(";");

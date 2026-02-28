@@ -91,6 +91,9 @@ export function updateWaveState(mgr, activeEnemyCount, playerHp, playerMaxHp, re
     return "game_over";
   }
 
+  // open world / free-roaming mode — no wave progression
+  if (mgr.maxWave === 0) return null;
+
   // --- WAITING: countdown before wave starts ---
   if (mgr.state === STATE_WAITING) {
     mgr.pauseTimer -= dt;
