@@ -305,10 +305,246 @@ function loadCompositePack() {
   return _compositePackPromise;
 }
 
+// ============================================================
+// Instanced Rendering Manager (Phase 3)
+// ============================================================
+var _instanceRoot = null;
+var _modelEntries = {};    // entryKey → ModelEntry
+var _chunkSlots = {};      // chunkKey → [{ entryKey, slot }]
+var _INST_CAP_INIT = 64;
+var _INST_CAP_GROW = 64;
+var _matA = new THREE.Matrix4();
+var _matB = new THREE.Matrix4();
+var _quatTmp = new THREE.Quaternion();
+var _vecTmp = new THREE.Vector3();
+var _scaleTmp = new THREE.Vector3();
+var _zeroMat = new THREE.Matrix4().makeScale(0, 0, 0);
+var _yAxis = new THREE.Vector3(0, 1, 0);
+var _dirtyEntries = new Set();
+
+export function initIslandInstancing(parentGroup) {
+  if (_instanceRoot) return;
+  _instanceRoot = new THREE.Group();
+  _instanceRoot.name = "island-instances";
+  parentGroup.add(_instanceRoot);
+}
+
+export function disposeIslandInstancing() {
+  if (!_instanceRoot) return;
+  for (var key in _modelEntries) {
+    if (!Object.prototype.hasOwnProperty.call(_modelEntries, key)) continue;
+    var entry = _modelEntries[key];
+    for (var i = 0; i < entry.submeshes.length; i++) {
+      var sm = entry.submeshes[i];
+      if (sm.instancedMesh) {
+        if (sm.instancedMesh.parent) sm.instancedMesh.parent.remove(sm.instancedMesh);
+        sm.instancedMesh.dispose();
+      }
+      if (sm.geo && sm.geo.dispose) sm.geo.dispose();
+      if (sm.mat) {
+        if (Array.isArray(sm.mat)) {
+          for (var j = 0; j < sm.mat.length; j++) { if (sm.mat[j] && sm.mat[j].dispose) sm.mat[j].dispose(); }
+        } else if (sm.mat.dispose) { sm.mat.dispose(); }
+      }
+    }
+  }
+  if (_instanceRoot.parent) _instanceRoot.parent.remove(_instanceRoot);
+  _instanceRoot = null;
+  _modelEntries = {};
+  _chunkSlots = {};
+}
+
+function getEntryKey(modelPath, fitSize) {
+  return modelPath + "|" + fitSize;
+}
+
+async function ensureModelEntry(modelPath, fitSize) {
+  var key = getEntryKey(modelPath, fitSize);
+  if (_modelEntries[key]) return _modelEntries[key];
+
+  var visual = await loadGlbVisual(modelPath, fitSize, true);
+  visual.updateMatrixWorld(true);
+
+  var submeshes = [];
+
+  visual.traverse(function (child) {
+    if (!child.isMesh) return;
+    var localMatrix = new THREE.Matrix4();
+    localMatrix.copy(child.matrixWorld);
+    submeshes.push({ geo: child.geometry, mat: child.material, localMatrix: localMatrix, instancedMesh: null });
+  });
+
+  if (submeshes.length === 0) return null;
+
+  // Pre-compute collider decomposition from fitted template
+  var tplColliders = computeTemplateColliders(visual, modelPath);
+
+  for (var i = 0; i < submeshes.length; i++) {
+    var sm = submeshes[i];
+    var im = new THREE.InstancedMesh(sm.geo, sm.mat, _INST_CAP_INIT);
+    im.count = 0;
+    im.frustumCulled = false;
+    _instanceRoot.add(im);
+    sm.instancedMesh = im;
+  }
+
+  var entry = { key: key, submeshes: submeshes, templateColliders: tplColliders, capacity: _INST_CAP_INIT, count: 0, freeSlots: [] };
+  _modelEntries[key] = entry;
+  return entry;
+}
+
+function growModelEntry(entry) {
+  var newCap = entry.capacity + _INST_CAP_GROW;
+  for (var i = 0; i < entry.submeshes.length; i++) {
+    var sm = entry.submeshes[i];
+    var oldIM = sm.instancedMesh;
+    var newIM = new THREE.InstancedMesh(sm.geo, sm.mat, newCap);
+    newIM.count = oldIM.count;
+    newIM.frustumCulled = false;
+    var src = oldIM.instanceMatrix.array;
+    var dst = newIM.instanceMatrix.array;
+    dst.set(src.subarray(0, oldIM.count * 16));
+    newIM.instanceMatrix.needsUpdate = true;
+    _instanceRoot.remove(oldIM);
+    oldIM.dispose();
+    _instanceRoot.add(newIM);
+    sm.instancedMesh = newIM;
+  }
+  entry.capacity = newCap;
+}
+
+function addInstanceSlot(entry, worldMatrix) {
+  var slot;
+  if (entry.freeSlots.length > 0) {
+    slot = entry.freeSlots.pop();
+  } else {
+    if (entry.count >= entry.capacity) growModelEntry(entry);
+    slot = entry.count;
+    entry.count++;
+  }
+  for (var i = 0; i < entry.submeshes.length; i++) {
+    var sm = entry.submeshes[i];
+    _matB.multiplyMatrices(worldMatrix, sm.localMatrix);
+    sm.instancedMesh.setMatrixAt(slot, _matB);
+    if (slot >= sm.instancedMesh.count) sm.instancedMesh.count = slot + 1;
+  }
+  _dirtyEntries.add(entry.key);
+  return slot;
+}
+
+function removeInstanceSlot(entry, slot) {
+  for (var i = 0; i < entry.submeshes.length; i++) {
+    entry.submeshes[i].instancedMesh.setMatrixAt(slot, _zeroMat);
+  }
+  _dirtyEntries.add(entry.key);
+  entry.freeSlots.push(slot);
+}
+
+function computeTemplateColliders(visual, modelPath) {
+  visual.updateMatrixWorld(true);
+  var footprint = rasterizeFootprint(visual, DECOMP_GRID_RES);
+  if (!footprint) {
+    var box = new THREE.Box3().setFromObject(visual);
+    if (!isFinite(box.min.x) || !isFinite(box.max.x)) return [];
+    var cx = (box.min.x + box.max.x) * 0.5;
+    var cz = (box.min.z + box.max.z) * 0.5;
+    var hx = (box.max.x - box.min.x) * 0.5 * VISUAL_COLLIDER_SHRINK;
+    var hz = (box.max.z - box.min.z) * 0.5 * VISUAL_COLLIDER_SHRINK;
+    return [{ minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz }];
+  }
+  var hasOcc = false;
+  for (var i = 0; i < footprint.grid.length; i++) {
+    if (footprint.grid[i]) { hasOcc = true; break; }
+  }
+  if (!hasOcc) return [];
+  if (isArchModel(modelPath)) return decomposeArch(footprint);
+  return decomposeGrid(footprint, MAX_BOXES_PER_ISLAND);
+}
+
+function transformColliderBox(tplBox, posX, posZ, rotY, scale) {
+  var cx = (tplBox.minX + tplBox.maxX) * 0.5 * scale;
+  var cz = (tplBox.minZ + tplBox.maxZ) * 0.5 * scale;
+  var hx = (tplBox.maxX - tplBox.minX) * 0.5 * scale;
+  var hz = (tplBox.maxZ - tplBox.minZ) * 0.5 * scale;
+  var cosR = Math.cos(rotY);
+  var sinR = Math.sin(rotY);
+  var rcx = cx * cosR - cz * sinR;
+  var rcz = cx * sinR + cz * cosR;
+  var aCos = Math.abs(cosR);
+  var aSin = Math.abs(sinR);
+  var nhx = hx * aCos + hz * aSin;
+  var nhz = hx * aSin + hz * aCos;
+  return { minX: posX + rcx - nhx, maxX: posX + rcx + nhx, minZ: posZ + rcz - nhz, maxZ: posZ + rcz + nhz };
+}
+
+function placeInstanceWithColliders(chunkKey, chunk, entry, sceneX, sceneY, sceneZ, rotY, scale, addCollider, markerType, modelPath) {
+  _quatTmp.setFromAxisAngle(_yAxis, rotY);
+  _vecTmp.set(sceneX, sceneY, sceneZ);
+  _scaleTmp.set(scale, scale, scale);
+  _matA.compose(_vecTmp, _quatTmp, _scaleTmp);
+  var slot = addInstanceSlot(entry, _matA);
+
+  if (!_chunkSlots[chunkKey]) _chunkSlots[chunkKey] = [];
+  _chunkSlots[chunkKey].push({ entryKey: entry.key, slot: slot });
+
+  if (addCollider && entry.templateColliders.length > 0) {
+    for (var b = 0; b < entry.templateColliders.length; b++) {
+      chunk.visualColliders.push(transformColliderBox(entry.templateColliders[b], sceneX, sceneZ, rotY, scale));
+    }
+  }
+  addMinimapMarker(chunk, markerType, sceneX, sceneZ, scale, modelPath);
+}
+
+export function removeChunkInstances(chunkKey) {
+  var slots = _chunkSlots[chunkKey];
+  if (!slots) return;
+  for (var i = 0; i < slots.length; i++) {
+    var s = slots[i];
+    var entry = _modelEntries[s.entryKey];
+    if (entry) removeInstanceSlot(entry, s.slot);
+  }
+  delete _chunkSlots[chunkKey];
+}
+
+export function shiftAllInstancePositions(shiftX, shiftZ) {
+  if (!_instanceRoot) return;
+  for (var key in _modelEntries) {
+    if (!Object.prototype.hasOwnProperty.call(_modelEntries, key)) continue;
+    var entry = _modelEntries[key];
+    for (var si = 0; si < entry.submeshes.length; si++) {
+      var im = entry.submeshes[si].instancedMesh;
+      var arr = im.instanceMatrix.array;
+      for (var i = 0; i < im.count; i++) {
+        var base = i * 16;
+        // skip free slots (zero-scale: diagonal elements 0,5,10 all zero)
+        if (arr[base] === 0 && arr[base + 5] === 0 && arr[base + 10] === 0) continue;
+        arr[base + 12] -= shiftX; // translate X
+        arr[base + 14] -= shiftZ; // translate Z
+      }
+      im.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
+
+export function flushInstanceUpdates() {
+  if (_dirtyEntries.size === 0) return;
+  _dirtyEntries.forEach(function (key) {
+    var entry = _modelEntries[key];
+    if (!entry) return;
+    for (var i = 0; i < entry.submeshes.length; i++) {
+      entry.submeshes[i].instancedMesh.instanceMatrix.needsUpdate = true;
+    }
+  });
+  _dirtyEntries.clear();
+}
+
+// ============================================================
+
 export async function addCompositeFieldVisual(root, terrain, seed) {
   var defs = await loadCompositePack();
   if (!defs || defs.length === 0) return { itemsPlaced: 0, instancesPlaced: 0 };
 
+  var useInstancing = !!_instanceRoot;
   var qCfg = getQualityConfig();
   var maxInstances = qCfg.maxCompositeInstances || MAX_COMPOSITE_INSTANCES;
   var rng = seededRand(seed + 4041);
@@ -361,25 +597,36 @@ export async function addCompositeFieldVisual(root, terrain, seed) {
       var item = def.items[i];
       try {
         var local = rotateXZ((item.x || 0) * instScale, (item.z || 0) * instScale, rot);
-        var visual = await loadGlbVisual(item.modelPath, fitForCompositeItem(item), true);
-        var holder = new THREE.Group();
-        holder.add(visual);
-        holder.position.set(
-          found.x + local.x,
-          TERRAIN_VISUAL_Y_OFFSET + (item.y || 0) * instScale,
-          found.z + local.z
-        );
-        holder.rotation.y = rot + THREE.MathUtils.degToRad(item.rotYDeg || 0);
+        var fitSize = fitForCompositeItem(item);
         var worldScale = (item.scale || 1) * instScale;
-        holder.scale.setScalar(worldScale);
-        root.add(holder);
-        if (shouldAddCompositeCollider(item)) addVisualColliderFromObject(terrain, holder, item.modelPath);
-        addMinimapMarkerForObject(
-          terrain,
-          getCompositeMarkerTypeByScale(item.type, worldScale),
-          holder,
-          worldScale, item.modelPath
-        );
+        var itemRotY = rot + THREE.MathUtils.degToRad(item.rotYDeg || 0);
+        var localX = found.x + local.x;
+        var localZ = found.z + local.z;
+        var localY = TERRAIN_VISUAL_Y_OFFSET + (item.y || 0) * instScale;
+
+        if (useInstancing) {
+          var entry = await ensureModelEntry(item.modelPath, fitSize);
+          if (!entry) continue;
+          var sceneX = root.position.x + localX;
+          var sceneZ = root.position.z + localZ;
+          placeInstanceWithColliders(
+            terrain.key, terrain, entry,
+            sceneX, localY, sceneZ, itemRotY, worldScale,
+            shouldAddCompositeCollider(item),
+            getCompositeMarkerTypeByScale(item.type, worldScale),
+            item.modelPath
+          );
+        } else {
+          var visual = await loadGlbVisual(item.modelPath, fitSize, true);
+          var holder = new THREE.Group();
+          holder.add(visual);
+          holder.position.set(localX, localY, localZ);
+          holder.rotation.y = itemRotY;
+          holder.scale.setScalar(worldScale);
+          root.add(holder);
+          if (shouldAddCompositeCollider(item)) addVisualColliderFromObject(terrain, holder, item.modelPath);
+          addMinimapMarkerForObject(terrain, getCompositeMarkerTypeByScale(item.type, worldScale), holder, worldScale, item.modelPath);
+        }
         itemsPlaced++;
       } catch (e) {
         // keep loading remaining objects
@@ -414,8 +661,11 @@ export async function addTieredIslandFieldVisual(root, terrain, heightmap, seed)
   var land = collectLandPoints(heightmap, SPAWN_CLEAR_RADIUS + 12);
   if (land.length === 0) return 0;
 
+  var useInstancing = !!_instanceRoot;
   var rng = seededRand(seed + 1337);
   var placed = [];
+  var offX = root.position.x;
+  var offZ = root.position.z;
 
   function pointInVisualLand(x, z, pad) {
     for (var i = 0; i < terrain.visualColliders.length; i++) {
@@ -425,7 +675,7 @@ export async function addTieredIslandFieldVisual(root, terrain, heightmap, seed)
     return false;
   }
 
-  function tryPlace(count, minScale, maxScale, minSpacing, template, markerType) {
+  function tryPlaceLegacy(count, minScale, maxScale, minSpacing, template, markerType) {
     var placedNow = 0;
     for (var t = 0; t < land.length * 4 && placedNow < count; t++) {
       var cand = land[Math.floor(rng() * land.length)];
@@ -451,17 +701,54 @@ export async function addTieredIslandFieldVisual(root, terrain, heightmap, seed)
     return placedNow;
   }
 
+  function tryPlaceInstanced(count, minScale, maxScale, minSpacing, entry, markerType) {
+    var placedNow = 0;
+    for (var t = 0; t < land.length * 4 && placedNow < count; t++) {
+      var cand = land[Math.floor(rng() * land.length)];
+      var checkX = offX + cand.x;
+      var checkZ = offZ + cand.z;
+      if (pointInVisualLand(checkX, checkZ, minSpacing * 0.75)) continue;
+      var ok = true;
+      for (var i = 0; i < placed.length; i++) {
+        var dx = cand.x - placed[i].x;
+        var dz = cand.z - placed[i].z;
+        if (dx * dx + dz * dz < minSpacing * minSpacing) { ok = false; break; }
+      }
+      if (!ok) continue;
+      var scaleVal = minScale + rng() * (maxScale - minScale);
+      var rotYVal = rng() * Math.PI * 2;
+      var sceneY = TERRAIN_VISUAL_Y_OFFSET + cand.h * TERRAIN_HEIGHT * 0.05;
+      placeInstanceWithColliders(
+        terrain.key, terrain, entry,
+        checkX, sceneY, checkZ, rotYVal, scaleVal,
+        true, markerType, SMALL_ISLAND_MODEL
+      );
+      placed.push({ x: cand.x, z: cand.z });
+      placedNow++;
+    }
+    return placedNow;
+  }
+
   try {
-    var template = await loadGlbVisual(SMALL_ISLAND_MODEL, 20, true);
     var total = 0;
     var qCfg2 = getQualityConfig();
     var islandScale = qCfg2.maxCompositeInstances ? qCfg2.maxCompositeInstances / MAX_COMPOSITE_INSTANCES : 1;
     var bigCount = Math.max(1, Math.round(MIN_BIG_ISLANDS * islandScale));
     var medCount = Math.max(2, Math.round(MIN_MEDIUM_ISLANDS * islandScale));
     var smallCount = Math.max(3, Math.round(MIN_SMALL_ISLANDS * islandScale));
-    total += tryPlace(bigCount, 1.7, 2.05, 38, template, "island_big");
-    total += tryPlace(medCount, 1.2, 1.55, 30, template, "island_mid");
-    total += tryPlace(smallCount, 0.82, 1.12, 21, template, "island_small");
+
+    if (useInstancing) {
+      var entry = await ensureModelEntry(SMALL_ISLAND_MODEL, 20);
+      if (!entry) return 0;
+      total += tryPlaceInstanced(bigCount, 1.7, 2.05, 38, entry, "island_big");
+      total += tryPlaceInstanced(medCount, 1.2, 1.55, 30, entry, "island_mid");
+      total += tryPlaceInstanced(smallCount, 0.82, 1.12, 21, entry, "island_small");
+    } else {
+      var template = await loadGlbVisual(SMALL_ISLAND_MODEL, 20, true);
+      total += tryPlaceLegacy(bigCount, 1.7, 2.05, 38, template, "island_big");
+      total += tryPlaceLegacy(medCount, 1.2, 1.55, 30, template, "island_mid");
+      total += tryPlaceLegacy(smallCount, 0.82, 1.12, 21, template, "island_small");
+    }
     return total;
   } catch (e) {
     return 0;

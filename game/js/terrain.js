@@ -1,16 +1,23 @@
 // terrain.js — infinite chunked terrain streaming, collision queries, and GC
 import * as THREE from "three";
 import { nextRandom } from "./rng.js";
+import { isMobile } from "./mobile.js";
 import {
   addCompositeFieldVisual,
   addTieredIslandFieldVisual,
   createColliderDebugOverlay as createCompositeColliderDebugOverlay,
-  removeColliderDebugOverlay as removeCompositeColliderDebugOverlay
+  removeColliderDebugOverlay as removeCompositeColliderDebugOverlay,
+  initIslandInstancing,
+  disposeIslandInstancing,
+  removeChunkInstances,
+  shiftAllInstancePositions,
+  flushInstanceUpdates
 } from "./terrainComposite.js";
 
 // --- world/chunk tuning ---
 var CHUNK_SIZE = 400;                  // keeps compatibility with existing map-scale content
-var GRID_RES = 128;                    // per-chunk heightmap resolution
+var GRID_RES_DESKTOP = 128;
+var GRID_RES_MOBILE = 64;             // halved on mobile — 6.25 unit resolution is adequate
 var SEA_LEVEL = 0.0;
 var NOISE_SCALE = 0.02;
 var OCTAVES = 4;
@@ -19,6 +26,54 @@ var LACUNARITY = 2.0;
 var SPAWN_CLEAR_RADIUS = 40;
 var COLLISION_RADIUS = 1.5;
 var VISUAL_COLLIDER_PAD = 0.35;
+
+// fog-based visibility culling threshold (~600² — chunks beyond fully fogged)
+var FOG_CULL_DIST_SQ = 360000;
+
+function getGridRes() {
+  return isMobile() ? GRID_RES_MOBILE : GRID_RES_DESKTOP;
+}
+
+// --- object pools (Phase 4) ---
+var _groupPool = [];
+var _heightmapPool = [];
+var GROUP_POOL_MAX = 24;
+var HEIGHTMAP_POOL_MAX = 16;
+
+function acquireGroup() {
+  if (_groupPool.length > 0) {
+    var g = _groupPool.pop();
+    g.visible = true;
+    return g;
+  }
+  return new THREE.Group();
+}
+
+function releaseGroup(group) {
+  if (!group) return;
+  while (group.children.length > 0) group.remove(group.children[0]);
+  group.position.set(0, 0, 0);
+  group.rotation.set(0, 0, 0);
+  group.scale.set(1, 1, 1);
+  group.visible = false;
+  if (_groupPool.length < GROUP_POOL_MAX) _groupPool.push(group);
+}
+
+function acquireHeightmapArray(length) {
+  for (var i = _heightmapPool.length - 1; i >= 0; i--) {
+    if (_heightmapPool[i].length === length) {
+      var arr = _heightmapPool.splice(i, 1)[0];
+      arr.fill(0);
+      return arr;
+    }
+  }
+  return new Float32Array(length);
+}
+
+function releaseHeightmapArray(arr) {
+  if (!arr || _heightmapPool.length >= HEIGHTMAP_POOL_MAX) return;
+  _heightmapPool.push(arr);
+}
 
 // world-stream tuning (persisted and user-configurable)
 var STREAM_SETTINGS_KEY = "oo_world_stream_settings";
@@ -37,6 +92,14 @@ var DEFAULT_STREAM_SETTINGS = Object.freeze({
   chunkCreateBudget: 4,
   activeChunkSoftLimit: 20,
   activeChunkHardLimit: 30
+});
+var MOBILE_STREAM_SETTINGS = Object.freeze({
+  streamRadius: 1,
+  keepRadius: 1,
+  preloadAhead: 0,
+  chunkCreateBudget: 1,
+  activeChunkSoftLimit: 9,
+  activeChunkHardLimit: 12
 });
 var _streamSettings = null;
 var _streamSettingsSubscribers = [];
@@ -151,7 +214,8 @@ function ensureStreamSettingsReady() {
       loaded = null;
     }
   }
-  _streamSettings = normalizeStreamSettings(loaded, DEFAULT_STREAM_SETTINGS);
+  var defaults = isMobile() ? MOBILE_STREAM_SETTINGS : DEFAULT_STREAM_SETTINGS;
+  _streamSettings = normalizeStreamSettings(loaded, defaults);
 }
 
 function getActiveStreamSettings() {
@@ -230,8 +294,9 @@ function distanceMetrics(globalX, globalZ) {
 
 function generateChunkHeightmap(worldSeed, difficulty, cx, cy) {
   _noiseSeed = worldSeed | 0;
-  var size = GRID_RES + 1;
-  var data = new Float32Array(size * size);
+  var gridRes = getGridRes();
+  var size = gridRes + 1;
+  var data = acquireHeightmapArray(size * size);
   var half = CHUNK_SIZE * 0.5;
   var centerX = chunkCenter(cx);
   var centerZ = chunkCenter(cy);
@@ -243,8 +308,8 @@ function generateChunkHeightmap(worldSeed, difficulty, cx, cy) {
 
   for (var iy = 0; iy < size; iy++) {
     for (var ix = 0; ix < size; ix++) {
-      var worldX = centerX + (ix / GRID_RES) * CHUNK_SIZE - half;
-      var worldZ = centerZ + (iy / GRID_RES) * CHUNK_SIZE - half;
+      var worldX = centerX + (ix / gridRes) * CHUNK_SIZE - half;
+      var worldZ = centerZ + (iy / gridRes) * CHUNK_SIZE - half;
 
       var n = fbm(worldX * NOISE_SCALE, worldZ * NOISE_SCALE);
       var h = (n - landThreshold) * 2;
@@ -273,8 +338,9 @@ function sampleChunkHeight(chunk, globalX, globalZ) {
   var minX = chunkCenter(chunk.cx) - half;
   var minZ = chunkCenter(chunk.cy) - half;
 
-  var u = (globalX - minX) / CHUNK_SIZE * GRID_RES;
-  var v = (globalZ - minZ) / CHUNK_SIZE * GRID_RES;
+  var res = size - 1; // derive from actual heightmap (supports variable resolution)
+  var u = (globalX - minX) / CHUNK_SIZE * res;
+  var v = (globalZ - minZ) / CHUNK_SIZE * res;
 
   var ix = clamp(Math.floor(u), 0, size - 2);
   var iy = clamp(Math.floor(v), 0, size - 2);
@@ -429,7 +495,7 @@ function ensureChunk(terrain, cx, cy) {
   var existing = terrain.chunks.get(key);
   if (existing) return existing;
 
-  var group = new THREE.Group();
+  var group = acquireGroup();
   var worldSeed = terrain.worldSeed | 0;
   var chunkSeed = hashInt3(worldSeed, cx, cy);
   var centerX = chunkCenter(cx);
@@ -465,13 +531,6 @@ function ensureChunk(terrain, cx, cy) {
   terrain.chunks.set(key, chunk);
   terrain.debug.chunksCreated++;
 
-  console.log("[WORLD] chunk create", {
-    chunk: key,
-    active: terrain.chunks.size,
-    created: terrain.debug.chunksCreated,
-    destroyed: terrain.debug.chunksDestroyed
-  });
-
   var compositeChance = metrics.compositionChance;
   var roll = seedToUnit(hashInt3(chunkSeed, 0x63d83595, 0x7f4a7c15));
   var shouldGenerateVisuals = roll <= compositeChance;
@@ -486,6 +545,7 @@ function ensureChunk(terrain, cx, cy) {
       prepareChunkForGc(terrain, chunk);
     } else {
       chunk.state = "active";
+      if (terrain.onChunkReady) terrain.onChunkReady(chunk);
     }
   }
 
@@ -523,6 +583,8 @@ function ensureChunk(terrain, cx, cy) {
 
 function prepareChunkForGc(terrain, chunk) {
   if (!chunk || chunk.gcPrepared || chunk.state === "disposed") return;
+  if (terrain.onChunkDispose) terrain.onChunkDispose(chunk);
+  removeChunkInstances(chunk.key);
   if (!chunk.resourcesTracked) retainChunkResources(terrain, chunk);
 
   chunk.gcEntries = buildChunkGcEntries(chunk);
@@ -553,22 +615,18 @@ function finalizeChunkDisposal(terrain, chunk) {
 
   terrain.chunks.delete(chunk.key);
   chunk.state = "disposed";
+  releaseGroup(chunk.group);
   chunk.group = null;
-  chunk.heightmap = null;
+  if (chunk.heightmap) {
+    releaseHeightmapArray(chunk.heightmap.data);
+    chunk.heightmap = null;
+  }
   chunk.resources = null;
   chunk.gcEntries = null;
   chunk.visualColliders = null;
   chunk.minimapMarkers = null;
 
   terrain.debug.chunksDestroyed++;
-
-  console.log("[WORLD] chunk destroy", {
-    chunk: chunk.key,
-    active: terrain.chunks.size,
-    created: terrain.debug.chunksCreated,
-    destroyed: terrain.debug.chunksDestroyed,
-    disposedResources: terrain.debug.disposedResources
-  });
 }
 
 function processGcQueue(terrain) {
@@ -877,6 +935,9 @@ export function createTerrain(seed, difficulty) {
     gcResourceBudget: GC_RESOURCE_BUDGET,
     originOffsetX: 0,
     originOffsetZ: 0,
+    onChunkReady: null,    // callback(chunk) — fires when chunk becomes active
+    onChunkDispose: null,  // callback(chunk) — fires before chunk GC
+    onOriginShift: null,   // callback(shiftX, shiftZ) — fires on origin shift
     resourceRefs: {
       geometry: new Map(),
       material: new Map(),
@@ -914,6 +975,8 @@ export function createTerrain(seed, difficulty) {
     }
   };
 
+  initIslandInstancing(mesh);
+
   // bootstrap around spawn so first frame has content
   updateTerrainStreaming(terrain, 0, 0, 0, 0);
   updateTerrainStreaming(terrain, 0, 0, 0, 0);
@@ -947,6 +1010,16 @@ export function updateTerrainStreaming(terrain, playerX, playerZ, playerHeading)
 
   forceGcIfNeeded(terrain, desiredInfo.centerX, desiredInfo.centerY, desiredSet, streamSettings);
   processGcQueue(terrain);
+
+  // fog-based visibility culling — skip rendering chunks fully obscured by fog
+  terrain.chunks.forEach(function (chunk) {
+    if (!chunk || !chunk.group || chunk.state !== "active") return;
+    var sceneX = chunkCenter(chunk.cx) - terrain.originOffsetX;
+    var sceneZ = chunkCenter(chunk.cy) - terrain.originOffsetZ;
+    chunk.group.visible = (sceneX * sceneX + sceneZ * sceneZ) < FOG_CULL_DIST_SQ;
+  });
+
+  flushInstanceUpdates();
 }
 
 export function shiftTerrainOrigin(terrain, shiftX, shiftZ) {
@@ -954,6 +1027,9 @@ export function shiftTerrainOrigin(terrain, shiftX, shiftZ) {
 
   terrain.originOffsetX += shiftX;
   terrain.originOffsetZ += shiftZ;
+
+  if (terrain.onOriginShift) terrain.onOriginShift(shiftX, shiftZ);
+  shiftAllInstancePositions(shiftX, shiftZ);
 
   terrain.chunks.forEach(function (chunk) {
     if (!chunk || chunk.state === "disposed") return;
@@ -1064,6 +1140,7 @@ export function getTerrainAvoidance(terrain, worldX, worldZ, range) {
 // --- disposal ---
 export function removeTerrain(terrain, scene) {
   if (!terrain || !terrain.mesh) return;
+  disposeIslandInstancing();
   scene.remove(terrain.mesh);
 
   // Dispose everything eagerly on full teardown.

@@ -136,6 +136,7 @@ export function toggleMute() {
 // --- fade game audio for menu screens ---
 var savedAmbienceVol = 0.3;
 var savedMusicVol = 0.18;
+var savedSfxVol = 0.6;
 var gameAudioFaded = false;
 
 export function fadeGameAudio() {
@@ -149,6 +150,10 @@ export function fadeGameAudio() {
     savedMusicVol = musicGain.gain.value;
     musicGain.gain.value = 0;
   }
+  if (sfxGain) {
+    savedSfxVol = sfxGain.gain.value;
+    sfxGain.gain.value = 0;
+  }
 }
 
 export function resumeGameAudio() {
@@ -156,10 +161,11 @@ export function resumeGameAudio() {
   gameAudioFaded = false;
   if (ambienceGain) ambienceGain.gain.value = savedAmbienceVol;
   if (musicGain) musicGain.gain.value = savedMusicVol;
+  if (sfxGain) sfxGain.gain.value = savedSfxVol;
 }
 
 // --- wind/sail propulsion: filtered wind noise + canvas flapping + rigging creak ---
-export function setEngineClass(classKey) {
+export function setSailClass(classKey) {
   // pirate ships share the same wind profile — kept for API compat
   if (windLayers) {
     try { windLayers.windSrc.stop(); } catch (e) { /* ok */ }
@@ -258,7 +264,7 @@ function buildWake() {
   wakeNoise.start();
 }
 
-export function updateEngine(speedRatio) {
+export function updateSailing(speedRatio) {
   if (!ctx || !unlocked) return;
   if (!windLayers) buildWindPropulsion();
   if (!wakeNoise) buildWake();
@@ -267,11 +273,8 @@ export function updateEngine(speedRatio) {
   smoothSpeed += (ratio - smoothSpeed) * 0.04;
   var s = smoothSpeed;
 
-  // idle: gentle hull bob creaking + distant wind
-  var idleWind = (1 - s) * 0.015;
-
   // wind in sails — intensity scales with speed
-  windLayers.windGn.gain.value = 0.02 + s * 0.1 + idleWind;
+  windLayers.windGn.gain.value = s * 0.1;
   windLayers.windFilt.frequency.value = 400 + s * 800;
   windLayers.gustLfoGn.gain.value = 0.01 + s * 0.04;
   windLayers.gustLfo.frequency.value = 0.2 + s * 0.5;
@@ -282,7 +285,7 @@ export function updateEngine(speedRatio) {
   windLayers.flapGn.gain.value = s * 0.04;
 
   // rigging creak
-  windLayers.creakGn.gain.value = 0.005 + s * 0.015;
+  windLayers.creakGn.gain.value = s * 0.015;
   windLayers.creakOsc.frequency.value = 70 + s * 30;
 
   // wake/bow spray — increases with speed

@@ -7,7 +7,7 @@ import { isMobile } from "./mobile.js";
 import { initMobileControls, getJoystickState } from "./mobileControls.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setAbilityBarCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
 import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
-import { unlockAudio, updateEngine, setEngineClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
+import { unlockAudio, updateSailing, setSailClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback } from "./weapon.js";
@@ -878,7 +878,7 @@ function startMultiplayerCombat() {
   resetDrones(droneMgr, scene);
   setWeather(weather, "calm");
   setTimeOfDay(dayNight, 0.35);
-  setEngineClass(selectedClass);
+  setSailClass(selectedClass);
   gameFrozen = false;
   gameStarted = true;
   cardPickerOpen = false;
@@ -1390,7 +1390,7 @@ function startNodeCombat(node, runSeed, encounterOverride) {
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, weatherPreset);
-  setEngineClass(selectedClass);
+  setSailClass(selectedClass);
   gameFrozen = false;
   gameStarted = true;
   cardPickerOpen = false;
@@ -1531,7 +1531,7 @@ function startZoneCombat(classKey, zoneId) {
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
   setWeather(weather, zone.condition === "stormy" ? "storm" : zone.condition || "calm");
-  setEngineClass(classKey);
+  setSailClass(classKey);
   gameFrozen = false;
   gameStarted = true;
   cardPickerOpen = false;
@@ -1658,6 +1658,7 @@ window.addEventListener("resize", function () {
 });
 
 var ROLLING_ORIGIN_THRESHOLD = 2200;
+var ROLLING_ORIGIN_THRESHOLD_SQ = ROLLING_ORIGIN_THRESHOLD * ROLLING_ORIGIN_THRESHOLD;
 var rollingOriginShifts = 0;
 
 function shiftMeshXZ(mesh, shiftX, shiftZ) {
@@ -1769,17 +1770,12 @@ function applyRollingOriginShift(shiftX, shiftZ) {
   shiftStorySetDressing(storySetDressing, shiftX, shiftZ);
 
   rollingOriginShifts++;
-  console.log("[WORLD] rolling-origin shift", {
-    shiftX: shiftX,
-    shiftZ: shiftZ,
-    shifts: rollingOriginShifts
-  });
 }
 
 function maybeApplyRollingOrigin() {
   if (!ship || !activeTerrain || isMultiplayerActive(mpState)) return;
-  var dist = Math.sqrt(ship.posX * ship.posX + ship.posZ * ship.posZ);
-  if (dist < ROLLING_ORIGIN_THRESHOLD) return;
+  var distSq = ship.posX * ship.posX + ship.posZ * ship.posZ;
+  if (distSq < ROLLING_ORIGIN_THRESHOLD_SQ) return;
   var shiftX = Math.round(ship.posX);
   var shiftZ = Math.round(ship.posZ);
   applyRollingOriginShift(shiftX, shiftZ);
@@ -2313,14 +2309,16 @@ function runFrame(dt) {
       cam.camera.position.z += shake.offsetY;
     }
 
-    updateEngine(speedRatio);
-    updateAmbience(weather.current, dt);
+    if (!gameFrozen) {
+      updateSailing(speedRatio);
+      updateAmbience(weather.current, dt);
+      updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
+    }
     var musicMode = "calm";
     if (portScreenOpen) musicMode = "port";
     else if (bossAlive) musicMode = "boss";
     else if (aliveEnemyCount > 0) musicMode = "combat";
     updateMusic(musicMode);
-    updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
     if (prevPlayerHp >= 0 && hpInfo.hp < prevPlayerHp) {
       playPlayerHit();
       var dmgAmount = prevPlayerHp - hpInfo.hp;

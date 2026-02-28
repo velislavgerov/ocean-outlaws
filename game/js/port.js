@@ -8,7 +8,9 @@ import { loadGlbVisual } from "./glbVisual.js";
 import { ensureAssetRoles, getRoleVariants, pickRoleVariant } from "./assetRoles.js";
 
 // --- tuning ---
-var PORT_COUNT = 3;              // ports per map
+var PORT_CHUNK_CHANCE = 0.18;    // probability a chunk spawns a port (~18%)
+var PORT_CHUNK_SIZE = 400;       // must match terrain.js CHUNK_SIZE
+var PORT_COUNT = 3;              // legacy: ports per map for initPorts fallback
 var PORT_COLLECT_RADIUS = 10;    // proximity to trigger resupply
 var PORT_COOLDOWN = 45;          // seconds before port can be used again
 var PORT_AMMO_RESTOCK = 30;
@@ -137,7 +139,110 @@ var CITY_MODULES_BY_THEME = {
   ]
 };
 
-// --- find coastline positions ---
+// --- deterministic hash / RNG for chunk-based port placement ---
+function hashInt3Port(a, b, c) {
+  var h = (a | 0) ^ Math.imul(b | 0, 0x85ebca6b) ^ Math.imul(c | 0, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+  h = h ^ (h >>> 16);
+  return h >>> 0;
+}
+
+function seededRandPort(seed) {
+  var s = (seed >>> 0) || 1;
+  return function () {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function findChunkCoastlinePosition(chunk, terrain, rng) {
+  var half = PORT_CHUNK_SIZE * 0.5;
+  var centerGlobalX = chunk.cx * PORT_CHUNK_SIZE;
+  var centerGlobalZ = chunk.cy * PORT_CHUNK_SIZE;
+  var margin = 40;
+  var searchRange = PORT_CHUNK_SIZE - margin * 2;
+
+  for (var attempt = 0; attempt < 80; attempt++) {
+    var gx = centerGlobalX + (rng() - 0.5) * searchRange;
+    var gz = centerGlobalZ + (rng() - 0.5) * searchRange;
+
+    // Scene-space coordinates for terrain queries
+    var x = gx - terrain.originOffsetX;
+    var z = gz - terrain.originOffsetZ;
+
+    // Spawn protection near global origin
+    var originDist = Math.sqrt(gx * gx + gz * gz);
+    if (originDist < MIN_CENTER_DIST) continue;
+
+    var h = sampleHeightmap(terrain, x, z);
+    if (h < COAST_HEIGHT_MIN || h > COAST_HEIGHT_MAX) continue;
+
+    // Ensure nearby land
+    var hasLand = false;
+    for (var la = 0; la < 8; la++) {
+      var lAngle = la * Math.PI / 4;
+      if (isHeightmapLand(terrain, x + Math.cos(lAngle) * 8, z + Math.sin(lAngle) * 8)) {
+        hasLand = true;
+        break;
+      }
+    }
+    if (!hasLand) continue;
+
+    // Ensure nearby water
+    var hasWater = false;
+    for (var wa = 0; wa < 8; wa++) {
+      var wAngle = wa * Math.PI / 4;
+      if (!isHeightmapLand(terrain, x + Math.cos(wAngle) * 8, z + Math.sin(wAngle) * 8)) {
+        hasWater = true;
+        break;
+      }
+    }
+    if (!hasWater) continue;
+
+    // Find best water angle
+    var bestWaterAngle = 0;
+    var bestWaterH = 999;
+    for (var ba = 0; ba < 16; ba++) {
+      var bAngle = ba * Math.PI / 8;
+      var testH = sampleHeightmap(terrain, x + Math.cos(bAngle) * 6, z + Math.sin(bAngle) * 6);
+      if (testH < bestWaterH) {
+        bestWaterH = testH;
+        bestWaterAngle = bAngle;
+      }
+    }
+
+    // Nudge toward water
+    x += Math.cos(bestWaterAngle) * PORT_WATER_NUDGE;
+    z += Math.sin(bestWaterAngle) * PORT_WATER_NUDGE;
+
+    // Validate against full terrain collision
+    if (!hasWaterClearance(terrain, x, z, isLand)) {
+      var rootWater = findDockCandidate(
+        x, z, bestWaterAngle, 0,
+        Math.max(PORT_DOCK_OFFSET, PORT_DOCK_MAX_OFFSET * 0.45), 1.5,
+        function (rx, rz) { return hasWaterClearance(terrain, rx, rz, isLand); }
+      );
+      if (!rootWater) continue;
+      x = rootWater.x;
+      z = rootWater.z;
+    }
+
+    // Find dock candidate
+    var dock = findDockCandidate(
+      x, z, bestWaterAngle,
+      Math.max(1, PORT_DOCK_OFFSET * 0.4), PORT_DOCK_MAX_OFFSET, 1.5,
+      function (dx, dz) { return hasWaterClearance(terrain, dx, dz, isLand); }
+    );
+    if (!dock) continue;
+
+    return { x: x, z: z, waterAngle: bestWaterAngle, dockX: dock.x, dockZ: dock.z };
+  }
+
+  return null;
+}
+
+// --- find coastline positions (legacy: near-origin search) ---
 function findCoastlinePositions(terrain) {
   var positions = [];
   for (var attempt = 0; attempt < COAST_SEARCH_ATTEMPTS && positions.length < PORT_COUNT; attempt++) {
@@ -687,103 +792,189 @@ export function createPortManager() {
   };
 }
 
-// --- initialize ports for a zone ---
+// --- initialize ports for a zone (chunk-aware) ---
 export function initPorts(manager, terrain, scene, roleContext) {
   clearPorts(manager, scene);
-  var positions = findCoastlinePositions(terrain);
-  var themeKeys = getPortThemeKeys();
-  var themeOffset = themeKeys.length ? Math.floor(nextRandom() * themeKeys.length) : 0;
-  var difficulty = getRoleDifficulty(roleContext);
-  var hostileChance = clamp(PORT_CITY_HOSTILE_BASE + (difficulty - 1) * PORT_CITY_HOSTILE_STEP, 0.15, 0.9);
-  var cityFlags = [];
-  var hostileFlags = [];
-  var cityCandidates = [];
-  var cityAnchors = [];
-  var themeByPort = [];
 
-  for (var i = 0; i < positions.length; i++) {
-    themeByPort[i] = pickPortThemeKey(themeKeys, themeOffset + i);
-    cityAnchors[i] = findCityAnchor(terrain, positions[i].x, positions[i].z, positions[i].waterAngle);
-    cityFlags[i] = false;
-    hostileFlags[i] = false;
-    if (cityAnchors[i]) cityCandidates.push(i);
-  }
+  // Store references for chunk lifecycle hooks
+  manager._terrain = terrain;
+  manager._scene = scene;
+  manager._roleContext = roleContext;
 
-  for (var c = 0; c < cityCandidates.length; c++) {
-    var cidx = cityCandidates[c];
-    if (nextRandom() < PORT_CITY_CHANCE) cityFlags[cidx] = true;
-  }
-  ensureMinimumSelection(cityFlags, cityCandidates, Math.min(PORT_CITY_MIN_COUNT, cityCandidates.length));
-  var maxCities = Math.max(1, Math.floor(positions.length * PORT_CITY_MAX_FRACTION));
-  if (positions.length <= 2) maxCities = positions.length;
-  trimSelection(cityFlags, Math.min(positions.length, maxCities));
-
-  var chosenCities = collectTrueIndices(cityFlags);
-  for (var ci = 0; ci < chosenCities.length; ci++) {
-    var cityIndex = chosenCities[ci];
-    if (nextRandom() < hostileChance) hostileFlags[cityIndex] = true;
-  }
-  ensureMinimumSelection(hostileFlags, chosenCities, Math.min(PORT_HOSTILE_CITY_MIN_COUNT, chosenCities.length));
-
-  var hostileCount = collectTrueIndices(hostileFlags).length;
-  if (positions.length > 1 && hostileCount >= positions.length) {
-    var hostileIdx = shuffledCopy(collectTrueIndices(hostileFlags))[0];
-    if (hostileIdx !== undefined) hostileFlags[hostileIdx] = false;
-  }
-
-  for (var p = 0; p < positions.length; p++) {
-    var themeKey = themeByPort[p];
-    var cityAnchor = cityAnchors[p];
-    var isCity = !!cityFlags[p] && !!cityAnchor;
-    var hostileCity = isCity && !!hostileFlags[p];
-    var cityMeta = null;
-    if (isCity && cityAnchor) {
-      cityMeta = {
-        isCity: true,
-        hostile: hostileCity,
-        name: pickCityName(themeKey),
-        localX: cityAnchor.x - positions[p].x,
-        localY: cityAnchor.y || 0,
-        localZ: cityAnchor.z - positions[p].z,
-        landAngle: cityAnchor.angle
-      };
-    }
-
-    var mesh = buildPortMesh(themeKey, roleContext, cityMeta);
-    mesh.position.set(positions[p].x, 0, positions[p].z);
-    scene.add(mesh);
-
-    var port = {
-      mesh: mesh,
-      posX: positions[p].x,
-      posZ: positions[p].z,
-      dockX: positions[p].dockX,
-      dockZ: positions[p].dockZ,
-      dockRefreshTimer: 0,
-      waterAngle: positions[p].waterAngle,
-      themeKey: themeKey || "neutral",
-      cooldown: 0,       // 0 = available
-      available: !hostileCity,
-      isCity: isCity,
-      hostileCity: hostileCity,
-      cityPacified: false,
-      cityName: cityMeta ? cityMeta.name : null,
-      cityAnchorX: isCity && cityAnchor ? cityAnchor.x : positions[p].x,
-      cityAnchorY: isCity && cityAnchor ? (cityAnchor.y || 0) : 0,
-      cityAnchorZ: isCity && cityAnchor ? cityAnchor.z : positions[p].z,
-      batteries: []
+  // Set up terrain lifecycle hooks for dynamic port spawning
+  if (terrain) {
+    terrain.onChunkReady = function (chunk) {
+      trySpawnChunkPort(manager, chunk, terrain, scene, roleContext);
     };
-    if (isCity) {
-      port.batteries = createCityBatteries(port, terrain);
-      for (var bi = 0; bi < port.batteries.length; bi++) {
-        mesh.add(port.batteries[bi].mesh);
-      }
-    }
+    terrain.onChunkDispose = function (chunk) {
+      removeChunkPort(manager, chunk.key, scene);
+    };
+    terrain.onOriginShift = function (shiftX, shiftZ) {
+      shiftPortPositions(manager, shiftX, shiftZ);
+    };
+  }
 
-    manager.ports.push(port);
+  // Spawn ports for already-active chunks
+  if (terrain && terrain.chunks) {
+    terrain.chunks.forEach(function (chunk) {
+      if (!chunk || chunk.state !== "active" || !chunk.ready) return;
+      trySpawnChunkPort(manager, chunk, terrain, scene, roleContext);
+    });
   }
 
   manager.initialized = true;
+}
+
+// --- spawn a port deterministically for a single chunk ---
+export function trySpawnChunkPort(manager, chunk, terrain, scene, roleContext) {
+  if (!manager || !chunk || !terrain || !scene) return;
+  if (chunk.port !== undefined) return; // already checked this chunk
+
+  var worldSeed = chunk.worldSeed || 0;
+  var portSeed = hashInt3Port(worldSeed, chunk.cx ^ 0x504F, chunk.cy ^ 0x5254);
+  var rng = seededRandPort(portSeed);
+
+  // Deterministic port chance
+  if (rng() >= PORT_CHUNK_CHANCE) {
+    chunk.port = null;
+    return;
+  }
+
+  var pos = findChunkCoastlinePosition(chunk, terrain, rng);
+  if (!pos) {
+    chunk.port = null;
+    return;
+  }
+
+  // Check spacing from existing ports
+  for (var j = 0; j < manager.ports.length; j++) {
+    var ep = manager.ports[j];
+    var edx = ep.posX - pos.x;
+    var edz = ep.posZ - pos.z;
+    if (Math.sqrt(edx * edx + edz * edz) < MIN_PORT_SPACING) {
+      chunk.port = null;
+      return;
+    }
+  }
+
+  // Determine theme and city properties via seeded RNG
+  var themeKeys = getPortThemeKeys();
+  var themeIdx = Math.floor(rng() * themeKeys.length);
+  var themeKey = themeKeys[themeIdx] || "neutral";
+  var difficulty = getRoleDifficulty(roleContext);
+  var hostileChance = clamp(PORT_CITY_HOSTILE_BASE + (difficulty - 1) * PORT_CITY_HOSTILE_STEP, 0.15, 0.9);
+
+  var cityAnchor = findCityAnchor(terrain, pos.x, pos.z, pos.waterAngle);
+  var isCity = !!cityAnchor && rng() < PORT_CITY_CHANCE;
+  var hostileCity = isCity && rng() < hostileChance;
+
+  // Distance-based difficulty: further from origin = more hostile
+  var globalX = pos.x + terrain.originOffsetX;
+  var globalZ = pos.z + terrain.originOffsetZ;
+  var distFromOrigin = Math.sqrt(globalX * globalX + globalZ * globalZ);
+  if (isCity && !hostileCity && distFromOrigin > 1000) {
+    var distFactor = Math.min(1, (distFromOrigin - 1000) / 5000);
+    if (rng() < distFactor * 0.4) hostileCity = true;
+  }
+
+  var cityMeta = null;
+  if (isCity && cityAnchor) {
+    cityMeta = {
+      isCity: true,
+      hostile: hostileCity,
+      name: pickCityName(themeKey),
+      localX: cityAnchor.x - pos.x,
+      localY: cityAnchor.y || 0,
+      localZ: cityAnchor.z - pos.z,
+      landAngle: cityAnchor.angle
+    };
+  }
+
+  var mesh = buildPortMesh(themeKey, roleContext, cityMeta);
+  mesh.position.set(pos.x, 0, pos.z);
+  scene.add(mesh);
+
+  var port = {
+    mesh: mesh,
+    posX: pos.x,
+    posZ: pos.z,
+    dockX: pos.dockX,
+    dockZ: pos.dockZ,
+    dockRefreshTimer: 0,
+    waterAngle: pos.waterAngle,
+    themeKey: themeKey || "neutral",
+    cooldown: 0,
+    available: !hostileCity,
+    isCity: isCity,
+    hostileCity: hostileCity,
+    cityPacified: false,
+    cityName: cityMeta ? cityMeta.name : null,
+    cityAnchorX: isCity && cityAnchor ? cityAnchor.x : pos.x,
+    cityAnchorY: isCity && cityAnchor ? (cityAnchor.y || 0) : 0,
+    cityAnchorZ: isCity && cityAnchor ? cityAnchor.z : pos.z,
+    batteries: [],
+    chunkKey: chunk.key
+  };
+
+  if (isCity) {
+    port.batteries = createCityBatteries(port, terrain);
+    for (var bi = 0; bi < port.batteries.length; bi++) {
+      mesh.add(port.batteries[bi].mesh);
+    }
+  }
+
+  manager.ports.push(port);
+  chunk.port = port;
+}
+
+// --- remove port when its chunk is GC'd ---
+export function removeChunkPort(manager, chunkKey, scene) {
+  if (!manager || !manager.ports) return;
+  for (var i = manager.ports.length - 1; i >= 0; i--) {
+    var port = manager.ports[i];
+    if (port.chunkKey !== chunkKey) continue;
+    // Remove city projectiles associated with this port
+    for (var cp = manager.cityProjectiles.length - 1; cp >= 0; cp--) {
+      if (manager.cityProjectiles[cp] && manager.cityProjectiles[cp].port === port) {
+        if (manager.cityProjectiles[cp].mesh) scene.remove(manager.cityProjectiles[cp].mesh);
+        manager.cityProjectiles.splice(cp, 1);
+      }
+    }
+    if (port.mesh) scene.remove(port.mesh);
+    manager.ports.splice(i, 1);
+  }
+}
+
+// --- shift port positions when terrain origin shifts ---
+export function shiftPortPositions(manager, shiftX, shiftZ) {
+  if (!manager || !manager.ports) return;
+  for (var i = 0; i < manager.ports.length; i++) {
+    var port = manager.ports[i];
+    port.posX -= shiftX;
+    port.posZ -= shiftZ;
+    if (port.mesh) {
+      port.mesh.position.x -= shiftX;
+      port.mesh.position.z -= shiftZ;
+    }
+    if (port.dockX !== undefined) {
+      port.dockX -= shiftX;
+      port.dockZ -= shiftZ;
+    }
+    port.cityAnchorX -= shiftX;
+    port.cityAnchorZ -= shiftZ;
+  }
+  // Shift city projectiles
+  for (var j = 0; j < manager.cityProjectiles.length; j++) {
+    var cp = manager.cityProjectiles[j];
+    if (cp && cp.mesh) {
+      cp.mesh.position.x -= shiftX;
+      cp.mesh.position.z -= shiftZ;
+    }
+    if (cp && cp.origin) {
+      cp.origin.x -= shiftX;
+      cp.origin.z -= shiftZ;
+    }
+  }
 }
 
 function getPortTarget(port) {

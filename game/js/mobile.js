@@ -68,20 +68,20 @@ export function getQualityConfig() {
       antialias: false,
       shaderDetail: 0, // 0 = minimal
       maxTriangles: 3000,
-      maxCompositeInstances: 3
+      maxCompositeInstances: _isMobile ? 1 : 3
     };
   }
   if (_quality === "medium") {
     return {
       oceanSegments: 96,
-      rainCount: 2000,
-      splashCount: 100,
+      rainCount: _isMobile ? 1000 : 2000,
+      splashCount: _isMobile ? 50 : 100,
       terrainOctaves: 3,
-      pixelRatioCap: 1.5,
+      pixelRatioCap: _isMobile ? 1.0 : 1.5,
       antialias: false,
       shaderDetail: 1, // 1 = reduced
-      maxTriangles: 5000,
-      maxCompositeInstances: 5
+      maxTriangles: _isMobile ? 3000 : 5000,
+      maxCompositeInstances: _isMobile ? 2 : 5
     };
   }
   // high

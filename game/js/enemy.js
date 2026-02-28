@@ -988,6 +988,8 @@ function updateParticles(manager, dt, scene) {
     p.life -= dt;
     if (p.life <= 0) {
       scene.remove(p.mesh);
+      if (p.mesh.material) p.mesh.material.dispose();
+      if (p.mesh.geometry && p.mesh.geometry !== particleGeo) p.mesh.geometry.dispose();
       continue;
     }
     p.vy -= 9.8 * dt;
