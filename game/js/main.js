@@ -1671,16 +1671,6 @@ function applyRollingOriginShift(shiftX, shiftZ) {
     ship.navTarget.x -= shiftX;
     ship.navTarget.z -= shiftZ;
   }
-  if (ship._navBypass) {
-    ship._navBypass.x -= shiftX;
-    ship._navBypass.z -= shiftZ;
-  }
-  if (ship._navPath && ship._navPath.length) {
-    for (var np = 0; np < ship._navPath.length; np++) {
-      ship._navPath[np].x -= shiftX;
-      ship._navPath[np].z -= shiftZ;
-    }
-  }
   shiftMeshXZ(ship.mesh, shiftX, shiftZ);
   cam.target.x -= shiftX;
   cam.target.z -= shiftZ;
@@ -1691,16 +1681,6 @@ function applyRollingOriginShift(shiftX, shiftZ) {
   for (var ei = 0; ei < enemyMgr.enemies.length; ei++) {
     var en = enemyMgr.enemies[ei];
     shiftPosXZ(en, shiftX, shiftZ);
-    if (en._landBypass) {
-      en._landBypass.x -= shiftX;
-      en._landBypass.z -= shiftZ;
-    }
-    if (en._navPath && en._navPath.length) {
-      for (var enp = 0; enp < en._navPath.length; enp++) {
-        en._navPath[enp].x -= shiftX;
-        en._navPath[enp].z -= shiftZ;
-      }
-    }
     if (en.tradeRoute) {
       if (en.tradeRoute.startX !== undefined) en.tradeRoute.startX -= shiftX;
       if (en.tradeRoute.startZ !== undefined) en.tradeRoute.startZ -= shiftZ;
