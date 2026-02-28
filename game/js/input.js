@@ -84,6 +84,8 @@ function onKeyDown(e) {
     keyActions.push("slot2");
   } else if (key === "r" || key === "R") {
     keyActions.push("slot3");
+  } else if (key === "m" || key === "M") {
+    keyActions.push("toggleMap");
   }
 }
 

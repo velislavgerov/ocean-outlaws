@@ -23,7 +23,7 @@ import { getShipClass } from "./shipClass.js";
 import { createAbilityState, activateAbility, updateAbility } from "./shipClass.js";
 import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen, getShipSelectOverlay } from "./shipSelect.js";
 import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./drone.js";
-import { createMapScreen, showMapScreen, hideMapScreen } from "./mapScreen.js";
+import { createMapScreen, showMapScreen, hideMapScreen, isMapScreenVisible } from "./mapScreen.js";
 import { loadMapState, resetMapState, getZone } from "./mapData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeatherDim, getWeatherFoam, getWeatherCloudShadow, maybeChangeWeather, createRain, createSplashes, updateWeather } from "./weather.js";
 import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness, setTimeOfDay } from "./daynight.js";
@@ -1476,6 +1476,14 @@ function runFrame(dt) {
       zoomWorldDebugView(1.15);
     } else if (action === "worldDebugZoomOut") {
       zoomWorldDebugView(1 / 1.15);
+    } else if (action === "toggleMap") {
+      if (gameStarted && ship) {
+        if (isMapScreenVisible()) {
+          hideMapScreen();
+        } else {
+          showMapScreen({ x: ship.posX, z: ship.posZ }, bossZones);
+        }
+      }
     } else {
       combatActions.push(action);
     }
