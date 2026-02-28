@@ -233,7 +233,8 @@ export function createWeaponState(ship) {
     ship: ship, turretGroups: turretGroups, activeWeapon: 0,
     projectiles: [], effects: [], cooldown: 0, shotCount: 0,
     aimWorldPos: new THREE.Vector3(0, 0, 0),
-    onNetHitCallback: null  // called with (targetType, targetId, damage) for multiplayer sync
+    onNetHitCallback: null,  // called with (targetType, targetId, damage) for multiplayer sync
+    weaponTiers: { cannon: 0, chainshot: 0, firebomb: 0 }
   };
 }
 
@@ -281,7 +282,8 @@ export function fireWeapon(state, scene, resources, upgradeMults) {
   if (state.cooldown > 0) return;
 
   var weaponKey = WEAPON_ORDER[state.activeWeapon];
-  var cfg = WEAPON_TYPES[weaponKey];
+  var tier = state.weaponTiers ? (state.weaponTiers[weaponKey] || 0) : 0;
+  var cfg = getEffectiveConfig(weaponKey, tier);
 
   if (resources) {
     if (resources.ammo < cfg.ammoCost) return;
@@ -327,6 +329,7 @@ export function fireWeapon(state, scene, resources, upgradeMults) {
     age: 0, trail: [], damageMult: cfg.damage * damageMult,
     weaponKey: weaponKey, cfg: cfg
   };
+  if (cfg.perk === "pierce") proj.pierceCount = 1;
   state.projectiles.push(proj);
   spawnFlash(state, scene, barrelTip);
 }
@@ -549,9 +552,14 @@ function checkEnemyHit(projectile, prevX, prevZ, enemies, enemyManager, scene, w
       var sx = prevX + (pp.x - prevX) * t;
       var sz = prevZ + (pp.z - prevZ) * t;
       if (pointInShipOBB(sx, sz, ex, ez, enemy.heading, ext.halfL, ext.halfW)) {
-        if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg);
+        var slowHit = projectile.cfg && projectile.cfg.perk === "slow";
+        if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg, slowHit);
         if (weaponState && weaponState.onNetHitCallback) {
           weaponState.onNetHitCallback("enemy", i, dmg);
+        }
+        if (projectile.pierceCount && projectile.pierceCount > 0) {
+          projectile.pierceCount--;
+          break; // stop checking sub-steps for this enemy but continue to next enemy
         }
         return true;
       }
