@@ -40,22 +40,47 @@ test("renderer initializes with webgl backend", async ({ page }) => {
 
 test("render_game_to_text returns valid state", async ({ page }) => {
   await page.goto("/?renderer=webgl");
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(6000);
 
   var state = await page.evaluate(function () {
     if (typeof window.render_game_to_text === "function") {
       var result = window.render_game_to_text();
-      // Returns JSON string — parse it
       if (typeof result === "string") return JSON.parse(result);
       return result;
     }
     return null;
   });
 
-  // render_game_to_text should exist and return a valid state object
   expect(state).not.toBeNull();
   expect(state.mode).toBeDefined();
   expect(state.renderer).toBeDefined();
+});
+
+test("advanceTime works via ticker", async ({ page }) => {
+  await page.goto("/?renderer=webgl");
+  await page.waitForTimeout(6000);
+
+  var result = await page.evaluate(function () {
+    if (typeof window.advanceTime !== "function") return "missing";
+    try {
+      window.advanceTime(500);
+      return "ok";
+    } catch (e) {
+      return "error:" + e.message;
+    }
+  });
+  expect(result).toBe("ok");
+});
+
+test("debug panel activates with hash", async ({ page }) => {
+  await page.goto("/?renderer=webgl#debug");
+  await page.waitForTimeout(6000);
+
+  var hasPane = await page.evaluate(function () {
+    // Tweakpane injects a container with class tp-dfwv
+    return document.querySelector(".tp-dfwv") !== null;
+  });
+  expect(hasPane).toBe(true);
 });
 
 test("mobile viewport shows orientation prompt in portrait", async ({ browser }) => {

@@ -1695,10 +1695,7 @@ setRestartCallback(function () {
   showMainMenu(startNewRun, continueRun, hasActiveRun());
 });
 
-window.addEventListener("resize", function () {
-  rendererRuntime.resize(window.innerWidth, window.innerHeight);
-  resizeCamera(cam, window.innerWidth / window.innerHeight);
-});
+// Resize handler registered after ticker is created (see below)
 
 var ROLLING_ORIGIN_THRESHOLD = 2200;
 var ROLLING_ORIGIN_THRESHOLD_SQ = ROLLING_ORIGIN_THRESHOLD * ROLLING_ORIGIN_THRESHOLD;
@@ -1826,6 +1823,15 @@ function maybeApplyRollingOrigin() {
 
 var ticker = createTicker();
 var simElapsed = 0;
+
+// Route resize through ticker event bus (folio-2025 pattern)
+ticker.events.on("resize", function (width, height) {
+  rendererRuntime.resize(width, height);
+  resizeCamera(cam, width / height);
+});
+window.addEventListener("resize", function () {
+  ticker.events.trigger("resize", window.innerWidth, window.innerHeight);
+});
 
 function buildWorldDebugSnapshot() {
   var terrainState = activeTerrain && activeTerrain.getDebugState ? activeTerrain.getDebugState() : null;
@@ -2348,8 +2354,6 @@ function runFrame(dt) {
       }
     }
 
-    updateUIEffects(dt);
-
     // screen shake — apply camera offset
     var shake = getShakeOffset();
     if (shake.intensity > 0.01) {
@@ -2399,7 +2403,6 @@ function runFrame(dt) {
     } else {
       updateCamera(cam, dt, 0, 0);
     }
-    updateUIEffects(dt);
   }
 
 }
@@ -2408,6 +2411,11 @@ function runFrame(dt) {
 ticker.events.on("tick", function (dt) {
   runFrame(dt);
 }, 0);
+
+// Register UI effects at tick order 10
+ticker.events.on("tick", function (dt) {
+  updateUIEffects(dt);
+}, 10);
 
 // Register render pass at tick order 998 (last)
 ticker.events.on("tick", function () {
