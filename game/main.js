@@ -1,7 +1,7 @@
 const searchParams = new URLSearchParams(window.location.search);
 const useWebgpuBootstrap = searchParams.has('bootstrap') || searchParams.has('webgpuBootstrap');
 const requestedRenderer = (searchParams.get('renderer') || '').toLowerCase();
-const useLegacyWebgpuRenderer = requestedRenderer === 'webgpu';
+const forceWebGL = requestedRenderer === 'webgl';
 
 async function init() {
   window.__ooRequestedRenderer = requestedRenderer || 'default';
@@ -12,11 +12,11 @@ async function init() {
     return;
   }
 
-  if (useLegacyWebgpuRenderer) {
+  if (forceWebGL) {
+    delete window.__ooRendererFactory;
+  } else {
     const { installLegacyWebgpuFactory } = await import('./webgpu/legacyRendererFactory.js');
     installLegacyWebgpuFactory();
-  } else {
-    delete window.__ooRendererFactory;
   }
 
   const bootstrapCanvas = document.querySelector('#canvas');
