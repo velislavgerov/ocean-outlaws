@@ -50,7 +50,7 @@ import { seedRNG, nextRandom, getRNGState, getRNGCount } from "./rng.js";
 import { loadInfamy, addInfamy, calcRunInfamy, getLegendLevel, getLegendProgress } from "./infamy.js";
 import { createInfamyScreen, showInfamyScreen, hideInfamyScreen } from "./infamyScreen.js";
 import { createMainMenu, showMainMenu, hideMainMenu } from "./mainMenu.js";
-import { createRunState, saveRunState as saveRun, loadRunState, hasActiveRun, clearRunState } from "./runState.js";
+import { saveRunState as saveRun, loadRunState, clearRunState } from "./runState.js";
 import { createWorldDebugView, updateWorldDebugView, toggleWorldDebugView, isWorldDebugVisible, zoomWorldDebugView, getWorldDebugState } from "./worldDebugView.js";
 import { getRolePickStats, resetRolePickStats } from "./assetRoles.js";
 import { createRendererRuntime } from "./rendererRuntime.js";
@@ -253,7 +253,7 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
     spawnPickup(pickupMgr, x, y, z, scene); // extra drop for merchants
   }
   // rare crew pickup drop (~5%)
-  if (nextRandom() < 0.05 && currentRunSeed !== null) {
+  if (nextRandom() < 0.05) {
     var dropOfficer = generateOfficerReward(1);
     spawnCrewPickup(crewPickupMgr, x, 0, z, scene, dropOfficer);
   }
@@ -299,7 +299,6 @@ createWorldDebugView();
 
 var audioUnlockHandler = function () {
   unlockAudio();
-  preloadStoryAudio();
   ["click", "touchstart", "keydown"].forEach(function (e) { window.removeEventListener(e, audioUnlockHandler); });
 };
 ["click", "touchstart", "keydown"].forEach(function (e) { window.addEventListener(e, audioUnlockHandler); });
@@ -338,7 +337,6 @@ initHealthBars();
 createBossHud();
 var cam = createCamera(window.innerWidth / window.innerHeight);
 createMapScreen();
-createVoyageChart();
 createShipSelectScreen();
 
 // --- settings menu ---
@@ -369,17 +367,14 @@ createSettingsMenu({
     cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
 
     setWeather(weather, "calm");
-    hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideEventModal(); hideInfamyScreen();
+    hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideInfamyScreen();
     if (isMultiplayerActive(mpState)) { leaveRoom(mpState); mpReady = false; }
     mapState = resetMapState();
-    clearVoyageState();
     clearRunState();
-    activeChart = null; activeVoyageState = null;
-    currentRunSeed = null; currentNode = null;
     resetTechState(techState);
     techState = loadTechState();
     selectedClass = null;
-    showMainMenu(startNewRun, continueRun, hasActiveRun());
+    showMainMenu(startNewRun, null, false);
   }
 });
 
@@ -504,7 +499,7 @@ setLobbyCallbacks({
   onBack: function () {
     leaveRoom(mpState);
     hideLobbyScreen();
-    showMainMenu(startNewRun, continueRun, hasActiveRun());
+    showMainMenu(startNewRun, null, false);
   }
 });
 
@@ -842,11 +837,7 @@ function startMultiplayerCombat() {
   runEnemiesSunk = 0;
   runGoldLooted = 0;
   runZonesReached = 1;
-  activeStoryState = null;
-  pendingEncounterOverride = null;
   clearCombatTarget();
-  hideEventModal();
-  clearStorySetDressing(storySetDressing);
   // Use the first zone for multiplayer, with shared terrain seed
   selectedClass = mpState.players[mpState.playerId].shipClass || selectedClass || "cruiser";
   var classCfg = getShipClass(selectedClass);
@@ -901,14 +892,7 @@ function startMultiplayerCombat() {
 function handleShipSelect(classKey) {
   selectedClass = classKey;
   hideShipSelectScreen();
-  var runSeed = Date.now() + Math.floor(Math.random() * 10000);
-  currentRunSeed = runSeed;
-  var run = createRunState(runSeed);
-  run.selectedClass = classKey;
-  activeStoryState = hydrateStoryState(run.storyState, runSeed);
-  run.storyState = activeStoryState;
-  saveRun(run);
-  openRunVoyageChart(runSeed);
+  startZoneCombat(classKey, "frontier_isles");
 }
 
 // --- load save on startup ---
@@ -921,20 +905,12 @@ if (savedGame) {
 }
 
 // --- main menu on startup ---
-showMainMenu(startNewRun, continueRun, hasActiveRun());
+showMainMenu(startNewRun, null, false);
 
 function startNewRun() {
   hideMainMenu();
   clearCombatTarget();
   clearRunState();
-  clearVoyageState();
-  hideEventModal();
-  activeChart = null;
-  activeVoyageState = null;
-  currentRunSeed = null;
-  currentNode = null;
-  activeStoryState = null;
-  pendingEncounterOverride = null;
   runEnemiesSunk = 0;
   runGoldLooted = 0;
   runZonesReached = 0;
@@ -944,110 +920,9 @@ function startNewRun() {
   showShipSelectScreen(handleShipSelect, upgrades, infamyState);
 }
 
-function continueRun() {
-  var run = loadRunState();
-  if (!run) return;
-  hideMainMenu();
-  clearCombatTarget();
-  selectedClass = run.selectedClass;
-  upgrades.gold = run.gold;
-  if (run.upgradeLevels) {
-    var keys = Object.keys(run.upgradeLevels);
-    for (var ki = 0; ki < keys.length; ki++) {
-      upgrades.levels[keys[ki]] = run.upgradeLevels[keys[ki]];
-    }
-  }
-  if (run.crewRoster) crew.roster = run.crewRoster;
-  if (run.crewAssigned) crew.assigned = run.crewAssigned;
-  runEnemiesSunk = run.enemiesSunk || 0;
-  runGoldLooted = run.goldLooted || 0;
-  runZonesReached = run.nodesCompleted || 0;
-  currentRunSeed = run.seed;
-  activeStoryState = hydrateStoryState(run.storyState, run.seed);
-  run.storyState = activeStoryState;
-  saveRun(run);
-  openRunVoyageChart(run.seed);
-}
-
-function withActiveRunState(runSeed) {
-  var run = loadRunState();
-  if (!run) {
-    run = createRunState(runSeed || currentRunSeed || Date.now());
-    run.selectedClass = selectedClass;
-  }
-  if (!activeStoryState) {
-    activeStoryState = hydrateStoryState(run.storyState, run.seed || runSeed || 0);
-  }
-  run.storyState = activeStoryState;
-  return run;
-}
-
-function saveActiveRunState(run) {
-  if (!run) return;
-  if (activeStoryState) run.storyState = activeStoryState;
-  saveRun(run);
-}
-
-function regionLabelForNode(node) {
-  if (!node || !activeChart) return getRegionInfo("frontier_isles").label;
-  var regionId = getRegionForNode(node.col, activeChart.columns);
-  return getRegionInfo(regionId).label;
-}
-
-function clampFactionRep(value) {
-  return Math.max(-100, Math.min(100, Math.round(value)));
-}
-
-function applyStoryRepDelta(repDelta) {
-  if (!activeStoryState || !repDelta) return 0;
-  if (!activeStoryState.factionRep) {
-    activeStoryState.factionRep = { navy: 0, pirates: 0, merchant: 0 };
-  }
-  var keys = Object.keys(repDelta);
-  var net = 0;
-  for (var i = 0; i < keys.length; i++) {
-    var key = keys[i];
-    var delta = Math.round(Number(repDelta[key]) || 0);
-    if (!delta) continue;
-    var prev = Number(activeStoryState.factionRep[key]) || 0;
-    activeStoryState.factionRep[key] = clampFactionRep(prev + delta);
-    net += delta;
-  }
-  return net;
-}
-
-function markHarborStoryBeat(node) {
-  if (!activeStoryState || !node || !activeChart) return null;
-  var regionId = getRegionForNode(node.col, activeChart.columns);
-  var beat = HARBOR_STORY_BEATS[regionId];
-  if (!beat) return null;
-  if (!activeStoryState.flags) activeStoryState.flags = {};
-
-  var flagKey = "harbor_story_" + regionId;
-  activeStoryState.currentRegion = regionId;
-  activeStoryState.lastEncounterType = "port_call";
-  if (activeStoryState.flags[flagKey]) return null;
-
-  activeStoryState.flags[flagKey] = true;
-  var repNet = applyStoryRepDelta(beat.rep);
-  appendJournalEntry(activeStoryState, {
-    type: "harbor",
-    region: regionId,
-    text: beat.text
-  });
-  playStoryCue("journal_update", { volume: 0.32 });
-  if (repNet !== 0) {
-    playStoryCue(repNet > 0 ? "reputation_up" : "reputation_down", { volume: 0.3 });
-  }
-  return {
-    banner: beat.banner,
-    storyNotice: beat.banner + " — " + beat.text
-  };
-}
 
 function handleCityEvents(cityEvents) {
   if (!cityEvents || !cityEvents.length) return;
-  var wroteJournal = false;
   var rewardGoldTotal = 0;
   for (var i = 0; i < cityEvents.length; i++) {
     var ev = cityEvents[i];
@@ -1056,7 +931,6 @@ function handleCityEvents(cityEvents) {
     var rewardGold = Math.max(0, Math.floor(Number(ev.rewardGold) || 0));
     if (ev.type === "city_warning") {
       showBanner("Hostile Batteries: " + cityName, 2.2);
-      playStoryCue("boss_omen", { volume: 0.2, rate: 1.2 });
     } else if (ev.type === "city_battery_destroyed") {
       showBanner("Battery Silenced — " + cityName + (rewardGold > 0 ? "  +" + rewardGold + " gold" : ""), 1.8);
       if (rewardGold > 0) {
@@ -1064,7 +938,6 @@ function handleCityEvents(cityEvents) {
         runGoldLooted += rewardGold;
         addKillFeedEntry(cityName + " battery destroyed +" + rewardGold + " gold", "#ffcc44");
       }
-      playStoryCue("event_positive", { volume: 0.25 });
     } else if (ev.type === "city_pacified") {
       showBanner("City Pacified: " + cityName + (rewardGold > 0 ? "  +" + rewardGold + " gold" : ""), 2.8);
       if (rewardGold > 0) {
@@ -1072,413 +945,17 @@ function handleCityEvents(cityEvents) {
         runGoldLooted += rewardGold;
         addKillFeedEntry(cityName + " pacified +" + rewardGold + " gold", "#44dd66");
       }
-      playStoryCue("reputation_up", { volume: 0.35 });
-      if (activeStoryState) {
-        appendJournalEntry(activeStoryState, {
-          type: "city_pacified",
-          region: activeStoryState.currentRegion,
-          text: "You pacified " + cityName + " and reopened its harbor routes."
-        });
-        wroteJournal = true;
-      }
     }
   }
-
   if (rewardGoldTotal > 0) {
     showFloatingNumber(window.innerWidth * 0.5, window.innerHeight * 0.45, "+" + rewardGoldTotal, "#ffcc44");
   }
-
-  if (currentRunSeed !== null && (wroteJournal || rewardGoldTotal > 0)) {
-    var run = withActiveRunState(currentRunSeed);
-    run.gold = upgrades.gold;
-    saveActiveRunState(run);
-  }
 }
 
-function markStoryProgressForNode(node) {
-  if (!activeStoryState || !node || !activeChart) return;
-  var regionId = getRegionForNode(node.col, activeChart.columns);
-  var prevRegion = activeStoryState.currentRegion || "frontier_isles";
-  activeStoryState.currentRegion = regionId;
-  activeStoryState.nodesVisited = Math.max(0, Math.floor(activeStoryState.nodesVisited || 0)) + 1;
-  if (!activeStoryState.regionVisitCounts) {
-    activeStoryState.regionVisitCounts = { frontier_isles: 0, storm_belt: 0, forgotten_depths: 0 };
-  }
-  if (activeStoryState.regionVisitCounts[regionId] === undefined) activeStoryState.regionVisitCounts[regionId] = 0;
-  activeStoryState.regionVisitCounts[regionId] += 1;
-  activeStoryState.lastEncounterType = node.type;
-
-  if (prevRegion !== regionId && activeStoryState.nodesVisited > 1) {
-    appendJournalEntry(activeStoryState, {
-      type: "region_transition",
-      region: regionId,
-      text: "The crew entered " + getRegionInfo(regionId).label + ". Seas and loyalties both feel less certain."
-    });
-    playStoryCue("region_transition", { volume: 0.5 });
-    playStoryCue("journal_update", { volume: 0.35 });
-    showBanner("Entering " + getRegionInfo(regionId).label, 2.4);
-  }
-}
-
-function reopenVoyageAfterNode(runSeed) {
-  setTimeout(function () {
-    if (activeVoyageState && activeVoyageState.completed) {
-      endRunVictory();
-    } else {
-      openRunVoyageChart(runSeed);
-    }
-  }, 1500);
-}
-
-function openRunVoyageChart(seed) {
-  var run = withActiveRunState(seed);
-  saveActiveRunState(run);
-  activeChart = generateVoyageChart(seed, 3, true);
-  var savedVoyage = loadVoyageState();
-  if (savedVoyage && savedVoyage.chartSeed === seed) {
-    activeVoyageState = savedVoyage;
-  } else {
-    activeVoyageState = createVoyageState(activeChart);
-  }
-  showVoyageChart(activeChart, activeVoyageState, function (nodeId) {
-    var moved = moveToNode(activeChart, activeVoyageState, nodeId);
-    if (!moved) return;
-    saveVoyageState(activeVoyageState);
-    var node = null;
-    for (var ni = 0; ni < activeChart.nodes.length; ni++) {
-      if (activeChart.nodes[ni].id === nodeId) { node = activeChart.nodes[ni]; break; }
-    }
-    if (!node) return;
-    currentNode = node;
-    hideVoyageChart();
-    hideEventModal();
-    startNodeEncounter(node, seed);
-  });
-}
-
-function startNodeEncounter(node, runSeed) {
-  markStoryProgressForNode(node);
-  var run = withActiveRunState(runSeed);
-
-  if (node.type === "salvage") {
-    var salvageGold = 30 + node.col * 15;
-    addGold(upgrades, salvageGold);
-    runGoldLooted += salvageGold;
-    showBanner("Salvage: +" + salvageGold + " gold!", 2);
-    if (activeStoryState) {
-      appendJournalEntry(activeStoryState, {
-        type: "salvage",
-        region: activeStoryState.currentRegion,
-        text: "Recovered salvage worth " + salvageGold + " gold."
-      });
-      playStoryCue("journal_update", { volume: 0.25 });
-    }
-    saveActiveRunState(run);
-    updateRunAfterNode(null, null);
-    reopenVoyageAfterNode(runSeed);
-    return;
-  }
-
-  if (node.type === "event") {
-    var visitIndex = activeStoryState ? activeStoryState.eventCount || 0 : 0;
-    var regionId = activeStoryState ? activeStoryState.currentRegion : getRegionForNode(node.col, activeChart ? activeChart.columns : 7);
-    var selectedEvent = selectEvent({
-      node: node,
-      storyState: activeStoryState,
-      runSeed: runSeed,
-      visitIndex: visitIndex,
-      regionId: regionId
-    });
-
-    if (!selectedEvent) {
-      // regression guardrail: preserve old simple event reward flow
-      var eventGold = 20 + node.col * 10;
-      addGold(upgrades, eventGold);
-      runGoldLooted += eventGold;
-      showBanner("Parley: +" + eventGold + " gold!", 2);
-      saveActiveRunState(run);
-      updateRunAfterNode(null, null);
-      reopenVoyageAfterNode(runSeed);
-      return;
-    }
-
-    var availability = getChoiceAvailability(selectedEvent, activeStoryState, { node: node });
-    showEventModal(
-      selectedEvent,
-      activeStoryState,
-      availability,
-      function (choice) {
-        var choiceResult = applyEventOutcome({
-          eventId: selectedEvent.id,
-          choice: choice,
-          storyState: activeStoryState,
-          runState: run,
-          runtimeRefs: {
-            upgrades: upgrades,
-            classStats: getShipClass(selectedClass).stats
-          },
-          runSeed: runSeed,
-          visitIndex: visitIndex
-        });
-        upgrades.gold = run.gold;
-        if (choiceResult.goldDelta > 0) runGoldLooted += choiceResult.goldDelta;
-        if (choiceResult.journalAdded > 0) {
-          playStoryCue("journal_update", { volume: 0.32 });
-        }
-        if (choiceResult.repChanges && choiceResult.repChanges.length) {
-          var repNet = 0;
-          for (var rci = 0; rci < choiceResult.repChanges.length; rci++) {
-            repNet += choiceResult.repChanges[rci].delta;
-          }
-          playStoryCue(repNet >= 0 ? "reputation_up" : "reputation_down", { volume: 0.35 });
-        }
-        if (choiceResult.storyCues && choiceResult.storyCues.length) {
-          for (var ci = 0; ci < choiceResult.storyCues.length; ci++) {
-            playStoryCue(choiceResult.storyCues[ci], { volume: 0.33 });
-          }
-        }
-
-        saveActiveRunState(run);
-
-        if (choiceResult.combatOverride) {
-          pendingEncounterOverride = choiceResult.combatOverride;
-          if (!pendingEncounterOverride.encounterType && choiceResult.encounterType) {
-            pendingEncounterOverride.encounterType = choiceResult.encounterType;
-          }
-          if (!pendingEncounterOverride.sceneRole && selectedEvent.sceneRole) {
-            pendingEncounterOverride.sceneRole = selectedEvent.sceneRole;
-          }
-          startNodeCombat(node, runSeed, pendingEncounterOverride);
-          return;
-        }
-
-        if (choiceResult.goldDelta > 0) {
-          showBanner("Event: +" + choiceResult.goldDelta + " gold", 2.2);
-        } else {
-          showBanner(selectedEvent.title, 2.0);
-        }
-        updateRunAfterNode(run.hp, run.maxHp);
-        reopenVoyageAfterNode(runSeed);
-      },
-      {
-        regionLabel: regionLabelForNode(node)
-      }
-    );
-    return;
-  }
-
-  if (node.type === "port") {
-    var harborBeat = markHarborStoryBeat(node);
-    portScreenOpen = true;
-    fadeGameAudio();
-    var portRun = loadRunState();
-    var portClassCfg = getShipClass(selectedClass);
-    var portHpInfo = {
-      hp: portRun && portRun.hp !== null && portRun.hp !== undefined ? portRun.hp : portClassCfg.stats.hp,
-      maxHp: portRun && portRun.maxHp ? portRun.maxHp : portClassCfg.stats.hp
-    };
-    showPortScreen({
-      upgrades: upgrades,
-      hpInfo: portHpInfo,
-      classKey: selectedClass,
-      storyNotice: harborBeat ? harborBeat.storyNotice : ""
-    }, function () {
-      portScreenOpen = false;
-      resumeGameAudio();
-      saveActiveRunState(withActiveRunState(runSeed));
-      updateRunAfterNode(null, null);
-      if (activeVoyageState && activeVoyageState.completed) {
-        endRunVictory();
-      } else {
-        openRunVoyageChart(runSeed);
-      }
-    });
-    return;
-  }
-  startNodeCombat(node, runSeed, pendingEncounterOverride);
-}
-
-function buildNodeWaveConfigs(nodeType, col, totalCols, encounterOverride) {
-  var override = encounterOverride || null;
-  var waves = nodeType === "boss" ? 2 : (col < 3 ? 2 : 3);
-  if (override && Number(override.waves) > 0) waves = Math.max(1, Math.floor(override.waves));
-  var enemyBase = 2 + Math.floor(col * 0.5);
-  if (override && override.enemyBaseAdd !== undefined) {
-    enemyBase += Math.floor(Number(override.enemyBaseAdd) || 0);
-  }
-  var hpScale = 1.0 + col * 0.15;
-  var speedScale = 1.0 + col * 0.05;
-  if (nodeType === "merchant_chase") {
-    waves = Math.max(1, waves - 1);
-    enemyBase = Math.max(1, enemyBase - 1);
-  }
-  var factions = (override && Array.isArray(override.factions) && override.factions.length > 0)
-    ? override.factions.slice()
-    : ["pirate", "navy"];
-  var configs = [];
-  for (var wi = 1; wi <= waves; wi++) {
-    var cfg = {
-      wave: wi,
-      enemies: enemyBase + (wi - 1),
-      hpMult: hpScale * (1.0 + (wi - 1) * 0.1),
-      speedMult: speedScale,
-      fireRateMult: 1.0 + col * 0.1,
-      faction: factions[(col + wi) % factions.length]
-    };
-    if (override && override.boss && wi === waves) {
-      cfg.boss = override.boss;
-      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
-    } else if (nodeType === "boss" && wi === waves) {
-      var difficulty = 1 + Math.floor(col * 5 / Math.max(1, totalCols - 1));
-      cfg.boss = difficulty >= 4 ? "kraken" : "battleship";
-      cfg.enemies = Math.max(1, Math.floor(cfg.enemies / 2));
-    }
-    configs.push(cfg);
-  }
-  return configs;
-}
-
-function startNodeCombat(node, runSeed, encounterOverride) {
-  var override = encounterOverride || pendingEncounterOverride || null;
-  pendingEncounterOverride = null;
-  var classCfg = getShipClass(selectedClass);
-  setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
-  var encounterType = override && override.encounterType ? override.encounterType : node.type;
-  var waveConfigs = buildNodeWaveConfigs(encounterType, node.col, activeChart.columns, override);
-  resetWaveManager(waveMgr, waveConfigs);
-  resetResources(resources);
-  clearCombatTarget();
-  resetEnemyManager(enemyMgr, scene);
-  resetDrones(droneMgr, scene);
-  clearStorySetDressing(storySetDressing);
-  if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
-  hideBossHud();
-  if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
-  var terrainSeed = runSeed + node.id * 1000 + 7;
-  seedRNG(terrainSeed);
-  var terrainDiff = 1 + Math.floor(node.col * 5 / Math.max(1, activeChart.columns - 1));
-  var weatherPreset = "calm";
-  if (override && override.weather) weatherPreset = override.weather;
-  else if (node.type === "storm_crossing") weatherPreset = "storm";
-  else if (node.col >= 5) weatherPreset = "rough";
-  var storyRegion = activeStoryState ? getRegionForNode(node.col, activeChart.columns) : null;
-  var nodePortRoleContext = {
-    zoneId: "run_node_" + node.id,
-    condition: weatherPreset === "storm" ? "stormy" : weatherPreset,
-    difficulty: Math.min(terrainDiff, 6),
-    storyRegion: storyRegion,
-    encounterType: encounterType
-  };
-  currentRoleContext = nodePortRoleContext;
-  activeTerrain = createTerrain(terrainSeed, Math.min(terrainDiff, 6));
-  scene.add(activeTerrain.mesh);
-  spawnStorySetDressing(storySetDressing, activeTerrain, {
-    storyRegion: storyRegion,
-    encounterType: encounterType,
-    sceneRole: override && override.sceneRole ? override.sceneRole : null,
-    seed: terrainSeed + 991
-  });
-  clearPorts(portMgr, scene);
-  initPorts(portMgr, activeTerrain, scene, nodePortRoleContext);
-  clearCrates(crateMgr, scene);
-  clearMerchants(merchantMgr, scene);
-  setPickupRoleContext(pickupMgr, nodePortRoleContext);
-  if (ship && ship.mesh) scene.remove(ship.mesh);
-  ship = createShip(classCfg);
-  scene.add(ship.mesh);
-  var run = loadRunState();
-  if (run && run.hp !== null && run.hp !== undefined && run.maxHp !== null) {
-    setPlayerMaxHp(enemyMgr, run.maxHp);
-    setPlayerHp(enemyMgr, run.hp);
-  } else {
-    setPlayerMaxHp(enemyMgr, classCfg.stats.hp);
-    setPlayerHp(enemyMgr, classCfg.stats.hp);
-  }
-  var m = getMultipliers(upgrades);
-  setPlayerArmor(enemyMgr, m.armor + classCfg.stats.armor);
-  weapons = createWeaponState(ship);
-  abilityState = createAbilityState(selectedClass);
-  initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
-  resetDrones(droneMgr, scene);
-  setWeather(weather, weatherPreset);
-  setSailClass(selectedClass);
-  gameFrozen = false;
-  gameStarted = true;
-  cardPickerOpen = false;
-  activeZoneId = "run_node_" + node.id;
-  fadeIn(0.6);
-  var nodeTypes = getNodeTypes();
-  var nodeLabel = (override && override.nodeLabel) || (nodeTypes[node.type] ? nodeTypes[node.type].label : "Combat");
-  showBanner(nodeLabel + " — Prepare for Battle!", 3);
-}
-
-function updateRunAfterNode(hp, maxHp) {
-  runZonesReached++;
-  var run = loadRunState();
-  if (!run) return;
-  run.gold = upgrades.gold;
-  run.upgradeLevels = upgrades.levels;
-  run.crewRoster = crew.roster;
-  run.crewAssigned = crew.assigned;
-  run.enemiesSunk = runEnemiesSunk;
-  run.goldLooted = runGoldLooted;
-  run.nodesCompleted = runZonesReached;
-  if (activeStoryState) run.storyState = activeStoryState;
-  if (hp !== null && hp !== undefined) {
-    run.hp = hp;
-    run.maxHp = maxHp;
-  }
-  saveRun(run);
-}
-
-function endRunVictory() {
-  gameFrozen = true;
-  gameStarted = false;
-  clearCombatTarget();
-  hideEventModal();
-  clearStorySetDressing(storySetDressing);
-  var vicData = awardRunInfamy("victory");
-  clearRunState();
-  clearVoyageState();
-  currentRunSeed = null;
-  currentNode = null;
-  activeStoryState = null;
-  pendingEncounterOverride = null;
-  fadeOut(0.4, function () {
-    showInfamyScreen(vicData, function () {
-      showMainMenu(startNewRun, continueRun, hasActiveRun());
-    });
-    fadeIn(0.4);
-  });
-}
-
-function endRunDefeat() {
-  gameFrozen = true;
-  gameStarted = false;
-  clearCombatTarget();
-  upgrades.gold = 0;
-  hideEventModal();
-  clearStorySetDressing(storySetDressing);
-  hideBossHud();
-  var goData = awardRunInfamy("defeat");
-  clearRunState();
-  clearVoyageState();
-  currentRunSeed = null;
-  currentNode = null;
-  activeStoryState = null;
-  pendingEncounterOverride = null;
-  fadeOut(0.4, function () {
-    showInfamyScreen(goData, function () {
-      showMainMenu(startNewRun, continueRun, hasActiveRun());
-    });
-    fadeIn(0.4);
-  });
-}
 
 function cleanupCombatScene() {
   clearCombatTarget();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
-  clearStorySetDressing(storySetDressing);
   resetEnemyManager(enemyMgr, scene);
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
@@ -1496,19 +973,16 @@ function startZoneCombat(classKey, zoneId) {
   runEnemiesSunk = 0;
   runGoldLooted = 0;
   runZonesReached = (runZonesReached || 0) + 1;
-  activeStoryState = null;
-  pendingEncounterOverride = null;
   clearCombatTarget();
   var classCfg = getShipClass(classKey);
   setMerchantPlayerSpeed(merchantMgr, classCfg.stats.maxSpeed);
   var zone = getZone(zoneId);
-  resetWaveManager(waveMgr, buildZoneWaveConfigs(zone));
+  resetWaveManager(waveMgr, []);
   resetResources(resources);
   resetEnemyManager(enemyMgr, scene);
   resetUpgrades(upgrades);
   resetDrones(droneMgr, scene);
   resetCrew(crew);
-  clearStorySetDressing(storySetDressing);
   if (activeBoss) { removeBoss(activeBoss, scene); activeBoss = null; setNavBoss(null); }
   hideBossHud();
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
@@ -1550,12 +1024,6 @@ function startZoneCombat(classKey, zoneId) {
   showBanner(zone.name + " — Fleet Approaching!", 3);
 }
 
-function handleZoneVictory() {
-  var hpInfo = getPlayerHp(enemyMgr);
-  var stars = calcStars(hpInfo.hp, hpInfo.maxHp);
-  mapState = completeZone(mapState, activeZoneId, stars);
-  saveMapState(mapState);
-}
 
 function awardRunInfamy(result) {
   var earned = calcRunInfamy(runGoldLooted, runEnemiesSunk, runZonesReached);
@@ -1644,23 +1112,18 @@ setRestartCallback(function () {
   clearPorts(portMgr, scene);
   clearCrates(crateMgr, scene);
   clearMerchants(merchantMgr, scene);
-  clearStorySetDressing(storySetDressing);
   if (activeTerrain) { removeTerrain(activeTerrain, scene); activeTerrain = null; }
   if (weapons) { weapons.activeWeapon = 0; weapons.projectiles = []; weapons.effects = []; weapons.cooldown = 0; }
   cardPickerOpen = false; crewSwapOpen = false; techScreenOpen = false; portScreenOpen = false;
   setWeather(weather, "calm");
-  hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideVoyageChart(); hideEventModal(); hideInfamyScreen();
-  clearVoyageState();
+  hideCardPicker(); hideCrewSwap(); hideTechScreen(); hidePortScreen(); hideOverlay(); hideInfamyScreen();
   clearRunState();
-  activeChart = null; activeVoyageState = null;
-  currentRunSeed = null; currentNode = null;
-  activeStoryState = null; pendingEncounterOverride = null;
   if (isMultiplayerActive(mpState)) {
     leaveRoom(mpState);
     mpReady = false;
   }
   lastZoneResult = null;
-  showMainMenu(startNewRun, continueRun, hasActiveRun());
+  showMainMenu(startNewRun, null, false);
 });
 
 // Resize handler registered after ticker is created (see below)
@@ -1775,7 +1238,6 @@ function applyRollingOriginShift(shiftX, shiftZ) {
 
   // streamed terrain chunks
   if (activeTerrain) shiftTerrainOrigin(activeTerrain, shiftX, shiftZ);
-  shiftStorySetDressing(storySetDressing, shiftX, shiftZ);
 
   rollingOriginShifts++;
 }
@@ -2087,13 +1549,10 @@ function runFrame(dt) {
       } else if (event.indexOf("wave_start_boss:") === 0) {
         var bossType = event.split(":")[1];
         var zone = getZone(activeZoneId);
-        var difficulty = zone ? zone.difficulty :
-          (currentNode ? 1 + Math.floor(currentNode.col * 5 / Math.max(1, activeChart ? activeChart.columns - 1 : 6)) :
-          (waveMgr.currentConfig.bossDifficulty || 1));
+        var difficulty = zone ? zone.difficulty : (waveMgr.currentConfig.bossDifficulty || 1);
         activeBoss = createBoss(bossType, ship.posX, ship.posZ, scene, difficulty);
         setNavBoss(activeBoss);
         playWaveHorn();
-        playStoryCue("boss_omen", { volume: 0.42 });
         if (activeBoss) {
           showBossHud(activeBoss.def.name);
           showBanner("BOSS: " + activeBoss.def.name + "!", 4);
@@ -2117,7 +1576,7 @@ function runFrame(dt) {
           hideBossHud();
         }
         // 15% chance of crew pickup dropping near player
-        if (nextRandom() < 0.15 && ship && currentRunSeed !== null) {
+        if (nextRandom() < 0.15 && ship) {
           var waveOfficer = generateOfficerReward(1);
           var ox = ship.posX + (nextRandom() - 0.5) * 10;
           var oz = ship.posZ + (nextRandom() - 0.5) * 10;
@@ -2145,73 +1604,33 @@ function runFrame(dt) {
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "game_over", { wave: waveMgr.wave });
         }
-        if (currentRunSeed !== null) {
-          endRunDefeat();
-        } else {
-          lastZoneResult = "game_over";
-          gameFrozen = true;
-          upgrades.gold = 0;
-          hideBossHud();
-          var goData = awardRunInfamy("defeat");
-          fadeOut(0.4, function () {
-            showInfamyScreen(goData, function () {
-              showGameOver(waveMgr.wave);
-            });
-            fadeIn(0.4);
+        lastZoneResult = "game_over";
+        gameFrozen = true;
+        upgrades.gold = 0;
+        hideBossHud();
+        var goData = awardRunInfamy("defeat");
+        fadeOut(0.4, function () {
+          showInfamyScreen(goData, function () {
+            showGameOver(waveMgr.wave);
           });
-        }
+          fadeIn(0.4);
+        });
       } else if (event === "victory") {
         clearCombatTarget();
         if (mpActive && mpState.isHost) {
           sendWaveEvent(mpState, "victory", { wave: waveMgr.wave });
         }
-        if (currentRunSeed !== null) {
-          gameFrozen = true;
-          hideBossHud();
-          var nodeVicHp = getPlayerHp(enemyMgr);
-          updateRunAfterNode(nodeVicHp.hp, nodeVicHp.maxHp);
-          if (activeVoyageState && activeVoyageState.completed) {
-            endRunVictory();
-          } else {
-            var nodeCards = generateUpgradeCards(upgrades, 3);
-            if (nodeCards.length > 0) {
-              cardPickerOpen = true;
-              fadeGameAudio();
-              showCardPicker(nodeCards, function (picked) {
-                applyFreeUpgrade(upgrades, picked.key);
-                applyUpgrades();
-                cardPickerOpen = false;
-                resumeGameAudio();
-                cleanupCombatScene();
-                gameStarted = false;
-                fadeOut(0.3, function () {
-                  openRunVoyageChart(currentRunSeed);
-                  fadeIn(0.3);
-                });
-              });
-            } else {
-              cleanupCombatScene();
-              gameStarted = false;
-              fadeOut(0.3, function () {
-                openRunVoyageChart(currentRunSeed);
-                fadeIn(0.3);
-              });
-            }
-          }
-        } else {
-          lastZoneResult = "victory";
-          handleZoneVictory();
-          performAutoSave();
-          gameFrozen = true;
-          hideBossHud();
-          var vicData = awardRunInfamy("victory");
-          fadeOut(0.4, function () {
-            showInfamyScreen(vicData, function () {
-              showVictory(waveMgr.wave);
-            });
-            fadeIn(0.4);
+        lastZoneResult = "victory";
+        performAutoSave();
+        gameFrozen = true;
+        hideBossHud();
+        var vicData = awardRunInfamy("victory");
+        fadeOut(0.4, function () {
+          showInfamyScreen(vicData, function () {
+            showVictory(waveMgr.wave);
           });
-        }
+          fadeIn(0.4);
+        });
       } else if (event.indexOf("repair:") === 0) {
         var newHp = parseFloat(event.split(":")[1]);
         setPlayerHp(enemyMgr, newHp);
@@ -2550,14 +1969,7 @@ window.render_game_to_text = function () {
       placedModels: visualModelCount,
       minimapMarkers: terrainMarkerCount
     },
-    story: activeStoryState ? {
-      region: activeStoryState.currentRegion || null,
-      regionLabel: activeStoryState.currentRegion ? getRegionInfo(activeStoryState.currentRegion).label : null,
-      factionRep: activeStoryState.factionRep || { navy: 0, pirates: 0, merchant: 0 },
-      flagsCount: activeStoryState.flags ? Object.keys(activeStoryState.flags).length : 0,
-      journalCount: activeStoryState.journal ? activeStoryState.journal.length : 0,
-      lastEventId: activeStoryState.lastEventId || null
-    } : null,
+    story: null,
     worldDebug: getWorldDebugState(),
     rollingOriginShifts: rollingOriginShifts,
     simElapsed: Math.round(simElapsed * 100) / 100
