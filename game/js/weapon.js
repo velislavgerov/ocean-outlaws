@@ -360,6 +360,26 @@ function spawnWake(state, scene, position) {
   state.effects.push({ type: "wake", mesh: mesh, life: 0.8, maxLife: 0.8 });
 }
 
+function spawnBurnZone(state, scene, position, splashScale, enemyManager) {
+  var radius = (splashScale || 3.5) * 0.5;
+  var geo = new THREE.CircleGeometry(radius, 12);
+  var mat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(position.x, 0.25, position.z);
+  scene.add(mesh);
+  state.effects.push({
+    type: "burn",
+    mesh: mesh,
+    life: 4.0, maxLife: 4.0,
+    posX: position.x, posZ: position.z,
+    radius: radius,
+    damagePerSec: 1.0,
+    _lastDamageTick: 0,
+    enemyManager: enemyManager
+  });
+}
+
 // activeBoss: optional boss object for hit detection
 // terrain: optional terrain for projectile blocking
 export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrain) {
@@ -425,6 +445,9 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     if (hitWater || hitTerrain || outOfRange || hitEnemy || hitBoss) {
       if (hitWater || hitTerrain || hitEnemy || hitBoss) {
         spawnSplash(state, scene, p.mesh.position, cfg.splashScale);
+        if (cfg.perk === "burn") {
+          spawnBurnZone(state, scene, p.mesh.position.clone(), cfg.splashScale, enemyManager);
+        }
         // differentiated impact sounds
         if (hitEnemy || hitBoss) playImpactSound("metal");
         else if (hitTerrain) playImpactSound("terrain");
@@ -445,7 +468,13 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     var e = state.effects[i];
     e.life -= dt;
     if (e.life <= 0) {
-      releasePoolMesh(e.mesh);
+      if (e.type === "burn") {
+        scene.remove(e.mesh);
+        if (e.mesh.geometry) e.mesh.geometry.dispose();
+        if (e.mesh.material) e.mesh.material.dispose();
+      } else {
+        releasePoolMesh(e.mesh);
+      }
     } else {
       if (e.type === "flash") {
         e.mesh.material.opacity = e.life / 0.08;
@@ -458,6 +487,25 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
         var wProg = 1 - e.life / e.maxLife;
         e.mesh.material.opacity = 0.5 * (1 - wProg);
         e.mesh.scale.setScalar(1 + wProg * 2);
+      } else if (e.type === "burn") {
+        var bProg = 1 - e.life / e.maxLife;
+        e.mesh.material.opacity = 0.35 * (1 - bProg * 0.5);
+        // damage enemies in radius every second
+        e._lastDamageTick = (e._lastDamageTick || 0) + dt;
+        if (e._lastDamageTick >= 1.0) {
+          e._lastDamageTick -= 1.0;
+          if (e.enemyManager) {
+            var burnEnemies = e.enemyManager.enemies;
+            for (var ei = 0; ei < burnEnemies.length; ei++) {
+              if (!burnEnemies[ei].alive) continue;
+              var bdx = burnEnemies[ei].posX - e.posX;
+              var bdz = burnEnemies[ei].posZ - e.posZ;
+              if (bdx * bdx + bdz * bdz < e.radius * e.radius) {
+                damageEnemy(e.enemyManager, burnEnemies[ei], scene, e.damagePerSec);
+              }
+            }
+          }
+        }
       }
       aliveEffects.push(e);
     }
