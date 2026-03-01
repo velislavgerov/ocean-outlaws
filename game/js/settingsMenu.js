@@ -9,21 +9,42 @@ import {
   updateTerrainStreamSettings,
   resetTerrainStreamSettings
 } from "./terrain.js";
-import { T, FONT, PARCHMENT_BG } from "./theme.js";
+import { T, FONT, FONT_UI, FONT_MONO, PARCHMENT_BG } from "./theme.js";
 
-var BTN = [
-  "font-family:" + FONT, "font-size:14px", "padding:10px 20px",
-  "border-radius:4px", "cursor:pointer", "pointer-events:auto",
-  "user-select:none", "text-align:center", "min-width:200px",
-  "border:1px solid " + T.border, "background:" + T.bgLight,
-  "color:" + T.text, "margin:6px 0",
-  "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
+// Section label style — Inter, fog-gray
+var SECTION_LABEL = [
+  "font-family:" + FONT_UI, "font-size:10px", "font-weight:600",
+  "letter-spacing:1.2px", "text-transform:uppercase",
+  "color:" + T.textDim, "margin-bottom:6px", "display:block"
 ].join(";");
 
-var INFO_ROW = [
-  "font-family:" + FONT, "font-size:13px", "color:" + T.text,
-  "padding:3px 0", "text-align:left",
-  "text-shadow:0 1px 2px rgba(0,0,0,0.3)"
+// Info row — label dim, value cream mono
+var INFO_LABEL = [
+  "font-family:" + FONT_UI, "font-size:12px", "color:" + T.textDim,
+  "padding:2px 0"
+].join(";");
+
+var INFO_VALUE = [
+  "font-family:" + FONT_MONO, "font-size:12px", "color:" + T.cream,
+  "font-weight:bold"
+].join(";");
+
+// Ghost button base — for quality row
+var GHOST_BTN = [
+  "font-family:" + FONT_UI, "font-size:11px", "font-weight:600",
+  "letter-spacing:0.8px", "padding:6px 10px",
+  "border-radius:4px", "cursor:pointer", "pointer-events:auto",
+  "user-select:none", "text-align:center",
+  "border:1px solid " + T.border, "background:none",
+  "color:" + T.textDim, "transition:border-color 0.15s,color 0.15s",
+  "min-width:60px", "min-height:36px",
+  "display:inline-flex", "align-items:center", "justify-content:center"
+].join(";");
+
+// Section container
+var SECTION_BOX = [
+  "background:" + T.bgLight, "border:1px solid " + T.border,
+  "border-radius:6px", "padding:10px 12px", "margin-bottom:10px"
 ].join(";");
 
 var gearBtn = null;
@@ -83,127 +104,162 @@ export function createSettingsMenu(callbacks) {
   });
   document.body.appendChild(gearBtn);
 
-  // menu panel
+  // --- Floating dark glass panel anchored top-right below gear button ---
+  var panelWidth = _mob ? "280px" : "320px";
   menuPanel = document.createElement("div");
   menuPanel.style.cssText = [
-    "position:fixed", "top:50%", "left:50%",
-    "transform:translate(-50%,-50%)",
-    PARCHMENT_BG, "border:1px solid " + T.border,
-    "border-radius:6px", "padding:24px 32px",
-    "font-family:" + FONT, "color:" + T.text,
-    "z-index:200", "display:none", "text-align:center",
-    "min-width:280px", "max-height:80vh", "overflow-y:auto",
+    "position:fixed",
+    "top:" + (16 + (_mob ? 44 : 36) + 8) + "px",
+    "right:" + gearRight + "px",
+    "width:" + panelWidth,
+    "background:" + T.bg,
+    "border:1px solid var(--oo-gold-dim)",
+    "border-radius:var(--oo-radius-lg, 8px)",
+    "padding:16px",
+    "font-family:" + FONT_UI,
+    "color:" + T.text,
+    "z-index:200",
+    "display:none",
+    "text-align:left",
+    "max-height:80vh",
+    "overflow-y:auto",
     "pointer-events:auto",
-    "box-shadow:inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)"
+    "box-shadow:0 8px 32px rgba(8,12,18,0.8),0 0 0 1px rgba(200,152,42,0.08),inset 0 1px 0 rgba(200,152,42,0.1)"
   ].join(";");
 
+  // Title — "CAPTAIN'S ORDERS"
   var title = document.createElement("div");
-  title.textContent = "CAPTAIN\u2019S LOG";
-  title.style.cssText = "font-size:20px;font-weight:bold;color:" + T.gold + ";margin-bottom:16px;text-shadow:0 1px 3px rgba(0,0,0,0.5);";
+  title.textContent = "CAPTAIN\u2019S ORDERS";
+  title.style.cssText = [
+    "font-family:" + FONT, "font-size:15px", "font-weight:bold",
+    "color:" + T.gold, "margin-bottom:14px",
+    "letter-spacing:0.5px",
+    "text-shadow:0 1px 3px rgba(0,0,0,0.5)",
+    "border-bottom:1px solid var(--oo-gold-dim)",
+    "padding-bottom:10px"
+  ].join(";");
   menuPanel.appendChild(title);
 
-  // === GAME INFO SECTION (moved from HUD) ===
+  // =====================================================================
+  // === SECTION: GAME INFO ===
+  // =====================================================================
+  var gameInfoSection = document.createElement("div");
+  gameInfoSection.style.cssText = SECTION_BOX;
+
+  var gameInfoLabel = document.createElement("span");
+  gameInfoLabel.textContent = "GAME INFO";
+  gameInfoLabel.style.cssText = SECTION_LABEL;
+  gameInfoSection.appendChild(gameInfoLabel);
+
   infoSection = document.createElement("div");
-  infoSection.style.cssText = [
-    "background:" + T.bgLight, "border:1px solid " + T.border,
-    "border-radius:6px", "padding:10px 14px", "margin-bottom:12px",
-    "text-align:left"
-  ].join(";");
 
-  waveInfo = document.createElement("div");
-  waveInfo.style.cssText = INFO_ROW + ";font-weight:bold;";
-  waveInfo.textContent = "FLEET 1";
-  infoSection.appendChild(waveInfo);
+  function makeInfoRow(labelText, initValue) {
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;";
+    var lbl = document.createElement("span");
+    lbl.textContent = labelText;
+    lbl.style.cssText = INFO_LABEL;
+    var val = document.createElement("span");
+    val.textContent = initValue;
+    val.style.cssText = INFO_VALUE;
+    row.appendChild(lbl);
+    row.appendChild(val);
+    infoSection.appendChild(row);
+    return val;
+  }
 
-  fuelInfo = document.createElement("div");
-  fuelInfo.style.cssText = INFO_ROW;
-  fuelInfo.textContent = "WIND: 100%";
-  infoSection.appendChild(fuelInfo);
+  waveInfo    = makeInfoRow("Fleet",   "1");
+  fuelInfo    = makeInfoRow("Wind",    "100%");
+  ammoInfo    = makeInfoRow("Ammo",    "--");
+  partsInfo   = makeInfoRow("Parts",   "0");
+  salvageInfo = makeInfoRow("Gold",    "0");
+  weatherInfo = makeInfoRow("Weather", "CALM");
+  speedInfo   = makeInfoRow("Speed",   "0.0 kn");
+  compassInfo = makeInfoRow("Heading", "N 0\u00B0");
 
-  ammoInfo = document.createElement("div");
-  ammoInfo.style.cssText = INFO_ROW;
-  ammoInfo.textContent = "AMMO: --";
-  infoSection.appendChild(ammoInfo);
+  gameInfoSection.appendChild(infoSection);
+  menuPanel.appendChild(gameInfoSection);
 
-  partsInfo = document.createElement("div");
-  partsInfo.style.cssText = INFO_ROW;
-  partsInfo.textContent = "PARTS: 0";
-  infoSection.appendChild(partsInfo);
+  // =====================================================================
+  // === SECTION: AUDIO ===
+  // =====================================================================
+  var audioSection = document.createElement("div");
+  audioSection.style.cssText = SECTION_BOX;
 
-  salvageInfo = document.createElement("div");
-  salvageInfo.style.cssText = INFO_ROW + ";color:" + T.gold;
-  salvageInfo.textContent = "GOLD: 0";
-  infoSection.appendChild(salvageInfo);
+  var audioLabel = document.createElement("span");
+  audioLabel.textContent = "AUDIO";
+  audioLabel.style.cssText = SECTION_LABEL;
+  audioSection.appendChild(audioLabel);
 
-  weatherInfo = document.createElement("div");
-  weatherInfo.style.cssText = INFO_ROW;
-  weatherInfo.textContent = "WEATHER: CALM";
-  infoSection.appendChild(weatherInfo);
+  var audioRow = document.createElement("div");
+  audioRow.style.cssText = "display:flex;align-items:center;gap:10px;";
 
-  speedInfo = document.createElement("div");
-  speedInfo.style.cssText = INFO_ROW;
-  speedInfo.textContent = "SPEED: 0.0 kn";
-  infoSection.appendChild(speedInfo);
-
-  compassInfo = document.createElement("div");
-  compassInfo.style.cssText = INFO_ROW;
-  compassInfo.textContent = "HEADING: N 0\u00B0";
-  infoSection.appendChild(compassInfo);
-
-  menuPanel.appendChild(infoSection);
-
-  // === SOUND CONTROLS ===
-  var soundRow = document.createElement("div");
-  soundRow.style.cssText = [
-    BTN, "display:flex", "align-items:center", "justify-content:center", "gap:8px"
-  ].join(";");
-  muteBtn = document.createElement("span");
+  muteBtn = document.createElement("button");
   muteBtn.textContent = "\u266A";
-  muteBtn.style.cssText = "cursor:pointer;font-size:18px;color:" + T.text + ";min-width:28px;text-align:center;";
+  muteBtn.title = "Toggle mute";
+  muteBtn.style.cssText = [
+    "font-size:16px", "cursor:pointer", "pointer-events:auto",
+    "background:none", "border:1px solid " + T.border,
+    "border-radius:4px", "color:" + T.text,
+    "min-width:36px", "min-height:36px",
+    "display:inline-flex", "align-items:center", "justify-content:center",
+    "padding:4px", "flex-shrink:0"
+  ].join(";");
   muteBtn.addEventListener("click", function (e) {
     e.stopPropagation();
     if (onMuteCallback) onMuteCallback();
   });
-  soundRow.appendChild(muteBtn);
+  audioRow.appendChild(muteBtn);
+
   var volLabel = document.createElement("span");
   volLabel.textContent = "VOL";
-  volLabel.style.cssText = "font-size:12px;color:" + T.textDim;
-  soundRow.appendChild(volLabel);
+  volLabel.style.cssText = "font-family:" + FONT_UI + ";font-size:11px;color:" + T.textDim + ";flex-shrink:0;letter-spacing:0.8px;";
+  audioRow.appendChild(volLabel);
+
   volumeSlider = document.createElement("input");
   volumeSlider.type = "range";
   volumeSlider.min = "0";
   volumeSlider.max = "100";
   volumeSlider.value = "50";
-  volumeSlider.style.cssText = "width:100px;cursor:pointer;pointer-events:auto;accent-color:" + T.amber + ";";
+  volumeSlider.style.cssText = [
+    "flex:1", "cursor:pointer", "pointer-events:auto",
+    "appearance:none", "-webkit-appearance:none",
+    "height:4px", "border-radius:2px",
+    "background:linear-gradient(to right," + T.amber + " 50%," + T.bgLight + " 50%)",
+    "outline:none", "accent-color:" + T.amber
+  ].join(";");
   volumeSlider.addEventListener("input", function (e) {
     e.stopPropagation();
-    if (onVolumeCallback) onVolumeCallback(parseFloat(volumeSlider.value) / 100);
+    var pct = parseFloat(volumeSlider.value);
+    volumeSlider.style.background = "linear-gradient(to right," + T.amber + " " + pct + "%," + T.bgLight + " " + pct + "%)";
+    if (onVolumeCallback) onVolumeCallback(pct / 100);
   });
-  soundRow.appendChild(volumeSlider);
-  menuPanel.appendChild(soundRow);
+  audioRow.appendChild(volumeSlider);
+  audioSection.appendChild(audioRow);
+  menuPanel.appendChild(audioSection);
 
-  // === QUALITY TOGGLE ===
-  var qualityRow = document.createElement("div");
-  qualityRow.style.cssText = [
-    BTN, "display:flex", "align-items:center", "justify-content:center", "gap:8px"
-  ].join(";");
+  // =====================================================================
+  // === SECTION: QUALITY ===
+  // =====================================================================
+  var qualitySection = document.createElement("div");
+  qualitySection.style.cssText = SECTION_BOX;
+
   var qualityLabel = document.createElement("span");
-  qualityLabel.textContent = "QUALITY:";
-  qualityLabel.style.color = T.text;
-  qualityRow.appendChild(qualityLabel);
+  qualityLabel.textContent = "QUALITY";
+  qualityLabel.style.cssText = SECTION_LABEL;
+  qualitySection.appendChild(qualityLabel);
+
+  var qualityRow = document.createElement("div");
+  qualityRow.style.cssText = "display:flex;gap:6px;";
 
   var qualityOptions = ["LOW", "MEDIUM", "HIGH"];
   var qualityKeys = ["low", "medium", "high"];
   var qualityBtns = [];
   for (var qi = 0; qi < qualityOptions.length; qi++) {
     (function (idx) {
-      var qBtn = document.createElement("span");
+      var qBtn = document.createElement("button");
       qBtn.textContent = qualityOptions[idx];
-      qBtn.style.cssText = [
-        "padding:4px 10px", "border-radius:3px", "cursor:pointer",
-        "font-size:12px", "min-width:44px", "min-height:44px",
-        "display:inline-flex", "align-items:center", "justify-content:center"
-      ].join(";");
+      qBtn.style.cssText = GHOST_BTN + ";flex:1;";
       qBtn.addEventListener("click", function (e) {
         e.stopPropagation();
         setQuality(qualityKeys[idx]);
@@ -213,40 +269,40 @@ export function createSettingsMenu(callbacks) {
       qualityBtns.push(qBtn);
     })(qi);
   }
-  menuPanel.appendChild(qualityRow);
+  qualitySection.appendChild(qualityRow);
+  menuPanel.appendChild(qualitySection);
 
   function updateQualityBtns() {
     var cur = getQuality();
     for (var qb = 0; qb < qualityBtns.length; qb++) {
       if (qualityKeys[qb] === cur) {
-        qualityBtns[qb].style.background = "rgba(90, 154, 74, 0.5)";
+        qualityBtns[qb].style.borderColor = T.gold;
         qualityBtns[qb].style.color = T.gold;
         qualityBtns[qb].style.fontWeight = "bold";
       } else {
-        qualityBtns[qb].style.background = "rgba(60, 45, 28, 0.5)";
-        qualityBtns[qb].style.color = T.text;
+        qualityBtns[qb].style.borderColor = T.border;
+        qualityBtns[qb].style.color = T.textDim;
         qualityBtns[qb].style.fontWeight = "normal";
       }
     }
   }
   updateQualityBtns();
 
+  // =====================================================================
   // === WORLD STREAM TUNING ===
+  // =====================================================================
   var streamCfg = getTerrainStreamSettings();
   var streamBounds = getTerrainStreamSettingBounds();
   var streamRows = {};
   var streamHint = null;
 
   var streamSection = document.createElement("div");
-  streamSection.style.cssText = [
-    BTN, "display:block", "text-align:left", "padding:10px 12px",
-    "border:1px solid " + T.border, "line-height:1.25"
-  ].join(";");
+  streamSection.style.cssText = SECTION_BOX;
 
-  var streamTitle = document.createElement("div");
-  streamTitle.textContent = "WORLD STREAM";
-  streamTitle.style.cssText = "font-size:12px;color:" + T.gold + ";font-weight:bold;letter-spacing:0.8px;margin-bottom:6px;text-align:center";
-  streamSection.appendChild(streamTitle);
+  var streamSectionLabel = document.createElement("span");
+  streamSectionLabel.textContent = "WORLD STREAM";
+  streamSectionLabel.style.cssText = SECTION_LABEL;
+  streamSection.appendChild(streamSectionLabel);
 
   function makeStreamStepper(label, key, step) {
     var row = document.createElement("div");
@@ -254,7 +310,7 @@ export function createSettingsMenu(callbacks) {
 
     var text = document.createElement("span");
     text.textContent = label;
-    text.style.cssText = "font-size:11px;color:" + T.text + ";letter-spacing:0.3px";
+    text.style.cssText = "font-family:" + FONT_UI + ";font-size:11px;color:" + T.textDim + ";letter-spacing:0.3px";
     row.appendChild(text);
 
     var controls = document.createElement("div");
@@ -262,7 +318,7 @@ export function createSettingsMenu(callbacks) {
 
     var minusBtn = document.createElement("button");
     minusBtn.textContent = "-";
-    minusBtn.style.cssText = "min-width:28px;min-height:28px;padding:0 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.text + ";border-radius:4px;cursor:pointer;font-family:" + FONT;
+    minusBtn.style.cssText = "min-width:28px;min-height:28px;padding:0 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.text + ";border-radius:4px;cursor:pointer;font-family:" + FONT_UI;
     minusBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       var patch = {};
@@ -273,12 +329,12 @@ export function createSettingsMenu(callbacks) {
     controls.appendChild(minusBtn);
 
     var valueEl = document.createElement("span");
-    valueEl.style.cssText = "min-width:28px;text-align:center;font-size:12px;color:" + T.gold + ";font-weight:bold";
+    valueEl.style.cssText = "min-width:28px;text-align:center;font-family:" + FONT_MONO + ";font-size:12px;color:" + T.gold + ";font-weight:bold";
     controls.appendChild(valueEl);
 
     var plusBtn = document.createElement("button");
     plusBtn.textContent = "+";
-    plusBtn.style.cssText = "min-width:28px;min-height:28px;padding:0 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.text + ";border-radius:4px;cursor:pointer;font-family:" + FONT;
+    plusBtn.style.cssText = "min-width:28px;min-height:28px;padding:0 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.text + ";border-radius:4px;cursor:pointer;font-family:" + FONT_UI;
     plusBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       var patch = {};
@@ -317,9 +373,9 @@ export function createSettingsMenu(callbacks) {
 
     if (streamHint) {
       streamHint.textContent =
-        "Loaded per frame: " + streamCfg.chunkCreateBudget +
-        " | Keep window: " + streamCfg.keepRadius +
-        " | Active cap: " + streamCfg.activeChunkSoftLimit + "/" + streamCfg.activeChunkHardLimit;
+        "Loaded/frame: " + streamCfg.chunkCreateBudget +
+        " | Keep: " + streamCfg.keepRadius +
+        " | Cap: " + streamCfg.activeChunkSoftLimit + "/" + streamCfg.activeChunkHardLimit;
     }
   }
 
@@ -331,12 +387,17 @@ export function createSettingsMenu(callbacks) {
   makeStreamStepper("ACTIVE HARD CAP", "activeChunkHardLimit", 1);
 
   streamHint = document.createElement("div");
-  streamHint.style.cssText = "margin-top:6px;font-size:10px;color:" + T.textDim + ";text-align:center";
+  streamHint.style.cssText = "margin-top:6px;font-family:" + FONT_MONO + ";font-size:10px;color:" + T.textDim + ";text-align:center";
   streamSection.appendChild(streamHint);
 
   var resetStreamBtn = document.createElement("button");
   resetStreamBtn.textContent = "RESET STREAM DEFAULTS";
-  resetStreamBtn.style.cssText = "margin-top:8px;width:100%;padding:6px 8px;border:1px solid " + T.border + ";background:" + T.bgLight + ";color:" + T.textDim + ";border-radius:4px;cursor:pointer;font-family:" + FONT + ";font-size:11px";
+  resetStreamBtn.style.cssText = [
+    "margin-top:8px", "width:100%", "padding:6px 8px",
+    "border:1px solid " + T.border, "background:" + T.bgLight,
+    "color:" + T.textDim, "border-radius:4px", "cursor:pointer",
+    "font-family:" + FONT_UI, "font-size:11px", "letter-spacing:0.5px"
+  ].join(";");
   resetStreamBtn.addEventListener("click", function (e) {
     e.stopPropagation();
     streamCfg = resetTerrainStreamSettings();
@@ -348,17 +409,18 @@ export function createSettingsMenu(callbacks) {
   updateStreamRows();
   menuPanel.appendChild(streamSection);
 
-  // === SAVE MANAGEMENT ===
-  var newGameBtn = makeButton("NEW GAME", T.red, function () {
-    showConfirm("Start a new game? This will erase your current save.", function () {
-      deleteSave();
-      closeMenu();
-      if (onNewGameCallback) onNewGameCallback();
-    });
-  });
-  menuPanel.appendChild(newGameBtn);
+  // =====================================================================
+  // === SECTION: SAVE MANAGEMENT ===
+  // =====================================================================
+  var saveSection = document.createElement("div");
+  saveSection.style.cssText = SECTION_BOX;
 
-  var exportBtn = makeButton("EXPORT SAVE", T.text, function () {
+  var saveSectionLabel = document.createElement("span");
+  saveSectionLabel.textContent = "SAVE";
+  saveSectionLabel.style.cssText = SECTION_LABEL;
+  saveSection.appendChild(saveSectionLabel);
+
+  var exportBtn = makeSaveButton("EXPORT SAVE", T.textDim, function () {
     var data = exportSave();
     if (!data) {
       showNotice("No save data to export.");
@@ -378,9 +440,9 @@ export function createSettingsMenu(callbacks) {
     URL.revokeObjectURL(url);
     showNotice("Save exported!");
   });
-  menuPanel.appendChild(exportBtn);
+  saveSection.appendChild(exportBtn);
 
-  var importBtn = makeButton("IMPORT SAVE", T.text, function () {
+  var importBtn = makeSaveButton("IMPORT SAVE", T.textDim, function () {
     var input = document.createElement("input");
     input.type = "file";
     input.accept = ".json,application/json";
@@ -403,10 +465,12 @@ export function createSettingsMenu(callbacks) {
     input.click();
     document.body.removeChild(input);
   });
-  menuPanel.appendChild(importBtn);
+  saveSection.appendChild(importBtn);
+
+  menuPanel.appendChild(saveSection);
 
   // Install App button (PWA)
-  installBtn = makeButton("INSTALL APP", T.green, function () {
+  installBtn = makeSaveButton("INSTALL APP", T.green, function () {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(function () {
@@ -416,24 +480,65 @@ export function createSettingsMenu(callbacks) {
     }
   });
   installBtn.style.display = deferredPrompt ? "block" : "none";
+  installBtn.style.marginBottom = "10px";
   menuPanel.appendChild(installBtn);
 
+  // =====================================================================
+  // === SECTION: DANGER ZONE ===
+  // =====================================================================
+  var dangerSection = document.createElement("div");
+  dangerSection.style.cssText = [
+    "background:" + T.bgLight,
+    "border:1px solid " + T.red,
+    "border-radius:6px", "padding:10px 12px", "margin-bottom:10px"
+  ].join(";");
+
+  var dangerLabel = document.createElement("span");
+  dangerLabel.textContent = "DANGER ZONE";
+  dangerLabel.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:10px", "font-weight:600",
+    "letter-spacing:1.2px", "text-transform:uppercase",
+    "color:" + T.red, "margin-bottom:6px", "display:block"
+  ].join(";");
+  dangerSection.appendChild(dangerLabel);
+
+  var newGameBtn = document.createElement("button");
+  newGameBtn.textContent = "NEW GAME";
+  newGameBtn.style.cssText = [
+    "width:100%", "padding:8px 12px",
+    "font-family:" + FONT_UI, "font-size:12px", "font-weight:600",
+    "letter-spacing:0.8px", "text-transform:uppercase",
+    "color:" + T.red, "border:1px solid " + T.red,
+    "background:none", "border-radius:4px",
+    "cursor:pointer", "pointer-events:auto"
+  ].join(";");
+  newGameBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    showConfirm("Start a new game? This will erase your current save.", function () {
+      deleteSave();
+      closeMenu();
+      if (onNewGameCallback) onNewGameCallback();
+    });
+  });
+  dangerSection.appendChild(newGameBtn);
+  menuPanel.appendChild(dangerSection);
+
   // Close button
-  var closeBtn = makeButton("CLOSE", T.text, function () {
+  var closeBtn = makeSaveButton("CLOSE", T.textDim, function () {
     closeMenu();
   });
-  closeBtn.style.marginTop = "16px";
+  closeBtn.style.marginTop = "4px";
   menuPanel.appendChild(closeBtn);
 
   document.body.appendChild(menuPanel);
 
-  // confirm overlay
+  // confirm overlay (still full-screen for confirm/notice dialogs)
   confirmOverlay = document.createElement("div");
   confirmOverlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
     "background:rgba(10,6,2,0.7)", "display:none",
     "flex-direction:column", "align-items:center", "justify-content:center",
-    "z-index:300", "font-family:" + FONT
+    "z-index:300", "font-family:" + FONT_UI
   ].join(";");
   document.body.appendChild(confirmOverlay);
 }
@@ -449,37 +554,40 @@ function refreshInfoLabels() {
   if (!_gameData || !infoSection) return;
   var d = _gameData;
   if (d.wave !== undefined && waveInfo) {
-    if (d.waveState === "WAITING") { waveInfo.textContent = "REPAIRING..."; waveInfo.style.color = T.green; }
-    else if (d.waveState === "WAVE_COMPLETE") { waveInfo.textContent = "FLEET " + d.wave + " CLEAR"; waveInfo.style.color = T.green; }
-    else { waveInfo.textContent = "FLEET " + d.wave; waveInfo.style.color = T.text; }
+    if (d.waveState === "WAITING") { waveInfo.textContent = "Repairing..."; waveInfo.style.color = T.green; }
+    else if (d.waveState === "WAVE_COMPLETE") { waveInfo.textContent = "Fleet " + d.wave + " Clear"; waveInfo.style.color = T.green; }
+    else { waveInfo.textContent = String(d.wave); waveInfo.style.color = T.cream; }
   }
   if (d.fuel !== undefined && fuelInfo) {
     var fuelPct = Math.max(0, d.fuel / d.maxFuel) * 100;
-    fuelInfo.textContent = "WIND: " + Math.round(d.fuel) + "%";
+    fuelInfo.textContent = Math.round(d.fuel) + "%";
     fuelInfo.style.color = fuelPct > 30 ? T.blueBright : fuelPct > 15 ? T.amber : T.red;
   }
   if (d.ammo !== undefined && ammoInfo) {
-    ammoInfo.textContent = "AMMO: " + d.ammo + " / " + d.maxAmmo;
-    ammoInfo.style.color = d.ammo <= 5 ? T.red : T.text;
+    ammoInfo.textContent = d.ammo + " / " + d.maxAmmo;
+    ammoInfo.style.color = d.ammo <= 5 ? T.red : T.cream;
   }
   if (d.parts !== undefined && partsInfo) {
-    partsInfo.textContent = "PARTS: " + d.parts;
-    partsInfo.style.color = d.parts > 0 ? T.green : T.text;
+    partsInfo.textContent = String(d.parts);
+    partsInfo.style.color = d.parts > 0 ? T.green : T.cream;
   }
   if (d.gold !== undefined && salvageInfo) {
-    salvageInfo.textContent = "GOLD: " + d.gold;
+    salvageInfo.textContent = String(d.gold);
+    salvageInfo.style.color = T.gold;
   }
   if (d.weatherText && weatherInfo) {
-    weatherInfo.textContent = "WEATHER: " + d.weatherText;
+    weatherInfo.textContent = d.weatherText;
     weatherInfo.style.color = ({ CALM: T.green, ROUGH: T.gold, STORM: T.red })[d.weatherText] || T.textDim;
   }
   if (d.displaySpeed !== undefined && speedInfo) {
-    speedInfo.textContent = "SPEED: " + d.displaySpeed.toFixed(1) + " kn";
+    speedInfo.textContent = d.displaySpeed.toFixed(1) + " kn";
+    speedInfo.style.color = T.cream;
   }
   if (d.heading !== undefined && compassInfo) {
     var deg = ((d.heading * 180 / Math.PI) % 360 + 360) % 360;
     var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-    compassInfo.textContent = "HEADING: " + dirs[Math.round(deg / 45) % 8] + " " + Math.round(deg) + "\u00B0";
+    compassInfo.textContent = dirs[Math.round(deg / 45) % 8] + " " + Math.round(deg) + "\u00B0";
+    compassInfo.style.color = T.cream;
   }
 }
 
@@ -487,16 +595,48 @@ export function updateMuteButton(m) {
   if (!muteBtn) return;
   muteBtn.textContent = m ? "\u266A\u2715" : "\u266A";
   muteBtn.style.color = m ? T.red : T.text;
+  muteBtn.style.borderColor = m ? T.red : T.border;
 }
 
 export function updateVolumeSlider(v) {
-  if (volumeSlider) volumeSlider.value = String(Math.round(v * 100));
+  if (volumeSlider) {
+    volumeSlider.value = String(Math.round(v * 100));
+    var pct = Math.round(v * 100);
+    volumeSlider.style.background = "linear-gradient(to right," + T.amber + " " + pct + "%," + T.bgLight + " " + pct + "%)";
+  }
 }
 
+// Small inline button used for save actions and close
+function makeSaveButton(text, color, onClick) {
+  var btn = document.createElement("button");
+  btn.textContent = text;
+  btn.style.cssText = [
+    "width:100%", "padding:7px 12px", "margin-bottom:5px",
+    "font-family:" + FONT_UI, "font-size:11px", "font-weight:600",
+    "letter-spacing:0.8px", "text-transform:uppercase",
+    "color:" + color, "border:1px solid " + T.border,
+    "background:none", "border-radius:4px",
+    "cursor:pointer", "pointer-events:auto", "display:block"
+  ].join(";");
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    onClick();
+  });
+  return btn;
+}
+
+// Legacy helper kept for confirm/notice dialogs — same shape as old makeButton
 function makeButton(text, color, onClick) {
   var btn = document.createElement("div");
   btn.textContent = text;
-  btn.style.cssText = BTN + ";color:" + color;
+  btn.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:13px", "padding:10px 20px",
+    "border-radius:4px", "cursor:pointer", "pointer-events:auto",
+    "user-select:none", "text-align:center", "min-width:100px",
+    "border:1px solid " + T.border, "background:" + T.bgLight,
+    "color:" + color, "margin:4px 0",
+    "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
+  ].join(";");
   btn.addEventListener("click", function (e) {
     e.stopPropagation();
     onClick();
@@ -512,6 +652,7 @@ function toggleMenu() {
 function openMenu() {
   menuOpen = true;
   menuPanel.style.display = "block";
+  menuPanel.style.animation = "oo-fall 0.3s var(--oo-ease-std)";
   if (installBtn) installBtn.style.display = deferredPrompt ? "block" : "none";
   refreshInfoLabels();
 }
@@ -519,6 +660,7 @@ function openMenu() {
 function closeMenu() {
   menuOpen = false;
   menuPanel.style.display = "none";
+  menuPanel.style.animation = "";
 }
 
 export function isSettingsOpen() {
@@ -531,15 +673,16 @@ function showConfirm(message, onYes) {
 
   var box = document.createElement("div");
   box.style.cssText = [
-    PARCHMENT_BG, "border:1px solid " + T.border,
-    "border-radius:6px", "padding:24px 32px", "text-align:center",
-    "color:" + T.text, "max-width:320px", "font-family:" + FONT,
-    "box-shadow:inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)"
+    "background:" + T.bg,
+    "border:1px solid var(--oo-gold-dim)",
+    "border-radius:var(--oo-radius-lg, 8px)", "padding:24px 32px", "text-align:center",
+    "color:" + T.text, "max-width:320px", "font-family:" + FONT_UI,
+    "box-shadow:0 8px 32px rgba(8,12,18,0.8)"
   ].join(";");
 
   var msg = document.createElement("div");
   msg.textContent = message;
-  msg.style.cssText = "font-size:14px;margin-bottom:20px;line-height:1.4;text-shadow:0 1px 2px rgba(0,0,0,0.3);";
+  msg.style.cssText = "font-size:14px;margin-bottom:20px;line-height:1.5;color:" + T.text + ";";
   box.appendChild(msg);
 
   var row = document.createElement("div");
@@ -549,13 +692,11 @@ function showConfirm(message, onYes) {
     confirmOverlay.style.display = "none";
     onYes();
   });
-  yesBtn.style.minWidth = "100px";
   row.appendChild(yesBtn);
 
   var noBtn = makeButton("NO", T.text, function () {
     confirmOverlay.style.display = "none";
   });
-  noBtn.style.minWidth = "100px";
   row.appendChild(noBtn);
 
   box.appendChild(row);
@@ -568,11 +709,12 @@ function showNotice(text) {
 
   var box = document.createElement("div");
   box.style.cssText = [
-    PARCHMENT_BG, "border:1px solid " + T.border,
-    "border-radius:6px", "padding:24px 32px", "text-align:center",
-    "color:" + T.gold, "font-size:16px", "font-family:" + FONT,
+    "background:" + T.bg,
+    "border:1px solid var(--oo-gold-dim)",
+    "border-radius:var(--oo-radius-lg, 8px)", "padding:24px 32px", "text-align:center",
+    "color:" + T.gold, "font-size:16px", "font-family:" + FONT_UI,
     "text-shadow:0 1px 3px rgba(0,0,0,0.5)",
-    "box-shadow:inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)"
+    "box-shadow:0 8px 32px rgba(8,12,18,0.8)"
   ].join(";");
   box.textContent = text;
   confirmOverlay.appendChild(box);
