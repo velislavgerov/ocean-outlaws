@@ -330,6 +330,36 @@ export function initIslandInstancing(parentGroup) {
   parentGroup.add(_instanceRoot);
 }
 
+export async function preloadTerrainModels() {
+  if (!_instanceRoot) return;
+  var defs = await loadCompositePack();
+  if (!defs || defs.length === 0) return;
+
+  var seen = new Set();
+  var promises = [];
+
+  for (var i = 0; i < defs.length; i++) {
+    var def = defs[i];
+    if (!def || !Array.isArray(def.items)) continue;
+    for (var j = 0; j < def.items.length; j++) {
+      var item = def.items[j];
+      if (!item || !item.modelPath) continue;
+      var fitSize = fitForCompositeItem(item);
+      var key = getEntryKey(item.modelPath, fitSize);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      promises.push(ensureModelEntry(item.modelPath, fitSize));
+    }
+  }
+
+  var smallKey = getEntryKey(SMALL_ISLAND_MODEL, 20);
+  if (!seen.has(smallKey)) {
+    promises.push(ensureModelEntry(SMALL_ISLAND_MODEL, 20));
+  }
+
+  await Promise.all(promises);
+}
+
 export function disposeIslandInstancing() {
   if (!_instanceRoot) return;
   for (var key in _modelEntries) {

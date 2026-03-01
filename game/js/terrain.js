@@ -11,16 +11,18 @@ import {
   disposeIslandInstancing,
   removeChunkInstances,
   shiftAllInstancePositions,
-  flushInstanceUpdates
+  flushInstanceUpdates,
+  preloadTerrainModels
 } from "./terrainComposite.js";
+export { preloadTerrainModels };
 
 // --- world/chunk tuning ---
 var CHUNK_SIZE = 400;                  // keeps compatibility with existing map-scale content
-var GRID_RES_DESKTOP = 128;
+var GRID_RES_DESKTOP = 64;
 var GRID_RES_MOBILE = 64;             // halved on mobile — 6.25 unit resolution is adequate
 var SEA_LEVEL = 0.0;
 var NOISE_SCALE = 0.02;
-var OCTAVES = 4;
+var OCTAVES = 3;
 var PERSISTENCE = 0.5;
 var LACUNARITY = 2.0;
 var SPAWN_CLEAR_RADIUS = 40;
@@ -89,7 +91,7 @@ var DEFAULT_STREAM_SETTINGS = Object.freeze({
   streamRadius: 1,
   keepRadius: 2,
   preloadAhead: 1,
-  chunkCreateBudget: 4,
+  chunkCreateBudget: 1,
   activeChunkSoftLimit: 20,
   activeChunkHardLimit: 30
 });
@@ -326,7 +328,7 @@ function generateChunkHeightmap(worldSeed, difficulty, cx, cy) {
     }
   }
 
-  gaussianBlur(data, size, 2);
+  gaussianBlur(data, size, 1);
   return { data: data, size: size };
 }
 
@@ -987,6 +989,7 @@ export function createTerrain(seed, difficulty) {
   terrain.chunks.forEach(function (chunk) {
     if (chunk._visualPromise) _initPromises.push(chunk._visualPromise);
   });
+  terrain.initialChunkCount = _initPromises.length;
   terrain.initialReady = _initPromises.length > 0 ? Promise.all(_initPromises) : Promise.resolve();
 
   return terrain;

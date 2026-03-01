@@ -34,7 +34,7 @@ import { createCrewPickupManager, spawnCrewPickup, updateCrewPickups, clearCrewP
 import { createCrewSwap, showCrewSwap, hideCrewSwap } from "./crewSwap.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
-import { createTerrain, removeTerrain, getTerrainMinimapMarkers, updateTerrainStreaming, shiftTerrainOrigin } from "./terrain.js";
+import { createTerrain, removeTerrain, getTerrainMinimapMarkers, updateTerrainStreaming, shiftTerrainOrigin, preloadTerrainModels } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo, consumeCityEvents } from "./port.js";
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
@@ -896,7 +896,17 @@ function startMultiplayerCombat() {
   activeTerrain = createTerrain(seed, 2);
   scene.add(activeTerrain.mesh);
   showLoadingScreen("Generating world...");
-  activeTerrain.initialReady.then(function () { hideLoadingScreen(); });
+  updateLoadingBar(5, "Generating world...");
+  var _totalChunks = activeTerrain.initialChunkCount || 1;
+  var _readyChunks = 0;
+  activeTerrain.onChunkReady = function () {
+    _readyChunks++;
+    updateLoadingBar(Math.round((_readyChunks / _totalChunks) * 100), "Generating world...");
+  };
+  Promise.all([activeTerrain.initialReady, preloadTerrainModels()]).then(function () {
+    activeTerrain.onChunkReady = null;
+    hideLoadingScreen();
+  });
   var mpPortRoleContext = { zoneId: "multiplayer", condition: "calm", difficulty: 2 };
   currentRoleContext = mpPortRoleContext;
   clearPorts(portMgr, scene);
@@ -1043,7 +1053,17 @@ function startOpenWorld(classKey) {
   activeTerrain = createTerrain(worldSeed, 3);
   scene.add(activeTerrain.mesh);
   showLoadingScreen("Generating world...");
-  activeTerrain.initialReady.then(function () { hideLoadingScreen(); });
+  updateLoadingBar(5, "Generating world...");
+  var _totalChunks = activeTerrain.initialChunkCount || 1;
+  var _readyChunks = 0;
+  activeTerrain.onChunkReady = function () {
+    _readyChunks++;
+    updateLoadingBar(Math.round((_readyChunks / _totalChunks) * 100), "Generating world...");
+  };
+  Promise.all([activeTerrain.initialReady, preloadTerrainModels()]).then(function () {
+    activeTerrain.onChunkReady = null;
+    hideLoadingScreen();
+  });
 
   var worldRoleContext = {
     zoneId: "open_world",
@@ -1185,7 +1205,17 @@ function startZoneCombat(classKey, zoneId) {
   activeTerrain = createTerrain(terrainSeed, zone.difficulty);
   scene.add(activeTerrain.mesh);
   showLoadingScreen("Generating world...");
-  activeTerrain.initialReady.then(function () { hideLoadingScreen(); });
+  updateLoadingBar(5, "Generating world...");
+  var _totalChunks = activeTerrain.initialChunkCount || 1;
+  var _readyChunks = 0;
+  activeTerrain.onChunkReady = function () {
+    _readyChunks++;
+    updateLoadingBar(Math.round((_readyChunks / _totalChunks) * 100), "Generating world...");
+  };
+  Promise.all([activeTerrain.initialReady, preloadTerrainModels()]).then(function () {
+    activeTerrain.onChunkReady = null;
+    hideLoadingScreen();
+  });
   var zonePortRoleContext = {
     zoneId: zoneId,
     condition: zone.condition || "calm",
