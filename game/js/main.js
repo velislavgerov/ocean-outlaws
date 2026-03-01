@@ -6,7 +6,7 @@ import { initInput, getInput, getMouse, consumeClick, getKeyActions } from "./in
 import { isMobile } from "./mobile.js";
 import { initMobileControls, getJoystickState } from "./mobileControls.js";
 import { createHUD, updateHUD, updateMinimap, showBanner, showGameOver, showVictory, setRestartCallback, hideOverlay, setAbilityBarCallback, setMuteCallback, setVolumeCallback, setSettingsDataCallback } from "./hud.js";
-import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn } from "./uiEffects.js";
+import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScreenShake, updateUIEffects, getShakeOffset, fadeOut, fadeIn, updateLowHullVignette } from "./uiEffects.js";
 import { unlockAudio, updateSailing, setSailClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
@@ -2059,7 +2059,9 @@ ticker.events.on("tick", function (dt) {
   updateSailing(speedRatio);
   updateAmbience(weather.current, dt);
   var hpInfo = getPlayerHp(enemyMgr);
-  updateLowHpWarning(hpInfo.hp / hpInfo.maxHp);
+  var hpRatio = hpInfo.hp / hpInfo.maxHp;
+  updateLowHpWarning(hpRatio);
+  updateLowHullVignette(hpRatio);
 
   var aliveEnemyCount = 0;
   for (var i = 0; i < enemyMgr.enemies.length; i++) {

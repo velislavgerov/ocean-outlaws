@@ -1,5 +1,5 @@
 // uiEffects.js — damage indicators, floating damage numbers, kill feed, fade transitions
-import { T, FONT } from "./theme.js";
+import { T, FONT, FONT_UI, FONT_MONO } from "./theme.js";
 
 var COLORS = {
   bg: T.bg,
@@ -99,9 +99,9 @@ export function showFloatingNumber(screenX, screenY, text, color) {
   var el = document.createElement("div");
   el.textContent = text;
   el.style.cssText = [
-    "position:absolute", "font-family:" + FONT, "font-weight:bold",
+    "position:absolute", "font-family:" + FONT_MONO, "font-weight:bold",
     "font-size:16px", "color:" + (color || COLORS.damage),
-    "text-shadow:0 0 6px " + (color || COLORS.damage),
+    "text-shadow:0 1px 4px rgba(0,0,0,0.9)",
     "pointer-events:none", "white-space:nowrap",
     "left:" + screenX + "px", "top:" + screenY + "px",
     "transform:translate(-50%,-50%)"
@@ -140,7 +140,7 @@ function ensureKillFeed() {
   killFeedContainer = document.createElement("div");
   killFeedContainer.style.cssText = [
     "position:fixed", "bottom:20px", "right:20px",
-    "font-family:" + FONT, "font-size:12px",
+    "font-family:" + FONT_UI, "font-size:12px",
     "pointer-events:none", "z-index:10",
     "display:flex", "flex-direction:column-reverse", "gap:3px",
     "max-width:280px"
@@ -182,6 +182,32 @@ export function updateKillFeed(dt) {
     }
   }
   killFeedItems = alive;
+}
+
+// --- low-hull edge vignette ---
+var damageEl = null;
+
+function ensureLowHullVignette() {
+  if (damageEl) return;
+  damageEl = document.createElement("div");
+  damageEl.style.cssText = [
+    "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
+    "pointer-events:none", "z-index:14", "opacity:0",
+    "transition:opacity 0.5s",
+    "background:radial-gradient(ellipse at center, transparent 60%, rgba(192,57,43,0.08) 100%)"
+  ].join(";");
+  document.body.appendChild(damageEl);
+}
+
+// hpRatio: 0..1; vignette fades in below 0.35
+export function updateLowHullVignette(hpRatio) {
+  ensureLowHullVignette();
+  var opacity = 0;
+  if (hpRatio < 0.35) {
+    // scale 0..1 over the range 0.35..0 — at 0 hp opacity reaches 1 (max background rgba 0.08)
+    opacity = 1 - (hpRatio / 0.35);
+  }
+  damageEl.style.opacity = String(opacity);
 }
 
 // --- fade transition overlay ---
