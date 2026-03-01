@@ -76,14 +76,20 @@ var TYPE_COLORS = {
   ammo: 0xffaa22,
   fuel: 0x22aaff,
   parts: 0x44dd66,
-  gold: 0xffcc44
+  gold: 0xffcc44,
+  weapon_upgrade_cannon:    0xffd700,
+  weapon_upgrade_chainshot: 0xff4422,
+  weapon_upgrade_firebomb:  0x4488ff
 };
 
 var GLOW_COLORS = {
   ammo: 0xffdd66,
   fuel: 0x66ccff,
   parts: 0x88ff99,
-  gold: 0xffee88
+  gold: 0xffee88,
+  weapon_upgrade_cannon:    0xffe44d,
+  weapon_upgrade_chainshot: 0xff7755,
+  weapon_upgrade_firebomb:  0x77aaff
 };
 
 function pickPickupModel(type) {
@@ -134,6 +140,11 @@ function buildPickupMesh(type) {
   mesh.userData.pickupFallback = true;
   group.add(mesh);
 
+  // weapon_upgrade pickups are larger to stand out
+  if (type && type.indexOf("weapon_upgrade_") === 0) {
+    group.scale.setScalar(1.4);
+  }
+
   // glow point light — create a fresh one per pickup (lights need separate instances for position)
   var glowColor = GLOW_COLORS[type] || 0xffffff;
   var light = new THREE.PointLight(glowColor, 1.0, 6);
@@ -169,7 +180,8 @@ export function createPickupManager() {
   return {
     pickups: [],
     roleContext: null,
-    onCollectCallback: null  // called with (index) for multiplayer sync
+    onCollectCallback: null,   // called with (index) for multiplayer sync
+    onWeaponUpgrade: null      // called with (weaponKey) when weapon upgrade collected
   };
 }
 
@@ -212,6 +224,26 @@ export function spawnPickup(manager, x, y, z, scene) {
   manager.pickups.push(pickup);
 
   hydratePickupMesh(pickup);
+}
+
+// --- spawn a weapon upgrade pickup at position ---
+export function spawnWeaponUpgradePickup(manager, x, y, z, scene, weaponKey) {
+  var type = "weapon_upgrade_" + weaponKey;
+  var mesh = buildPickupMesh(type);
+  mesh.position.set(x, y + PICKUP_FLOAT_OFFSET, z);
+  scene.add(mesh);
+  var pickup = {
+    mesh: mesh,
+    type: type,
+    weaponKey: weaponKey,
+    posX: x,
+    posZ: z,
+    roleContext: manager.roleContext || null,
+    age: 0,
+    collected: false,
+    onWeaponUpgrade: manager.onWeaponUpgrade
+  };
+  manager.pickups.push(pickup);
 }
 
 // --- clear all pickups (called on wave transition) ---
@@ -292,6 +324,8 @@ function collectPickup(pickup, resources, upgrades) {
     addParts(resources, PARTS_DROP_AMOUNT);
   } else if (pickup.type === "gold" && upgrades) {
     addGold(upgrades, GOLD_DROP_AMOUNT);
+  } else if (pickup.type && pickup.type.indexOf("weapon_upgrade_") === 0 && pickup.weaponKey) {
+    if (pickup.onWeaponUpgrade) pickup.onWeaponUpgrade(pickup.weaponKey);
   }
   console.log("[PICKUP] Collected " + pickup.type);
 }
