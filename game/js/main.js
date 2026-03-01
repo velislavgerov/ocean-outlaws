@@ -154,8 +154,17 @@ function hideLoadingScreen() {
   if (screen) {
     screen.style.transition = "opacity 0.5s";
     screen.style.opacity = "0";
-    setTimeout(function () { screen.remove(); }, 500);
+    setTimeout(function () { screen.style.display = "none"; }, 500);
   }
+}
+
+function showLoadingScreen(text) {
+  var screen = document.getElementById("loading-screen");
+  if (!screen) return;
+  screen.style.display = "flex";
+  screen.style.transition = "";
+  screen.style.opacity = "1";
+  updateLoadingBar(0, text || "Loading...");
 }
 
 var qCfg = getQualityConfig();
@@ -884,8 +893,10 @@ function startMultiplayerCombat() {
   // Seed PRNG from shared terrain seed for deterministic simulation
   var seed = mpState.terrainSeed || Math.floor(Math.random() * 999999);
   seedRNG(seed);
-  // activeTerrain = createTerrain(seed, 2);
-  // scene.add(activeTerrain.mesh);
+  activeTerrain = createTerrain(seed, 2);
+  scene.add(activeTerrain.mesh);
+  showLoadingScreen("Generating world...");
+  activeTerrain.initialReady.then(function () { hideLoadingScreen(); });
   var mpPortRoleContext = { zoneId: "multiplayer", condition: "calm", difficulty: 2 };
   currentRoleContext = mpPortRoleContext;
   clearPorts(portMgr, scene);
@@ -1029,8 +1040,10 @@ function startOpenWorld(classKey) {
 
   var worldSeed = Date.now() + Math.floor(Math.random() * 10000);
   seedRNG(worldSeed);
-  // activeTerrain = createTerrain(worldSeed, 3);
-  // scene.add(activeTerrain.mesh);
+  activeTerrain = createTerrain(worldSeed, 3);
+  scene.add(activeTerrain.mesh);
+  showLoadingScreen("Generating world...");
+  activeTerrain.initialReady.then(function () { hideLoadingScreen(); });
 
   var worldRoleContext = {
     zoneId: "open_world",
@@ -1169,8 +1182,10 @@ function startZoneCombat(classKey, zoneId) {
   terrainSeed += Math.floor(Math.random() * 10000);
   // Seed PRNG for deterministic simulation
   seedRNG(terrainSeed);
-  // activeTerrain = createTerrain(terrainSeed, zone.difficulty);
-  // scene.add(activeTerrain.mesh);
+  activeTerrain = createTerrain(terrainSeed, zone.difficulty);
+  scene.add(activeTerrain.mesh);
+  showLoadingScreen("Generating world...");
+  activeTerrain.initialReady.then(function () { hideLoadingScreen(); });
   var zonePortRoleContext = {
     zoneId: zoneId,
     condition: zone.condition || "calm",
@@ -2029,24 +2044,11 @@ ticker.events.on("tick", function (dt) {
 }, 11);
 
 // Register render pass at tick order 998 (last)
-var _rendererInfoTimer = 0;
-ticker.events.on("tick", function (dt) {
+ticker.events.on("tick", function () {
   if (isWorldDebugVisible()) {
     updateWorldDebugView(buildWorldDebugSnapshot());
   }
   renderer.render(scene, cam.camera);
-
-  // Periodic renderer diagnostics — visible in console when ?debug or #debug is active
-  if (window.location.hash.indexOf("debug") !== -1 || window.location.search.indexOf("debug") !== -1) {
-    _rendererInfoTimer += dt;
-    if (_rendererInfoTimer >= 5) {
-      _rendererInfoTimer = 0;
-      var _ri = renderer.info;
-      var _lightCount = 0;
-      scene.traverse(function (o) { if (o.isLight) _lightCount++; });
-      console.log("[RENDERER] draw=" + _ri.render.calls + " geo=" + _ri.memory.geometries + " tex=" + _ri.memory.textures + " lights=" + _lightCount);
-    }
-  }
 }, 998);
 
 // Pre-compile shaders before starting the loop

@@ -312,8 +312,8 @@ var _instanceRoot = null;
 var _modelEntries = {};         // entryKey → ModelEntry (completed)
 var _modelEntryPromises = {};   // entryKey → Promise<ModelEntry> (in-flight dedup)
 var _chunkSlots = {};      // chunkKey → [{ entryKey, slot }]
-var _INST_CAP_INIT = 64;
-var _INST_CAP_GROW = 64;
+var _INST_CAP_INIT = 512;
+var _INST_CAP_GROW = 256;
 var _matA = new THREE.Matrix4();
 var _matB = new THREE.Matrix4();
 var _quatTmp = new THREE.Quaternion();
@@ -360,45 +360,51 @@ function getEntryKey(modelPath, fitSize) {
   return modelPath + "|" + fitSize;
 }
 
-async function ensureModelEntry(modelPath, fitSize) {
+function ensureModelEntry(modelPath, fitSize) {
   var key = getEntryKey(modelPath, fitSize);
-  if (_modelEntries[key]) return _modelEntries[key];
+  if (_modelEntries[key]) return Promise.resolve(_modelEntries[key]);
+  if (_modelEntryPromises[key]) return _modelEntryPromises[key];
 
-  var visual = await loadGlbVisual(modelPath, fitSize, true);
-  visual.updateMatrixWorld(true);
+  _modelEntryPromises[key] = loadGlbVisual(modelPath, fitSize, true).then(function (visual) {
+    visual.updateMatrixWorld(true);
 
-  var submeshes = [];
+    var submeshes = [];
 
-  visual.traverse(function (child) {
-    if (!child.isMesh) return;
-    var localMatrix = new THREE.Matrix4();
-    localMatrix.copy(child.matrixWorld);
-    submeshes.push({ geo: child.geometry, mat: child.material, localMatrix: localMatrix, instancedMesh: null });
+    visual.traverse(function (child) {
+      if (!child.isMesh) return;
+      var localMatrix = new THREE.Matrix4();
+      localMatrix.copy(child.matrixWorld);
+      submeshes.push({ geo: child.geometry, mat: child.material, localMatrix: localMatrix, instancedMesh: null });
+    });
+
+    if (submeshes.length === 0) {
+      delete _modelEntryPromises[key];
+      return null;
+    }
+
+    // Pre-compute collider decomposition from fitted template
+    var tplColliders = computeTemplateColliders(visual, modelPath);
+
+    for (var i = 0; i < submeshes.length; i++) {
+      var sm = submeshes[i];
+      var im = new THREE.InstancedMesh(sm.geo, sm.mat, _INST_CAP_INIT);
+      im.count = 0;
+      im.frustumCulled = false;
+      _instanceRoot.add(im);
+      sm.instancedMesh = im;
+    }
+
+    var entry = { key: key, submeshes: submeshes, templateColliders: tplColliders, capacity: _INST_CAP_INIT, count: 0, freeSlots: [] };
+    _modelEntries[key] = entry;
+    delete _modelEntryPromises[key];
+    return entry;
   });
 
-  if (submeshes.length === 0) return null;
-
-  // Pre-compute collider decomposition from fitted template
-  var tplColliders = computeTemplateColliders(visual, modelPath);
-
-  for (var i = 0; i < submeshes.length; i++) {
-    var sm = submeshes[i];
-    var im = new THREE.InstancedMesh(sm.geo, sm.mat, _INST_CAP_INIT);
-    im.count = 0;
-    im.frustumCulled = false;
-    _instanceRoot.add(im);
-    sm.instancedMesh = im;
-  }
-
-  var entry = { key: key, submeshes: submeshes, templateColliders: tplColliders, capacity: _INST_CAP_INIT, count: 0, freeSlots: [] };
-  _modelEntries[key] = entry;
-  return entry;
+  return _modelEntryPromises[key];
 }
 
 function growModelEntry(entry) {
-  var _growT0 = performance.now();
   var newCap = entry.capacity + _INST_CAP_GROW;
-  console.warn("[PERF] growModelEntry: " + entry.key + " cap " + entry.capacity + " → " + newCap);
   for (var i = 0; i < entry.submeshes.length; i++) {
     var sm = entry.submeshes[i];
     var oldIM = sm.instancedMesh;
@@ -415,7 +421,6 @@ function growModelEntry(entry) {
     sm.instancedMesh = newIM;
   }
   entry.capacity = newCap;
-  console.warn("[PERF] growModelEntry done: " + (performance.now() - _growT0).toFixed(1) + "ms");
 }
 
 function addInstanceSlot(entry, worldMatrix) {
@@ -513,7 +518,6 @@ export function removeChunkInstances(chunkKey) {
 
 export function shiftAllInstancePositions(shiftX, shiftZ) {
   if (!_instanceRoot) return;
-  var _shiftT0 = performance.now();
   for (var key in _modelEntries) {
     if (!Object.prototype.hasOwnProperty.call(_modelEntries, key)) continue;
     var entry = _modelEntries[key];
@@ -530,8 +534,6 @@ export function shiftAllInstancePositions(shiftX, shiftZ) {
       im.instanceMatrix.needsUpdate = true;
     }
   }
-  var _shiftMs = performance.now() - _shiftT0;
-  if (_shiftMs > 1) console.warn("[PERF] shiftAllInstancePositions: " + _shiftMs.toFixed(1) + "ms, models=" + Object.keys(_modelEntries).length);
 }
 
 export function flushInstanceUpdates() {

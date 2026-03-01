@@ -556,7 +556,7 @@ function ensureChunk(terrain, cx, cy) {
     return chunk;
   }
 
-  addCompositeFieldVisual(group, chunk, chunkSeed + terrain.difficulty * 101)
+  chunk._visualPromise = addCompositeFieldVisual(group, chunk, chunkSeed + terrain.difficulty * 101)
     .then(function (res) {
       chunk.compositePlacedCount = res ? (res.itemsPlaced || 0) : 0;
       chunk.compositeInstanceCount = res ? (res.instancesPlaced || 0) : 0;
@@ -576,6 +576,7 @@ function ensureChunk(terrain, cx, cy) {
     })
     .finally(function () {
       finalizeChunk();
+      chunk._visualPromise = null;
     });
 
   return chunk;
@@ -980,6 +981,13 @@ export function createTerrain(seed, difficulty) {
   // bootstrap around spawn so first frame has content
   updateTerrainStreaming(terrain, 0, 0, 0, 0);
   updateTerrainStreaming(terrain, 0, 0, 0, 0);
+
+  // collect visual promises from bootstrap chunks so callers can wait for initial load
+  var _initPromises = [];
+  terrain.chunks.forEach(function (chunk) {
+    if (chunk._visualPromise) _initPromises.push(chunk._visualPromise);
+  });
+  terrain.initialReady = _initPromises.length > 0 ? Promise.all(_initPromises) : Promise.resolve();
 
   return terrain;
 }
