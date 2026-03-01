@@ -2,18 +2,20 @@
 // Toggled with M key in-game. Shows player position and boss zone locations.
 
 import { isMobile } from "./mobile.js";
-import { T, FONT } from "./theme.js";
+import { T, FONT, FONT_UI } from "./theme.js";
 
 var overlay = null;
 var mapCanvas = null;
 var mapCtx = null;
 var currentPlayerPos = null;
 var currentBossZones = null;
+var _fadeTimer = null;
 
 var WORLD_RANGE = 700; // world coords visible on map: ±WORLD_RANGE
 
 export function createMapScreen() {
   var _mob = isMobile();
+
   overlay = document.createElement("div");
   overlay.style.cssText = [
     "position: fixed",
@@ -28,62 +30,112 @@ export function createMapScreen() {
     "background: rgba(6, 10, 20, 0.82)",
     "z-index: 150",
     "font-family:" + FONT,
-    "user-select: none"
+    "user-select: none",
+    "opacity: 0",
+    "transition: opacity 300ms ease"
   ].join(";");
 
   var title = document.createElement("div");
-  title.textContent = "WORLD MAP";
+  title.textContent = "NAVIGATION CHART";
   title.style.cssText = [
-    "font-size: 24px",
+    "font-size: 20px",
     "font-weight: bold",
     "color:" + T.gold,
-    "margin-bottom: 8px",
+    "margin-bottom: 10px",
     "letter-spacing: 4px",
     "text-shadow: 0 2px 6px rgba(0,0,0,0.7)"
   ].join(";");
   overlay.appendChild(title);
 
-  var hint = document.createElement("div");
-  hint.textContent = "Press M or ESC to close";
-  hint.style.cssText = "font-size: 11px; color:" + T.textDim + "; margin-bottom: 12px;";
-  overlay.appendChild(hint);
+  // Dark glass frame around the canvas
+  var frame = document.createElement("div");
+  frame.style.cssText = [
+    "position: relative",
+    "border: 1px solid rgba(200, 152, 42, 0.35)",
+    "border-radius: 8px",
+    "box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.5), inset 0 1px 0 rgba(200,152,42,0.1)",
+    "background: rgba(8, 12, 18, 0.6)",
+    "padding: 10px"
+  ].join(";");
 
+  // Close button — top-right of frame
+  var closeBtn = document.createElement("div");
+  closeBtn.textContent = "[M] CLOSE";
+  closeBtn.style.cssText = [
+    "position: absolute",
+    "top: 8px",
+    "right: 10px",
+    "font-family:" + FONT_UI,
+    "font-size: 12px",
+    "color:" + T.textDim,
+    "cursor: pointer",
+    "z-index: 1",
+    "transition: color 150ms ease, border-bottom 150ms ease",
+    "border-bottom: 1px solid transparent",
+    "padding-bottom: 1px"
+  ].join(";");
+  closeBtn.addEventListener("mouseenter", function () {
+    closeBtn.style.color = T.gold;
+    closeBtn.style.borderBottomColor = T.gold;
+  });
+  closeBtn.addEventListener("mouseleave", function () {
+    closeBtn.style.color = T.textDim;
+    closeBtn.style.borderBottomColor = "transparent";
+  });
+  closeBtn.addEventListener("click", function () {
+    hideMapScreen();
+  });
+  frame.appendChild(closeBtn);
+
+  // Canvas wrapper
   var canvasWrap = document.createElement("div");
   canvasWrap.style.cssText = [
     "position: relative",
-    "width: 540px",
-    "max-width: 92vw",
-    "height: 460px",
-    "max-height: 66vh"
+    "width: 80vmin",
+    "height: 80vmin"
   ].join(";");
 
   mapCanvas = document.createElement("canvas");
   mapCanvas.width = 540;
-  mapCanvas.height = 460;
+  mapCanvas.height = 540;
   mapCanvas.style.cssText = [
     "width: 100%",
     "height: 100%",
-    "border: 2px solid " + T.borderGold,
-    "border-radius: 6px"
+    "border-radius: 4px",
+    "display: block"
   ].join(";");
   mapCtx = mapCanvas.getContext("2d");
   canvasWrap.appendChild(mapCanvas);
-  overlay.appendChild(canvasWrap);
+  frame.appendChild(canvasWrap);
+  overlay.appendChild(frame);
 
+  // Legend — compact row below canvas, inside overlay (outside frame)
   var legend = document.createElement("div");
   legend.style.cssText = [
     "margin-top: 10px",
-    "font-size: 11px",
+    "font-size: 12px",
     "color:" + T.textDim,
     "display: flex",
-    "gap: 18px",
-    "font-family:" + FONT
+    "gap: 20px",
+    "align-items: center",
+    "font-family:" + FONT_UI
   ].join(";");
   legend.innerHTML =
-    '<span style="color:' + T.gold + '">&#9679; You</span>' +
-    '<span style="color:#ff5555">&#9650; Boss Zone</span>' +
-    '<span style="color:#44dd77">&#10003; Defeated</span>';
+    '<span><span style="color:' + T.gold + '">&#9679;</span> You</span>' +
+    '<span><span style="color:#ff5555">&#9679;</span> Boss Zone</span>' +
+    '<span><span style="color:#44dd77">&#9679;</span> Cleared</span>';
   overlay.appendChild(legend);
+
+  // Footer hint
+  var footer = document.createElement("div");
+  footer.textContent = "M \u2014 close map";
+  footer.style.cssText = [
+    "margin-top: 8px",
+    "font-family:" + FONT_UI,
+    "font-size: 11px",
+    "color:" + T.textDark
+  ].join(";");
+  overlay.appendChild(footer);
 
   document.addEventListener("keydown", function (e) {
     if ((e.key === "Escape" || e.key === "m" || e.key === "M") && isMapScreenVisible()) {
@@ -240,14 +292,30 @@ function drawCompassRose(ctx, cx, cy, r) {
 export function showMapScreen(playerPos, bossZonesArr) {
   currentPlayerPos = playerPos || null;
   currentBossZones = bossZonesArr || [];
-  if (overlay) {
-    overlay.style.display = "flex";
-    drawMap();
-  }
+  if (!overlay) return;
+
+  // Cancel any in-flight fade
+  if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
+
+  overlay.style.display = "flex";
+  drawMap();
+
+  // Force reflow so transition fires from opacity 0
+  overlay.offsetHeight; // eslint-disable-line no-unused-expressions
+  overlay.style.opacity = "1";
 }
 
 export function hideMapScreen() {
-  if (overlay) overlay.style.display = "none";
+  if (!overlay) return;
+
+  // Cancel any in-flight fade
+  if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
+
+  overlay.style.opacity = "0";
+  _fadeTimer = setTimeout(function () {
+    if (overlay) overlay.style.display = "none";
+    _fadeTimer = null;
+  }, 300);
 }
 
 export function isMapScreenVisible() {
