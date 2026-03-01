@@ -9,6 +9,8 @@ var mapCanvas = null;
 var mapCtx = null;
 var currentPlayerPos = null;
 var currentBossZones = null;
+var currentPorts = [];
+var currentTerrainMarkers = [];
 var _fadeTimer = null;
 
 var WORLD_RANGE = 700; // world coords visible on map: ±WORLD_RANGE
@@ -123,7 +125,10 @@ export function createMapScreen() {
   legend.innerHTML =
     '<span><span style="color:' + T.gold + '">&#9679;</span> You</span>' +
     '<span><span style="color:#ff5555">&#9679;</span> Boss Zone</span>' +
-    '<span><span style="color:#44dd77">&#9679;</span> Cleared</span>';
+    '<span><span style="color:#44dd77">&#9679;</span> Cleared</span>' +
+    '<span><span style="color:' + T.gold + '">&#9632;</span> Port</span>' +
+    '<span><span style="color:' + T.blue + '">&#9670;</span> City</span>' +
+    '<span><span style="color:' + T.red + '">&#9632;</span> Hostile</span>';
   overlay.appendChild(legend);
 
   // Footer hint
@@ -151,6 +156,48 @@ function worldToCanvas(wx, wz, W, H) {
     x: (wx / WORLD_RANGE * 0.5 + 0.5) * W,
     y: (wz / WORLD_RANGE * 0.5 + 0.5) * H
   };
+}
+
+function drawMapPort(ctx, cx, cy, type) {
+  ctx.save();
+  if (type === "port_city") {
+    // Blue diamond
+    var hs = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - hs);
+    ctx.lineTo(cx + hs, cy);
+    ctx.lineTo(cx, cy + hs);
+    ctx.lineTo(cx - hs, cy);
+    ctx.closePath();
+    ctx.fillStyle = T.blue;
+    ctx.fill();
+    ctx.strokeStyle = T.cream;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else if (type === "port_hostile") {
+    // Red square with diagonal cross
+    var hs = 4;
+    ctx.fillStyle = T.red;
+    ctx.fillRect(cx - hs, cy - hs, hs * 2, hs * 2);
+    ctx.strokeStyle = T.cream;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - hs, cy - hs, hs * 2, hs * 2);
+    ctx.beginPath();
+    ctx.moveTo(cx - hs, cy - hs);
+    ctx.lineTo(cx + hs, cy + hs);
+    ctx.moveTo(cx + hs, cy - hs);
+    ctx.lineTo(cx - hs, cy + hs);
+    ctx.stroke();
+  } else {
+    // Neutral gold square
+    var hs = 4;
+    ctx.fillStyle = T.gold;
+    ctx.fillRect(cx - hs, cy - hs, hs * 2, hs * 2);
+    ctx.strokeStyle = T.cream;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - hs, cy - hs, hs * 2, hs * 2);
+  }
+  ctx.restore();
 }
 
 function drawMap() {
@@ -189,6 +236,25 @@ function drawMap() {
 
   // compass rose
   drawCompassRose(ctx, W - 38, 38, 22);
+
+  // terrain island markers (island_big and island_mid only — skip trees/small for strategic scale)
+  for (var ti = 0; ti < currentTerrainMarkers.length; ti++) {
+    var tm = currentTerrainMarkers[ti];
+    if (tm.type !== "island_big" && tm.type !== "island_mid") continue;
+    var tp = worldToCanvas(tm.x, tm.z, W, H);
+    var tRadius = tm.type === "island_big" ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(tp.x, tp.y, tRadius, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(180, 160, 120, 0.55)";
+    ctx.fill();
+  }
+
+  // port markers
+  for (var pi = 0; pi < currentPorts.length; pi++) {
+    var portDat = currentPorts[pi];
+    var cp = worldToCanvas(portDat.x, portDat.z, W, H);
+    drawMapPort(ctx, cp.x, cp.y, portDat.type);
+  }
 
   // boss zones
   if (currentBossZones) {
@@ -289,9 +355,11 @@ function drawCompassRose(ctx, cx, cy, r) {
   ctx.restore();
 }
 
-export function showMapScreen(playerPos, bossZonesArr) {
+export function showMapScreen(playerPos, bossZonesArr, ports, terrainMarkers) {
   currentPlayerPos = playerPos || null;
   currentBossZones = bossZonesArr || [];
+  currentPorts = ports || [];
+  currentTerrainMarkers = terrainMarkers || [];
   if (!overlay) return;
 
   // Cancel any in-flight fade

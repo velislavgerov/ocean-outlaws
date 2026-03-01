@@ -1523,6 +1523,19 @@ function buildWorldDebugSnapshot() {
   };
 }
 
+function buildPortPositions(portMgr) {
+  var out = [];
+  if (!portMgr || !portMgr.ports) return out;
+  for (var i = 0; i < portMgr.ports.length; i++) {
+    var mp = portMgr.ports[i];
+    var isHostileCity = !!mp.hostileCity;
+    var px = isHostileCity && mp.cityAnchorX !== undefined ? mp.cityAnchorX : (mp.dockX !== undefined ? mp.dockX : mp.posX);
+    var pz = isHostileCity && mp.cityAnchorZ !== undefined ? mp.cityAnchorZ : (mp.dockZ !== undefined ? mp.dockZ : mp.posZ);
+    out.push({ x: px, z: pz, type: isHostileCity ? "port_hostile" : (mp.isCity ? "port_city" : "port") });
+  }
+  return out;
+}
+
 function runFrame(dt) {
   dt = Math.min(dt || 0, 0.1);
   simElapsed += dt;
@@ -1546,7 +1559,9 @@ function runFrame(dt) {
         if (isMapScreenVisible()) {
           hideMapScreen();
         } else {
-          showMapScreen({ x: ship.posX, z: ship.posZ }, bossZones);
+          var mapPorts = buildPortPositions(portMgr);
+          var mapTerrainMarkers = getTerrainMinimapMarkers(activeTerrain);
+          showMapScreen({ x: ship.posX, z: ship.posZ }, bossZones, mapPorts, mapTerrainMarkers);
         }
       }
     } else {
@@ -1939,20 +1954,7 @@ function runFrame(dt) {
       waveMgr.wave, waveState, dt, upgrades.gold, weaponInfo, abilityHudInfo, getWeatherLabel(weather), false, portInfo, abilityBarSlots, crew);
 
     // minimap: collect port positions
-    var portPositions = [];
-    if (portMgr.ports) {
-      for (var mpi = 0; mpi < portMgr.ports.length; mpi++) {
-        var mp = portMgr.ports[mpi];
-        var isHostileCity = !!mp.hostileCity;
-        var px = isHostileCity && mp.cityAnchorX !== undefined ? mp.cityAnchorX : (mp.dockX !== undefined ? mp.dockX : mp.posX);
-        var pz = isHostileCity && mp.cityAnchorZ !== undefined ? mp.cityAnchorZ : (mp.dockZ !== undefined ? mp.dockZ : mp.posZ);
-        portPositions.push({
-          x: px,
-          z: pz,
-          type: isHostileCity ? "port_hostile" : (mp.isCity ? "port_city" : "port")
-        });
-      }
-    }
+    var portPositions = buildPortPositions(portMgr);
     var pickupList = pickupMgr.pickups || [];
     var crateList = crateMgr.crates || [];
     var allPickups = pickupList.concat(crateList);
