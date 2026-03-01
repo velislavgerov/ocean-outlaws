@@ -1,92 +1,81 @@
-// theme.js — shared parchment/nautical color palette and font injection
-// CSS-only retheme: warm browns, aged cream, navy blue, gold accents
+// theme.js — cinematic/prestige design system (dark naval, Sea of Thieves / Black Flag)
+// Exports: T (color aliases), FONT, FONT_UI, FONT_MONO, PARCHMENT_BG, PARCHMENT_SHADOW, SCROLL_BG, BTN_BASE
+// All old export names preserved for backward compatibility with existing callers.
 
-// inject nautical serif font + base parchment styles
 var _themeInjected = false;
 function injectTheme() {
   if (_themeInjected) return;
   _themeInjected = true;
+  // Cinzel loaded from Google Fonts; Inter is system stack (no extra request needed)
   var style = document.createElement("style");
-  style.textContent = [
-    "@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');",
-    ".parchment-font, .parchment-font * { font-family: 'Cinzel', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif !important; }"
-  ].join("\n");
+  style.textContent = "@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');";
   document.head.appendChild(style);
 }
 injectTheme();
 
-// nautical font stack (serif, pirate-ish feel)
-export var FONT = "'Cinzel', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif";
+export var FONT      = "'Cinzel', 'Palatino Linotype', Georgia, serif";
+export var FONT_UI   = "Inter, 'Segoe UI', system-ui, sans-serif";
+export var FONT_MONO = "'Courier New', Courier, monospace";
 
-// parchment/nautical color palette
+// Cinematic palette — dark naval. Old T.* names preserved for callers.
 export var T = {
   // backgrounds
-  bg: "rgba(30, 22, 14, 0.85)",
-  bgLight: "rgba(60, 45, 28, 0.75)",
-  bgDark: "rgba(20, 14, 8, 0.92)",
-  bgOverlay: "rgba(20, 14, 8, 0.94)",
+  bg:         "rgba(15, 21, 32, 0.92)",
+  bgLight:    "rgba(26, 34, 53, 0.85)",
+  bgDark:     "rgba(8, 12, 18, 0.96)",
+  bgOverlay:  "rgba(8, 12, 18, 0.85)",
 
   // borders
-  border: "rgba(139, 109, 68, 0.45)",
-  borderActive: "rgba(180, 140, 80, 0.6)",
-  borderGold: "rgba(212, 164, 74, 0.7)",
+  border:       "rgba(107, 78, 20, 0.5)",
+  borderActive: "rgba(200, 152, 42, 0.6)",
+  borderGold:   "rgba(200, 152, 42, 0.8)",
 
   // text
-  text: "#c4a872",
-  textDim: "#8b7a5a",
-  textLight: "#e8d5a8",
-  textDark: "#5a4a32",
+  text:      "#d4c9a8",
+  textDim:   "#7a8a9a",
+  textLight: "#f0c84a",
+  textDark:  "#3d4f63",
 
   // accents
-  gold: "#d4a44a",
-  goldBright: "#f0c860",
-  cream: "#f0e6c8",
-  brown: "#8b6914",
-  brownDark: "#5c4a1e",
-  navy: "#1a2a4a",
-  navyLight: "#2a3a5a",
+  gold:       "#c8982a",
+  goldBright: "#f0c84a",
+  cream:      "#d4c9a8",
+  brown:      "#6b4e14",
+  brownDark:  "#0f1520",
+  navy:       "#080c12",
+  navyLight:  "#1a2235",
 
   // status
-  green: "#5a9a4a",
-  greenBright: "#78b868",
-  red: "#aa3333",
-  redBright: "#cc4444",
-  amber: "#c8922a",
-  blue: "#4a7a9a",
-  blueBright: "#5a9aba",
-  purple: "#8a5aaa",
-  cyan: "#4a8a9a",
+  green:       "#4caf7a",
+  greenBright: "#6dcf9a",
+  red:         "#c0392b",
+  redBright:   "#e05040",
+  amber:       "#c8782a",
+  blue:        "#5b8dd9",
+  blueBright:  "#7aaff0",
+  purple:      "#8a5aaa",
+  cyan:        "#4a8a9a",
 
-  // specific
-  hullGreen: "#6a8a44",
-  windAmber: "#c89a2a",
-  portGreen: "#5aaa68"
+  // specific (legacy names)
+  hullGreen: "#4caf7a",
+  windAmber: "#c8782a",
+  portGreen: "#4caf7a"
 };
 
-// parchment background CSS — simulates aged paper using CSS gradients
-export var PARCHMENT_BG = [
-  "background: linear-gradient(135deg,",
-  "  rgba(60, 45, 28, 0.95) 0%,",
-  "  rgba(50, 38, 22, 0.92) 25%,",
-  "  rgba(55, 42, 26, 0.94) 50%,",
-  "  rgba(45, 34, 20, 0.93) 75%,",
-  "  rgba(52, 40, 24, 0.95) 100%)"
+// Dark glass panel background (replaces old parchment gradient)
+export var PARCHMENT_BG = "background:" + T.bg;
+
+// Dark glass shadow
+export var PARCHMENT_SHADOW = [
+  "box-shadow:",
+  "0 0 40px rgba(8,12,18,0.8),",
+  "inset 0 1px 0 rgba(200,152,42,0.15)"
 ].join("");
 
-// rough parchment edge shadow
-export var PARCHMENT_SHADOW = "box-shadow: inset 0 0 30px rgba(0,0,0,0.3), 0 2px 12px rgba(0,0,0,0.4)";
+// Banner/scroll background
+export var SCROLL_BG = "background:" + T.bg;
 
-// banner/scroll background
-export var SCROLL_BG = [
-  "background: linear-gradient(180deg,",
-  "  rgba(70, 55, 35, 0.95) 0%,",
-  "  rgba(55, 42, 26, 0.92) 10%,",
-  "  rgba(60, 48, 30, 0.94) 50%,",
-  "  rgba(55, 42, 26, 0.92) 90%,",
-  "  rgba(70, 55, 35, 0.95) 100%)"
-].join("");
-
-// button base style
+// Button base style
 export var BTN_BASE = [
   "font-family:" + FONT,
   "border-radius:4px",
@@ -95,7 +84,7 @@ export var BTN_BASE = [
   "user-select:none",
   "text-align:center",
   "border:1px solid " + T.border,
-  "background:" + T.bgLight,
+  "background:none",
   "color:" + T.text,
   "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
 ].join(";");
