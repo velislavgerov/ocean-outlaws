@@ -13,7 +13,7 @@ export function createMinimap(parentEl) {
   minimapCanvas.height = MINIMAP_SIZE;
   minimapCanvas.style.cssText = [
     "width:" + MINIMAP_SIZE + "px", "height:" + MINIMAP_SIZE + "px",
-    "border-radius:50%", "border:2px solid " + T.borderGold,
+    "border-radius:50%", "border:1px solid rgba(200,152,42,0.3)",
     "background:rgba(30,22,14,0.8)",
     "box-shadow:0 0 12px rgba(0,0,0,0.5),inset 0 0 8px rgba(0,0,0,0.3)"
   ].join(";");

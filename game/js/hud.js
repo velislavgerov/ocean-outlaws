@@ -2,7 +2,7 @@
 // minimap (top-right), fade-on-change popups, banner/overlay
 import { createMinimap, updateMinimap as renderMinimap } from "./minimap.js";
 import { isMobile } from "./mobile.js";
-import { T, FONT, SCROLL_BG, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
+import { T, FONT, FONT_UI, FONT_MONO, SCROLL_BG, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
 import { createCrewHud as _createCrewHud, updateCrewHud as _updateCrewHud, getCrewHudContainer } from "./crewHud.js";
 
 // --- color palette (parchment/nautical) ---
@@ -35,7 +35,7 @@ var hpBarBg = null, hpBar = null, hpLabel = null;
 var fuelBarBg = null, fuelBar = null;
 var minimapContainer = null;
 var abilityBar = null;
-var SLOT_SIZE = _mob ? 56 : 40, SLOT_GAP = _mob ? 8 : 4;
+var SLOT_SIZE = _mob ? 44 : 52, SLOT_GAP = _mob ? 8 : 4;
 var abilitySlots = [];
 var statsRow = null, ammoLabel = null, salvageLabel = null;
 var ammoPopup = null, ammoPopupTimer = 0, prevAmmo = -1;
@@ -101,25 +101,63 @@ export function createHUD() {
 
   hpLabel = document.createElement("div");
   hpLabel.textContent = "";
-  hpLabel.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + C.textDim + ";margin-bottom:2px;height:14px;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
+  hpLabel.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:11px", "color:" + C.textDim,
+    "margin-bottom:2px", "height:14px",
+    "text-shadow:0 1px 4px rgba(0,0,0,0.9)"
+  ].join(";");
   topLeftPanel.appendChild(hpLabel);
-  var hpBars = makeBar(_mob ? 100 : 120, _mob ? 10 : 8);
-  hpBarBg = hpBars.bg;
-  hpBar = hpBars.fill;
+
+  // Hull bar — 3px high, no background border
+  hpBarBg = document.createElement("div");
+  hpBarBg.style.cssText = [
+    "width:" + (_mob ? 100 : 120) + "px", "height:3px",
+    "background:rgba(255,255,255,0.08)",
+    "border-radius:2px", "overflow:hidden"
+  ].join(";");
+  hpBar = document.createElement("div");
+  hpBar.style.cssText = [
+    "width:100%", "height:100%", "background:" + C.green,
+    "border-radius:2px", "transition:width 0.2s"
+  ].join(";");
+  hpBarBg.appendChild(hpBar);
   topLeftPanel.appendChild(hpBarBg);
 
-  // fuel bar — thinner, amber/yellow, directly below HP
-  var fuelBars = makeBar(_mob ? 100 : 120, _mob ? 6 : 5);
-  fuelBarBg = fuelBars.bg;
-  fuelBar = fuelBars.fill;
-  fuelBar.style.background = C.amber;
-  fuelBarBg.style.marginTop = "3px";
+  // Fuel label — shown only when fuel < 20%
+  var fuelLabelEl = document.createElement("div");
+  fuelLabelEl.id = "_fuelLabel";
+  fuelLabelEl.textContent = "";
+  fuelLabelEl.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:10px", "color:" + C.orange,
+    "margin-top:3px", "height:12px",
+    "text-shadow:0 1px 4px rgba(0,0,0,0.9)"
+  ].join(";");
+  topLeftPanel.appendChild(fuelLabelEl);
+
+  // Fuel bar — 2px high, 80px wide, amber
+  fuelBarBg = document.createElement("div");
+  fuelBarBg.style.cssText = [
+    "width:80px", "height:2px",
+    "background:rgba(255,255,255,0.08)",
+    "border-radius:2px", "overflow:hidden",
+    "margin-top:2px"
+  ].join(";");
+  fuelBar = document.createElement("div");
+  fuelBar.style.cssText = [
+    "width:100%", "height:100%", "background:" + C.orange,
+    "border-radius:2px", "transition:width 0.2s"
+  ].join(";");
+  fuelBarBg.appendChild(fuelBar);
   topLeftPanel.appendChild(fuelBarBg);
 
   // port proximity (shows only when near)
   portLabel = document.createElement("div");
   portLabel.textContent = "";
-  portLabel.style.cssText = "margin-top:4px;font-size:11px;color:" + C.portGreen + ";height:14px;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
+  portLabel.style.cssText = [
+    "margin-top:4px", "font-family:" + FONT_UI, "font-size:11px",
+    "color:" + C.portGreen, "height:14px",
+    "text-shadow:0 1px 4px rgba(0,0,0,0.9)"
+  ].join(";");
   topLeftPanel.appendChild(portLabel);
 
   // crew HUD — small officer icons
@@ -164,6 +202,9 @@ export function createHUD() {
     container.style.cssText = [
       "position:relative",
       "width:" + SLOT_SIZE + "px", "height:" + SLOT_SIZE + "px",
+      "background:rgba(15,21,32,0.7)",
+      "border:1px solid rgba(200,152,42,0.2)",
+      "border-radius:4px",
       "cursor:pointer", "pointer-events:auto"
     ].join(";");
 
@@ -180,8 +221,8 @@ export function createHUD() {
     keyLabel.textContent = def.key;
     keyLabel.style.cssText = [
       "position:absolute", "bottom:2px", "right:3px",
-      "font-size:" + (_mob ? "10px" : "9px"), "font-family:" + FONT,
-      "color:" + C.text, "pointer-events:none", "line-height:1",
+      "font-size:10px", "font-family:" + FONT_UI,
+      "color:" + C.textDim, "pointer-events:none", "line-height:1",
       "text-shadow:0 1px 2px rgba(0,0,0,0.5)"
     ].join(";");
     container.appendChild(keyLabel);
@@ -215,17 +256,23 @@ export function createHUD() {
   statsRow.style.cssText = [
     "display:flex", "align-items:center", "justify-content:center",
     "gap:" + (_mob ? "10px" : "8px"), "margin-top:" + (_mob ? "4px" : "3px"),
-    "font-family:" + FONT, "font-size:" + (_mob ? "12px" : "10px")
+    "font-family:" + FONT_UI, "font-size:13px"
   ].join(";");
 
   ammoLabel = document.createElement("div");
-  ammoLabel.style.cssText = "color:" + C.text + ";pointer-events:none;white-space:nowrap;";
+  ammoLabel.style.cssText = [
+    "color:" + C.text, "pointer-events:none", "white-space:nowrap",
+    "text-shadow:0 1px 4px rgba(0,0,0,0.9)"
+  ].join(";");
   ammoLabel.textContent = "\u2022 --";
   statsRow.appendChild(ammoLabel);
 
   salvageLabel = document.createElement("div");
-  salvageLabel.style.cssText = "color:" + C.yellow + ";pointer-events:none;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.4);";
-  salvageLabel.textContent = "\uD83E\uDE99 0";
+  salvageLabel.style.cssText = [
+    "color:" + C.yellow, "pointer-events:none", "white-space:nowrap",
+    "text-shadow:0 1px 4px rgba(0,0,0,0.9)", "font-family:" + FONT_UI
+  ].join(";");
+  salvageLabel.innerHTML = "<span style=\"color:" + T.gold + "\">&#9679;</span> 0";
   statsRow.appendChild(salvageLabel);
 
   abilityBar.appendChild(statsRow);
@@ -248,14 +295,11 @@ export function createHUD() {
   banner.style.cssText = [
     "position:fixed", "top:25%", "left:50%",
     "transform:translate(-50%,-50%)", "font-family:" + FONT,
-    "font-size:" + (_mob ? "24px" : "32px"), "font-weight:bold", "color:" + T.cream,
-    "text-shadow:0 2px 4px rgba(0,0,0,0.6),0 0 20px rgba(212,164,74,0.4)",
+    "font-size:16px", "font-weight:bold", "color:" + T.gold,
+    "text-shadow:0 2px 4px rgba(0,0,0,0.8),0 0 20px rgba(200,152,42,0.4)",
     "pointer-events:none", "user-select:none", "z-index:20",
     "opacity:0", "transition:opacity 0.3s",
     "padding:16px 32px", "border-radius:4px",
-    SCROLL_BG,
-    "border:2px solid " + T.borderGold,
-    "box-shadow:0 4px 20px rgba(0,0,0,0.5)",
     "letter-spacing:2px"
   ].join(";");
   document.body.appendChild(banner);
@@ -353,14 +397,9 @@ function drawSlot(slot, info) {
   var isActive = info.active;
   var color = info.color || C.text;
 
-  // background rounded rect
-  ctx.beginPath();
-  roundRect(ctx, 1, 1, s - 2, s - 2, r);
-  ctx.fillStyle = C.bgLight;
-  ctx.fill();
-  ctx.strokeStyle = info.isActiveSlot ? color : C.border;
-  ctx.lineWidth = info.isActiveSlot ? 3 : 1.5;
-  ctx.stroke();
+  // canvas background is transparent — container CSS provides the dark-glass bg
+  // Only draw the canvas border indicator (not the container CSS border — that's handled in updateHUD)
+  // No fill here: canvas is clear, CSS background shows through
 
   // dim overlay when on cooldown
   if (onCooldown && !isActive) {
@@ -461,7 +500,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
     hpBar.style.width = hpPct + "%";
     hpBar.style.background = hpPct > 50 ? C.green : hpPct > 25 ? T.amber : C.red;
     if (hp < maxHp) {
-      hpLabel.textContent = "Hull " + Math.round(hp) + "/" + Math.round(maxHp);
+      hpLabel.textContent = "HULL " + Math.round(hp);
       hpLabel.style.color = hpPct > 25 ? C.textDim : C.red;
     } else {
       hpLabel.textContent = "";
@@ -472,7 +511,11 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
   if (fuel !== undefined && fuelBar) {
     var fuelPct = Math.max(0, fuel / maxFuel) * 100;
     fuelBar.style.width = fuelPct + "%";
-    fuelBar.style.background = fuelPct > 20 ? C.amber : C.red;
+    fuelBar.style.background = fuelPct > 20 ? C.orange : C.red;
+    var fuelLabelNode = document.getElementById("_fuelLabel");
+    if (fuelLabelNode) {
+      fuelLabelNode.textContent = fuelPct < 20 ? "FUEL" : "";
+    }
   }
 
   // Port proximity
@@ -497,6 +540,10 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
   if (abilityBarInfo && abilitySlots.length === 4) {
     for (var i = 0; i < 4; i++) {
       drawSlot(abilitySlots[i], abilityBarInfo[i]);
+      // Update container CSS border for active slot
+      abilitySlots[i].container.style.border = abilityBarInfo[i].isActiveSlot
+        ? "1px solid rgba(200,152,42,0.8)"
+        : "1px solid rgba(200,152,42,0.2)";
     }
   }
 
@@ -508,7 +555,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
 
   // Always-visible gold coin counter
   if (salvageLabel && salvage !== undefined) {
-    salvageLabel.textContent = "\uD83E\uDE99 " + salvage;
+    salvageLabel.innerHTML = "<span style=\"color:" + T.gold + "\">&#9679;</span> " + salvage.toLocaleString();
   }
 
   // Ammo popup — show on change, fade after 2.5s
@@ -522,7 +569,7 @@ export function updateHUD(speedRatio, displaySpeed, heading, ammo, maxAmmo, hp, 
 
   // Salvage popup — show on change, fade after 2.5s
   if (salvage !== undefined && prevSalvage >= 0 && salvage !== prevSalvage) {
-    salvagePopup.textContent = "\uD83E\uDE99 +" + (salvage - prevSalvage) + " Gold";
+    salvagePopup.textContent = "\u25CF +" + (salvage - prevSalvage) + " Gold";
     salvagePopup.style.color = C.yellow;
     salvagePopupTimer = 2.5;
   }
