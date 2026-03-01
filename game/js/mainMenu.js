@@ -23,7 +23,7 @@ export function createMainMenu() {
     "z-index:250",
     "user-select:none",
     _mob ? "padding:0 env(safe-area-inset-right,20px) 0 env(safe-area-inset-left,20px)" : ""
-  ].join(";");
+  ].filter(Boolean).join(";");
 
   if (_mob) {
     _buildMobileLayout();
