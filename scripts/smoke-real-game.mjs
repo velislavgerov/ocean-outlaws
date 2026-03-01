@@ -12,6 +12,20 @@ const CODEX_HOME = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 const WEB_GAME_CLIENT = process.env.WEB_GAME_CLIENT || path.join(CODEX_HOME, "skills", "develop-web-game", "scripts", "web_game_playwright_client.js");
 const WEB_GAME_ACTIONS = process.env.WEB_GAME_ACTIONS || path.join(CODEX_HOME, "skills", "develop-web-game", "references", "action_payloads.json");
 const PORT = Number(process.env.SMOKE_PORT || 4173);
+const SMOKE_ROUTE = process.env.SMOKE_ROUTE || "/game/";
+
+function normalizeRoutePrefix(route) {
+  if (!route || route === "/") return "/";
+  var value = String(route).trim();
+  if (!value.startsWith("/")) value = "/" + value;
+  if (!value.endsWith("/")) value += "/";
+  return value;
+}
+
+function withQuery(basePath, query) {
+  if (!query) return basePath;
+  return basePath + query;
+}
 
 function assertFileExists(filePath, label) {
   if (!fs.existsSync(filePath)) {
@@ -109,6 +123,10 @@ async function main() {
   assertFileExists(WEB_GAME_CLIENT, "Playwright client");
   assertFileExists(WEB_GAME_ACTIONS, "Action payload");
 
+  const routePrefix = normalizeRoutePrefix(SMOKE_ROUTE);
+  const defaultRoutePath = routePrefix;
+  const bootstrapRoutePath = withQuery(routePrefix, "?bootstrap=1");
+
   const defaultOut = path.join(ROOT, "output", "web-game-smoke-default");
   const bootstrapOut = path.join(ROOT, "output", "web-game-smoke-bootstrap");
   cleanDir(defaultOut);
@@ -139,12 +157,12 @@ async function main() {
   };
 
   try {
-    await waitForServer(`http://127.0.0.1:${PORT}/`);
+    await waitForServer(`http://127.0.0.1:${PORT}${defaultRoutePath}`);
 
     await runCommand("node", [
       WEB_GAME_CLIENT,
       "--url",
-      `http://127.0.0.1:${PORT}/`,
+      `http://127.0.0.1:${PORT}${defaultRoutePath}`,
       "--actions-file",
       WEB_GAME_ACTIONS,
       "--iterations",
@@ -158,7 +176,7 @@ async function main() {
     await runCommand("node", [
       WEB_GAME_CLIENT,
       "--url",
-      `http://127.0.0.1:${PORT}/?bootstrap=1`,
+      `http://127.0.0.1:${PORT}${bootstrapRoutePath}`,
       "--actions-file",
       WEB_GAME_ACTIONS,
       "--iterations",
@@ -176,8 +194,8 @@ async function main() {
     const bootstrapResult = assertBootstrapRouteState(bootstrapState);
 
     console.log("\nSmoke checks passed:");
-    console.log(`- / -> mode=${defaultState.mode}, backend=${defaultState.renderer?.backend}`);
-    console.log(`- /?bootstrap=1 -> ${bootstrapResult.detail}`);
+    console.log(`- ${defaultRoutePath} -> mode=${defaultState.mode}, backend=${defaultState.renderer?.backend}`);
+    console.log(`- ${bootstrapRoutePath} -> ${bootstrapResult.detail}`);
     console.log(`Artifacts:\n  ${defaultOut}\n  ${bootstrapOut}`);
   } catch (error) {
     console.error("\nSmoke checks failed.");
