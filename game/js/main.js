@@ -24,7 +24,7 @@ import { createAbilityState, activateAbility, updateAbility } from "./shipClass.
 import { createShipSelectScreen, showShipSelectScreen, hideShipSelectScreen, getShipSelectOverlay } from "./shipSelect.js";
 import { createDroneManager, spawnDrone, updateDrones, resetDrones } from "./drone.js";
 import { createMapScreen, showMapScreen, hideMapScreen, isMapScreenVisible } from "./mapScreen.js";
-import { loadMapState, resetMapState, getZone } from "./mapData.js";
+import { loadMapState, resetMapState, getZone, OPEN_WORLD_TERRAIN_CONFIG } from "./mapData.js";
 import { createWeather, setWeather, getWeatherPreset, getWeatherLabel, getWeatherDim, getWeatherFoam, getWeatherCloudShadow, maybeChangeWeather, createRain, createSplashes, updateWeather } from "./weather.js";
 import { createDayNight, updateDayNight, applyDayNight, createStars, updateStars, getNightness, setTimeOfDay } from "./daynight.js";
 import { createBoss, updateBoss, removeBoss, rollBossLoot, applyBossLoot, damageBoss } from "./boss.js";
@@ -1050,7 +1050,7 @@ function startOpenWorld(classKey) {
 
   var worldSeed = Date.now() + Math.floor(Math.random() * 10000);
   seedRNG(worldSeed);
-  activeTerrain = createTerrain(worldSeed, 3);
+  activeTerrain = createTerrain(worldSeed, 3, OPEN_WORLD_TERRAIN_CONFIG);
   scene.add(activeTerrain.mesh);
   showLoadingScreen("Generating world...");
   updateLoadingBar(5, "Generating world...");
@@ -1199,10 +1199,9 @@ function startZoneCombat(classKey, zoneId) {
   // generate terrain: seed from zone id hash, difficulty scales land coverage
   var terrainSeed = 0;
   for (var si = 0; si < zoneId.length; si++) terrainSeed += zoneId.charCodeAt(si) * (si + 1);
-  terrainSeed += Math.floor(Math.random() * 10000);
   // Seed PRNG for deterministic simulation
   seedRNG(terrainSeed);
-  activeTerrain = createTerrain(terrainSeed, zone.difficulty);
+  activeTerrain = createTerrain(terrainSeed, zone.difficulty, zone.terrainConfig);
   scene.add(activeTerrain.mesh);
   showLoadingScreen("Generating world...");
   updateLoadingBar(5, "Generating world...");

@@ -166,6 +166,29 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// --- directional biome blending for open world ---
+// 4 cardinal biomes: North=Archipelago, East=Open Seas, South=Reef Clusters, West=Rocky Crags
+function getBiomeBlend(wx, wz) {
+  var dist = Math.sqrt(wx * wx + wz * wz);
+  var t = clamp((dist - 400) / 2000, 0, 1);
+  if (t === 0) return { noiseScale: NOISE_SCALE, landThreshold: 0.73 };
+  var angle = Math.atan2(wx, -wz); // -π to π, 0=north
+  var north = Math.max(0, Math.cos(angle));
+  var east  = Math.max(0, Math.cos(angle - Math.PI * 0.5));
+  var south = Math.max(0, Math.cos(angle - Math.PI));
+  var west  = Math.max(0, Math.cos(angle + Math.PI * 0.5));
+  var total = north + east + south + west;
+  var ns = (north * 0.030 + east * 0.016 + south * 0.040 + west * 0.012) / total;
+  var lt = (north * 0.67  + east * 0.78  + south * 0.64  + west * 0.71)  / total;
+  return {
+    noiseScale:     NOISE_SCALE + (ns - NOISE_SCALE) * t,
+    landThreshold:  0.73 + (lt - 0.73) * t
+  };
+}
+
+function getBiomeNoiseScale(wx, wz) { return getBiomeBlend(wx, wz).noiseScale; }
+function getBiomeLandThreshold(wx, wz) { return getBiomeBlend(wx, wz).landThreshold; }
+
 function cloneStreamSettings(src) {
   return {
     streamRadius: src.streamRadius,
@@ -294,7 +317,7 @@ function distanceMetrics(globalX, globalZ) {
   };
 }
 
-function generateChunkHeightmap(worldSeed, difficulty, cx, cy) {
+function generateChunkHeightmap(worldSeed, difficulty, cx, cy, terrainConfig) {
   _noiseSeed = worldSeed | 0;
   var gridRes = getGridRes();
   var size = gridRes + 1;
@@ -306,14 +329,23 @@ function generateChunkHeightmap(worldSeed, difficulty, cx, cy) {
   // distance-scaled land threshold: farther chunks trend slightly rougher
   var centerMetrics = distanceMetrics(centerX, centerZ);
   var farLandBias = centerMetrics.t * 0.02;
-  var landThreshold = Math.max(0.67, 0.76 - difficulty * 0.01 - farLandBias);
+
+  var cfg = terrainConfig || {};
+  var noiseScale = cfg.biomeMode === "directional"
+    ? getBiomeNoiseScale(cx * CHUNK_SIZE, cy * CHUNK_SIZE)
+    : (cfg.noiseScale || NOISE_SCALE);
+  var landThreshold = cfg.biomeMode === "directional"
+    ? getBiomeLandThreshold(cx * CHUNK_SIZE, cy * CHUNK_SIZE)
+    : Math.max(0.63, cfg.landThreshold != null
+        ? cfg.landThreshold - farLandBias
+        : 0.76 - difficulty * 0.01 - farLandBias);
 
   for (var iy = 0; iy < size; iy++) {
     for (var ix = 0; ix < size; ix++) {
       var worldX = centerX + (ix / gridRes) * CHUNK_SIZE - half;
       var worldZ = centerZ + (iy / gridRes) * CHUNK_SIZE - half;
 
-      var n = fbm(worldX * NOISE_SCALE, worldZ * NOISE_SCALE);
+      var n = fbm(worldX * noiseScale, worldZ * noiseScale);
       var h = (n - landThreshold) * 2;
 
       // keep the global origin clear for spawn only
@@ -512,7 +544,7 @@ function ensureChunk(terrain, cx, cy) {
     seed: chunkSeed,
     worldSeed: worldSeed,
     metrics: metrics,
-    heightmap: generateChunkHeightmap(worldSeed, terrain.difficulty, cx, cy),
+    heightmap: generateChunkHeightmap(worldSeed, terrain.difficulty, cx, cy, terrain.terrainConfig),
     visualMode: "composite-field",
     compositePlacedCount: 0,
     compositeInstanceCount: 0,
@@ -925,7 +957,7 @@ export function onTerrainStreamSettingsChange(cb) {
   };
 }
 
-export function createTerrain(seed, difficulty) {
+export function createTerrain(seed, difficulty, terrainConfig) {
   var mesh = new THREE.Group();
 
   var terrain = {
@@ -933,6 +965,7 @@ export function createTerrain(seed, difficulty) {
     seed: seed,
     worldSeed: seed | 0,
     difficulty: difficulty,
+    terrainConfig: terrainConfig || {},
     chunks: new Map(),
     gcQueue: [],
     gcResourceBudget: GC_RESOURCE_BUDGET,
