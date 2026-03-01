@@ -10,11 +10,11 @@ import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScree
 import { unlockAudio, updateSailing, setSailClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
-import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback } from "./weapon.js";
+import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback, getEffectiveConfig, getActiveTierName, rollWeaponUpgradeKey } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
-import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext, preloadPickupModels } from "./pickup.js";
+import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext, preloadPickupModels, spawnWeaponUpgradePickup } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
 import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost, applyFreeUpgrade } from "./upgrade.js";
 import { createCardPicker, showCardPicker, hideCardPicker } from "./cardPicker.js";
@@ -261,6 +261,16 @@ var activeChart = null;
 var activeVoyageState = null;
 var resources = createResources();
 var pickupMgr = createPickupManager();
+pickupMgr.onWeaponUpgrade = function(weaponKey) {
+  if (!weapons) return;
+  var currentTier = weapons.weaponTiers ? (weapons.weaponTiers[weaponKey] || 0) : 0;
+  if (currentTier < 2) {
+    if (!weapons.weaponTiers) weapons.weaponTiers = { cannon: 0, chainshot: 0, firebomb: 0 };
+    weapons.weaponTiers[weaponKey] = currentTier + 1;
+    var cfg = getEffectiveConfig(weaponKey, currentTier + 1);
+    showBanner(cfg ? cfg.name + " unlocked!" : weaponKey + " upgraded!");
+  }
+};
 var portMgr = createPortManager();
 var crateMgr = createCrateManager();
 var merchantMgr = createMerchantManager();
@@ -289,6 +299,13 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   if (nextRandom() < 0.05 && currentRunSeed !== null) {
     var dropOfficer = generateOfficerReward(1);
     spawnCrewPickup(crewPickupMgr, x, 0, z, scene, dropOfficer);
+  }
+  // rare weapon upgrade drop (~10%)
+  if (nextRandom() < 0.10 && weapons && weapons.weaponTiers) {
+    var enemyUpgradeKey = rollWeaponUpgradeKey(weapons.weaponTiers);
+    if (enemyUpgradeKey) {
+      spawnWeaponUpgradePickup(pickupMgr, x, 0, z, scene, enemyUpgradeKey);
+    }
   }
   var techB = getTechBonuses(techState);
   var factionMult = getFactionGoldMult(faction);
@@ -2072,6 +2089,16 @@ function runFrame(dt) {
         var bossOfficer = generateOfficerReward(nextRandom() < 0.5 ? 2 : 3);
         spawnCrewPickup(crewPickupMgr, activeBoss.posX, 0, activeBoss.posZ + 3, scene, bossOfficer);
         showBanner("Officer spotted — sail to collect!", 4);
+        // guaranteed weapon upgrade drop from boss
+        if (weapons && weapons.weaponTiers) {
+          var bossUpgradeKey = rollWeaponUpgradeKey(weapons.weaponTiers);
+          if (bossUpgradeKey) {
+            spawnWeaponUpgradePickup(pickupMgr, activeBoss.posX - 3, 0, activeBoss.posZ, scene, bossUpgradeKey);
+          } else {
+            addGold(upgrades, 100);
+            showBanner("+100 Gold (weapons maxed)", 2.5);
+          }
+        }
       }
     }
 

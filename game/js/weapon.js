@@ -680,3 +680,19 @@ export function screenToWorld(screenX, screenY, camera) {
   aimRaycaster.ray.intersectPlane(waterPlane, target);
   return target || new THREE.Vector3(0, 0.3, 0);
 }
+
+export function rollWeaponUpgradeKey(weaponTiers) {
+  var keys = ["cannon", "chainshot", "firebomb"];
+  var eligible = keys.filter(function(k) { return (weaponTiers[k] || 0) < 2; });
+  if (eligible.length === 0) return null;
+  // weight: tier 0 = 3, tier 1 = 2 (tier 2 already filtered)
+  var weights = eligible.map(function(k) { return 3 - (weaponTiers[k] || 0); });
+  var total = weights.reduce(function(a, b) { return a + b; }, 0);
+  var r = Math.random() * total;
+  var acc = 0;
+  for (var i = 0; i < eligible.length; i++) {
+    acc += weights[i];
+    if (r < acc) return eligible[i];
+  }
+  return eligible[eligible.length - 1];
+}
