@@ -1,5 +1,5 @@
 // bossHud.js — boss HP bar at top of screen, segmented by phases
-import { T, FONT } from "./theme.js";
+import { T, FONT, FONT_UI } from "./theme.js";
 
 var container = null;
 var nameLabel = null;
@@ -23,16 +23,21 @@ export function createBossHud() {
     "pointer-events: none",
     "font-family: " + FONT,
     "z-index: 15",
-    "user-select: none"
+    "user-select: none",
+    "background: " + T.bg,
+    "border: 1px solid var(--oo-gold-dim)",
+    "border-radius: var(--oo-radius-lg, 8px)",
+    "padding: 8px 16px"
   ].join(";");
 
   // boss name
   nameLabel = document.createElement("div");
   nameLabel.style.cssText = [
-    "font-size: 18px",
+    "font-family: " + FONT,
+    "font-size: 16px",
     "font-weight: bold",
-    "color: " + T.redBright,
-    "text-shadow: 0 0 10px rgba(170,51,51,0.5)",
+    "color: " + T.text,
+    "letter-spacing: 0.08em",
     "margin-bottom: 6px"
   ].join(";");
   nameLabel.textContent = "BOSS";
@@ -44,8 +49,7 @@ export function createBossHud() {
     "width: 400px",
     "max-width: 80vw",
     "height: 16px",
-    "background: rgba(40, 20, 14, 0.8)",
-    "border: 1px solid " + T.redBright + "88",
+    "background: " + T.bgLight,
     "border-radius: 4px",
     "overflow: hidden",
     "position: relative"
@@ -56,7 +60,7 @@ export function createBossHud() {
   barFill.style.cssText = [
     "width: 100%",
     "height: 100%",
-    "background: linear-gradient(90deg, #cc2222, #cc4444)",
+    "background: " + T.gold,
     "border-radius: 3px",
     "transition: width 0.15s"
   ].join(";");
@@ -66,7 +70,8 @@ export function createBossHud() {
   // phase label
   phaseLabel = document.createElement("div");
   phaseLabel.style.cssText = [
-    "font-size: 12px",
+    "font-family: " + FONT_UI,
+    "font-size: 11px",
     "color: " + T.textDim,
     "margin-top: 4px"
   ].join(";");
@@ -100,6 +105,7 @@ export function showBossHud(bossName) {
   if (!container) return;
   nameLabel.textContent = bossName;
   container.style.display = "flex";
+  container.style.animation = "oo-fall 0.6s var(--oo-ease-spring)";
   // clear old phase markers
   for (var i = 0; i < phaseMarkers.length; i++) {
     barBg.removeChild(phaseMarkers[i]);
@@ -120,11 +126,11 @@ export function updateBossHud(boss, dt) {
 
   // color based on HP
   if (hpPct > 50) {
-    barFill.style.background = "linear-gradient(90deg, #cc2222, #cc4444)";
+    barFill.style.background = T.gold;
   } else if (hpPct > 25) {
-    barFill.style.background = "linear-gradient(90deg, #cc6622, #ccaa22)";
+    barFill.style.background = T.amber;
   } else {
-    barFill.style.background = "linear-gradient(90deg, #cc2266, #ff4488)";
+    barFill.style.background = T.redBright;
   }
 
   // phase markers (add once)

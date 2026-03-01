@@ -1,5 +1,5 @@
 // crewHud.js — crew roster display as small icons in the top-left HUD panel
-import { T, FONT } from "./theme.js";
+import { T, FONT, FONT_UI } from "./theme.js";
 import { getBonusLabel, getStationColor } from "./crew.js";
 import { isMobile } from "./mobile.js";
 
@@ -18,9 +18,10 @@ export function createCrewHud() {
   tooltipEl = document.createElement("div");
   tooltipEl.style.cssText = [
     "position:fixed", "pointer-events:none", "display:none",
-    "padding:8px 12px", "background:" + T.bgDark,
-    "border:1px solid " + T.borderGold, "border-radius:4px",
-    "font-family:" + FONT, "font-size:11px", "color:" + T.text,
+    "padding:8px 12px", "background:" + T.bg,
+    "border:1px solid var(--oo-gold-dim)",
+    "border-radius:var(--oo-radius-md, 4px)",
+    "font-family:" + FONT_UI, "font-size:12px", "color:" + T.textDim,
     "z-index:25", "white-space:nowrap",
     "box-shadow:0 2px 8px rgba(0,0,0,0.5)"
   ].join(";");
@@ -61,7 +62,7 @@ function _buildIcon(officer, assigned) {
   el.style.cssText = [
     "width:" + size + "px", "height:" + size + "px",
     "border-radius:50%", "background:" + T.bgLight,
-    "border:1px solid " + (station ? getStationColor(station) : T.border),
+    "border:1px solid " + (station ? getStationColor(station) : "var(--oo-gold-dim)"),
     "display:flex", "align-items:center", "justify-content:center",
     "font-size:" + (size - 4) + "px", "cursor:default",
     "overflow:hidden", "flex-shrink:0",
@@ -75,9 +76,9 @@ function _buildIcon(officer, assigned) {
   for (var r = 0; r < (officer.rank || 1); r++) rankStars += "\u2605";
   var bonusText = station ? getBonusLabel(officer, station) : "Unassigned";
   var tipHtml = [
-    "<b>" + (officer.name || "Officer") + "</b>",
+    "<span style='color:" + T.text + ";font-size:12px;font-weight:bold'>" + (officer.name || "Officer") + "</span>",
     rankStars + " " + (officer.specialty || "") + (station ? " \u2192 " + station : ""),
-    bonusText
+    "<span style='color:" + T.text + "'>" + bonusText + "</span>"
   ].join("<br>");
 
   el.addEventListener("mouseenter", function (e) {
