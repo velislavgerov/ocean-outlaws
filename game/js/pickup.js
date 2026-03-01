@@ -32,10 +32,20 @@ var DROP_CHANCE_GOLD = 0.20;
 var crateGeo = null;
 var barrelGeo = null;
 
+var cachedPickupMat = {};
+var cachedPickupLight = {};
+
 function ensureGeo() {
   if (crateGeo) return;
   crateGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
   barrelGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.7, 8);
+  var types = ["ammo", "fuel", "parts", "gold"];
+  for (var i = 0; i < types.length; i++) {
+    var t = types[i];
+    cachedPickupMat[t] = new THREE.MeshToonMaterial({ color: TYPE_COLORS[t] });
+    cachedPickupLight[t] = new THREE.PointLight(GLOW_COLORS[t] || 0xffffff, 1.0, 6);
+    cachedPickupLight[t].position.set(0, 0.5, 0);
+  }
 }
 
 var PICKUP_MODEL_POOLS = {
@@ -66,14 +76,20 @@ var TYPE_COLORS = {
   ammo: 0xffaa22,
   fuel: 0x22aaff,
   parts: 0x44dd66,
-  gold: 0xffcc44
+  gold: 0xffcc44,
+  weapon_upgrade_cannon:    0xffd700,
+  weapon_upgrade_chainshot: 0xff4422,
+  weapon_upgrade_firebomb:  0x4488ff
 };
 
 var GLOW_COLORS = {
   ammo: 0xffdd66,
   fuel: 0x66ccff,
   parts: 0x88ff99,
-  gold: 0xffee88
+  gold: 0xffee88,
+  weapon_upgrade_cannon:    0xffe44d,
+  weapon_upgrade_chainshot: 0xff7755,
+  weapon_upgrade_firebomb:  0x77aaff
 };
 
 function pickPickupModel(type) {
@@ -113,8 +129,7 @@ function buildPickupMesh(type) {
   ensureGeo();
   var group = new THREE.Group();
 
-  var color = TYPE_COLORS[type] || 0xffffff;
-  var mat = new THREE.MeshToonMaterial({ color: color });
+  var mat = cachedPickupMat[type] || new THREE.MeshToonMaterial({ color: TYPE_COLORS[type] || 0xffffff });
 
   var mesh;
   if (type === "fuel") {
@@ -125,7 +140,12 @@ function buildPickupMesh(type) {
   mesh.userData.pickupFallback = true;
   group.add(mesh);
 
-  // glow point light
+  // weapon_upgrade pickups are larger to stand out
+  if (type && type.indexOf("weapon_upgrade_") === 0) {
+    group.scale.setScalar(1.4);
+  }
+
+  // glow point light — create a fresh one per pickup (lights need separate instances for position)
   var glowColor = GLOW_COLORS[type] || 0xffffff;
   var light = new THREE.PointLight(glowColor, 1.0, 6);
   light.position.set(0, 0.5, 0);
@@ -160,7 +180,8 @@ export function createPickupManager() {
   return {
     pickups: [],
     roleContext: null,
-    onCollectCallback: null  // called with (index) for multiplayer sync
+    onCollectCallback: null,   // called with (index) for multiplayer sync
+    onWeaponUpgrade: null      // called with (weaponKey) when weapon upgrade collected
   };
 }
 
@@ -203,6 +224,26 @@ export function spawnPickup(manager, x, y, z, scene) {
   manager.pickups.push(pickup);
 
   hydratePickupMesh(pickup);
+}
+
+// --- spawn a weapon upgrade pickup at position ---
+export function spawnWeaponUpgradePickup(manager, x, y, z, scene, weaponKey) {
+  var type = "weapon_upgrade_" + weaponKey;
+  var mesh = buildPickupMesh(type);
+  mesh.position.set(x, y + PICKUP_FLOAT_OFFSET, z);
+  scene.add(mesh);
+  var pickup = {
+    mesh: mesh,
+    type: type,
+    weaponKey: weaponKey,
+    posX: x,
+    posZ: z,
+    roleContext: manager.roleContext || null,
+    age: 0,
+    collected: false,
+    onWeaponUpgrade: manager.onWeaponUpgrade
+  };
+  manager.pickups.push(pickup);
 }
 
 // --- clear all pickups (called on wave transition) ---
@@ -283,6 +324,25 @@ function collectPickup(pickup, resources, upgrades) {
     addParts(resources, PARTS_DROP_AMOUNT);
   } else if (pickup.type === "gold" && upgrades) {
     addGold(upgrades, GOLD_DROP_AMOUNT);
+  } else if (pickup.type && pickup.type.indexOf("weapon_upgrade_") === 0 && pickup.weaponKey) {
+    if (pickup.onWeaponUpgrade) pickup.onWeaponUpgrade(pickup.weaponKey);
   }
   console.log("[PICKUP] Collected " + pickup.type);
+}
+
+// --- pre-warm GLB models to avoid shader compile stutter on first pickup ---
+export function preloadPickupModels(scene) {
+  var types = ["ammo", "fuel", "parts", "gold"];
+  for (var i = 0; i < types.length; i++) {
+    var models = PICKUP_MODEL_POOLS[types[i]];
+    for (var j = 0; j < models.length; j++) {
+      (function(model) {
+        loadGlbVisual(model.path, model.fit, true).then(function(obj) {
+          obj.position.set(99999, 0, 99999);
+          obj.visible = false;
+          scene.add(obj);
+        }).catch(function() {});
+      })(models[j]);
+    }
+  }
 }

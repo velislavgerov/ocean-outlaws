@@ -120,6 +120,8 @@ var enemyProjGeo = null;
 var enemyProjMat = null;
 var flashGeo = null;
 var flashMat = null;
+var particlePool = [];
+var PARTICLE_POOL_SIZE = PARTICLE_COUNT * 6; // support 6 simultaneous explosions
 
 function ensureGeo() {
   if (particleGeo) return;
@@ -129,6 +131,11 @@ function ensureGeo() {
   enemyProjMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
   flashGeo = new THREE.SphereGeometry(0.3, 6, 4);
   flashMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
+  for (var i = 0; i < PARTICLE_POOL_SIZE; i++) {
+    var pm = new THREE.Mesh(particleGeo, new THREE.MeshBasicMaterial({ color: 0xff6622, transparent: true, opacity: 1.0 }));
+    pm.visible = false;
+    particlePool.push(pm);
+  }
 }
 
 function spawnEnemyFlash(manager, scene, position) {
@@ -723,9 +730,16 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       e.heading += Math.sign(angleDiff) * maxTurn;
     }
 
+    // Apply slow debuff from Anchor Chain perk
+    if (e.slowTimer && e.slowTimer > 0) {
+      e.slowTimer -= dt;
+      if (e.slowTimer < 0) e.slowTimer = 0;
+    }
+    var effectiveSpeed = moveSpeed * (e.slowTimer > 0 ? (e.slowMult || 1) : 1);
+
     if (Math.abs(angleDiff) < Math.PI * 0.6) {
-      e.posX += Math.sin(e.heading) * moveSpeed * dt;
-      e.posZ += Math.cos(e.heading) * moveSpeed * dt;
+      e.posX += Math.sin(e.heading) * effectiveSpeed * dt;
+      e.posZ += Math.cos(e.heading) * effectiveSpeed * dt;
     }
 
     if (terrain) {
@@ -962,9 +976,18 @@ function updateEnemyEffects(manager, dt, scene) {
 function spawnExplosion(manager, x, y, z, scene) {
   ensureGeo();
   for (var i = 0; i < PARTICLE_COUNT; i++) {
-    var mesh = new THREE.Mesh(particleGeo, particleMat.clone());
+    var mesh = null;
+    for (var pi = 0; pi < particlePool.length; pi++) {
+      if (!particlePool[pi].visible) { mesh = particlePool[pi]; break; }
+    }
+    if (!mesh) {
+      mesh = new THREE.Mesh(particleGeo, new THREE.MeshBasicMaterial({ color: 0xff6622, transparent: true, opacity: 1.0 }));
+    }
     mesh.position.set(x, y + 0.5, z);
-    scene.add(mesh);
+    mesh.material.opacity = 1.0;
+    mesh.scale.setScalar(0.5);
+    mesh.visible = true;
+    if (!mesh.parent) scene.add(mesh);
 
     var angle = nextRandom() * Math.PI * 2;
     var upSpeed = 3 + nextRandom() * 5;
@@ -987,9 +1010,7 @@ function updateParticles(manager, dt, scene) {
     var p = manager.particles[i];
     p.life -= dt;
     if (p.life <= 0) {
-      scene.remove(p.mesh);
-      if (p.mesh.material) p.mesh.material.dispose();
-      if (p.mesh.geometry && p.mesh.geometry !== particleGeo) p.mesh.geometry.dispose();
+      p.mesh.visible = false; // return to pool — no dispose
       continue;
     }
     p.vy -= 9.8 * dt;
@@ -1005,10 +1026,14 @@ function updateParticles(manager, dt, scene) {
 
 // --- called when an enemy is hit by player projectile ---
 // damageMult: multiplier from upgrades (optional, defaults to 1)
-export function damageEnemy(manager, enemy, scene, damageMult) {
+export function damageEnemy(manager, enemy, scene, damageMult, slowHit) {
   var dmg = Math.round(1 * (damageMult || 1));
   if (dmg < 1) dmg = 1;
   enemy.hp -= dmg;
+  if (slowHit) {
+    enemy.slowTimer = 3.0;
+    enemy.slowMult = 0.5;
+  }
   // mark ambient enemies as attacked (triggers flee/combat AI)
   if (enemy.ambient && !enemy.attacked) {
     enemy.attacked = true;

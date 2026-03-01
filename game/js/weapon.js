@@ -7,33 +7,72 @@ import { isLand } from "./terrain.js";
 import { playImpactSound } from "./soundFx.js";
 
 var WEAPON_TYPES = {
-  turret: {
-    name: "Cannon", key: 0, fireRate: 1.0, damage: 1, projSpeed: 35,
+  cannon: {
+    name: "Iron Cannon", key: 0, fireRate: 1.0, damage: 1, projSpeed: 35,
     ammoCost: 1, color: 0xffcc44, trailColor: 0xffcc44, projRadius: 0.12,
     gravity: 9.8, loft: 0.08, maxRange: 40, homing: false,
-    waterLevel: false, splashScale: 1.0
+    waterLevel: false, splashScale: 1.0,
+    tiers: [
+      { name: "Iron Cannon" },
+      { name: "Bronze Cannon", damage: 1.5, fireRate: 0.85, projSpeed: 40 },
+      { name: "Steel Cannon",  damage: 2.2, fireRate: 0.7,  projSpeed: 45, perk: "pierce" }
+    ]
   },
-  missile: {
-    name: "Chain Shot", key: 1, fireRate: 2.5, damage: 3, projSpeed: 28,
+  chainshot: {
+    name: "Rope Shot", key: 1, fireRate: 2.5, damage: 3, projSpeed: 28,
     ammoCost: 3, color: 0xff6644, trailColor: 0xff8844, projRadius: 0.2,
     gravity: 2.0, loft: 0.15, maxRange: 50, homing: true,
-    homingTurnRate: 1.8, waterLevel: false, splashScale: 2.0
+    homingTurnRate: 1.8, waterLevel: false, splashScale: 2.0,
+    tiers: [
+      { name: "Rope Shot" },
+      { name: "Barbed Chain",  damage: 4.5, homingTurnRate: 2.4 },
+      { name: "Anchor Chain",  damage: 6,   homingTurnRate: 3.0, perk: "slow" }
+    ]
   },
-  torpedo: {
-    name: "Fire Bomb", key: 2, fireRate: 4.0, damage: 6, projSpeed: 18,
+  firebomb: {
+    name: "Tar Bomb", key: 2, fireRate: 4.0, damage: 6, projSpeed: 18,
     ammoCost: 5, color: 0x44aaff, trailColor: 0x88ccff, projRadius: 0.25,
     gravity: 0, loft: 0, maxRange: 35, homing: false,
-    waterLevel: true, splashScale: 3.5, wakeTrail: true
+    waterLevel: true, splashScale: 3.5, wakeTrail: true,
+    tiers: [
+      { name: "Tar Bomb" },
+      { name: "Greek Fire",     damage: 9, splashScale: 4.5 },
+      { name: "Hellfire Bomb",  damage: 13, splashScale: 6.0, perk: "burn" }
+    ]
   }
 };
 
-var WEAPON_ORDER = ["turret", "missile", "torpedo"];
+var WEAPON_ORDER = ["cannon", "chainshot", "firebomb"];
+
+export function getEffectiveConfig(weaponKey, tier) {
+  var base = WEAPON_TYPES[weaponKey];
+  if (!base) return null;
+  var tierDef = base.tiers && base.tiers[tier];
+  if (!tierDef) return base;
+  // Shallow merge — tier properties override base
+  var cfg = {};
+  for (var k in base) { if (base.hasOwnProperty(k) && k !== "tiers") cfg[k] = base[k]; }
+  for (var k in tierDef) { if (tierDef.hasOwnProperty(k)) cfg[k] = tierDef[k]; }
+  return cfg;
+}
 
 var sharedGeo = {}, sharedMat = {};
 var wakeGeo = null, wakeMat = null;
+var smallSplashGeo = null;
 var bigSplashGeo = null, bigSplashMat = null;
 var flashGeo = null, flashMat = null;
 var aimRaycaster = null, aimNdc = null, waterPlane = null;
+var trailPool = {};
+var projPool = {};
+var flashPool = [];
+var wakePool = [];
+var splashPool = [];
+
+var TRAIL_POOL_SIZE = 64;
+var PROJ_POOL_SIZE = 8;
+var FLASH_POOL_SIZE = 4;
+var WAKE_POOL_SIZE = 16;
+var SPLASH_POOL_SIZE = 12;
 
 function ensureMaterials() {
   if (flashGeo) return;
@@ -42,17 +81,149 @@ function ensureMaterials() {
     var cfg = WEAPON_TYPES[key];
     sharedGeo[key] = new THREE.SphereGeometry(cfg.projRadius, 6, 4);
     sharedMat[key] = new THREE.MeshBasicMaterial({ color: cfg.color });
+    var trailColor = cfg.trailColor || cfg.color;
+    sharedMat[key + "_trail"] = new THREE.MeshBasicMaterial({ color: trailColor, transparent: true, opacity: 0.6 });
+    trailPool[key] = [];
+    for (var j = 0; j < TRAIL_POOL_SIZE; j++) {
+      var tm = new THREE.Mesh(sharedGeo[key], sharedMat[key + "_trail"].clone());
+      tm.scale.setScalar(0.5);
+      tm.visible = false;
+      trailPool[key].push(tm);
+    }
+    projPool[key] = [];
+    for (var j = 0; j < PROJ_POOL_SIZE; j++) {
+      var geo = key === "firebomb" ? new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6) : sharedGeo[key];
+      var pm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: cfg.color }));
+      pm.visible = false;
+      projPool[key].push(pm);
+    }
   }
-  sharedGeo.torpedo = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6);
+  sharedGeo.firebomb = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6);
   flashGeo = new THREE.SphereGeometry(0.3, 6, 4);
   flashMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
+  for (var i = 0; i < FLASH_POOL_SIZE; i++) {
+    var fm = new THREE.Mesh(flashGeo, new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 }));
+    fm.visible = false;
+    flashPool.push(fm);
+  }
   wakeGeo = new THREE.PlaneGeometry(0.3, 0.3);
   wakeMat = new THREE.MeshBasicMaterial({ color: 0xaaccdd, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+  for (var i = 0; i < WAKE_POOL_SIZE; i++) {
+    var wm = new THREE.Mesh(wakeGeo, new THREE.MeshBasicMaterial({ color: 0xaaccdd, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+    wm.rotation.x = -Math.PI / 2;
+    wm.visible = false;
+    wakePool.push(wm);
+  }
+  smallSplashGeo = new THREE.RingGeometry(0.1, 0.6, 8);
   bigSplashGeo = new THREE.RingGeometry(0.2, 1.2, 12);
   bigSplashMat = new THREE.MeshBasicMaterial({ color: 0x88bbdd, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+  for (var i = 0; i < SPLASH_POOL_SIZE; i++) {
+    var half = Math.floor(SPLASH_POOL_SIZE / 2);
+    var isSmall = i < half;
+    var sg = new THREE.Mesh(
+      isSmall ? smallSplashGeo : bigSplashGeo,
+      new THREE.MeshBasicMaterial({ color: isSmall ? 0x88aacc : 0x88bbdd, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+    );
+    sg.rotation.x = -Math.PI / 2;
+    sg.visible = false;
+    sg.userData.isSmall = isSmall;
+    splashPool.push(sg);
+  }
   aimRaycaster = new THREE.Raycaster();
   aimNdc = new THREE.Vector2();
   waterPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.3);
+}
+
+function acquireProjMesh(weaponKey, scene) {
+  var pool = projPool[weaponKey];
+  if (pool) {
+    for (var i = 0; i < pool.length; i++) {
+      if (!pool[i].visible) {
+        pool[i].visible = true;
+        if (!pool[i].parent) scene.add(pool[i]);
+        return pool[i];
+      }
+    }
+  }
+  var geo = weaponKey === "firebomb" ? sharedGeo.firebomb : sharedGeo[weaponKey];
+  var pm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: WEAPON_TYPES[weaponKey].color }));
+  scene.add(pm);
+  return pm;
+}
+
+function releaseProjMesh(mesh) {
+  mesh.visible = false;
+}
+
+function acquireFlashMesh(scene) {
+  for (var i = 0; i < flashPool.length; i++) {
+    if (!flashPool[i].visible) {
+      flashPool[i].visible = true;
+      if (!flashPool[i].parent) scene.add(flashPool[i]);
+      return flashPool[i];
+    }
+  }
+  var fm = new THREE.Mesh(flashGeo, new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 }));
+  scene.add(fm);
+  return fm;
+}
+
+function acquireWakeMesh(scene) {
+  for (var i = 0; i < wakePool.length; i++) {
+    if (!wakePool[i].visible) {
+      wakePool[i].visible = true;
+      if (!wakePool[i].parent) scene.add(wakePool[i]);
+      return wakePool[i];
+    }
+  }
+  var wm = new THREE.Mesh(wakeGeo, new THREE.MeshBasicMaterial({ color: 0xaaccdd, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+  wm.rotation.x = -Math.PI / 2;
+  scene.add(wm);
+  return wm;
+}
+
+function acquireSplashMesh(isSmall, scene) {
+  for (var i = 0; i < splashPool.length; i++) {
+    if (!splashPool[i].visible && splashPool[i].userData.isSmall === isSmall) {
+      splashPool[i].visible = true;
+      if (!splashPool[i].parent) scene.add(splashPool[i]);
+      return splashPool[i];
+    }
+  }
+  var sg = new THREE.Mesh(
+    isSmall ? smallSplashGeo : bigSplashGeo,
+    new THREE.MeshBasicMaterial({ color: isSmall ? 0x88aacc : 0x88bbdd, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+  );
+  sg.rotation.x = -Math.PI / 2;
+  sg.userData.isSmall = isSmall;
+  scene.add(sg);
+  return sg;
+}
+
+function releasePoolMesh(mesh) {
+  mesh.visible = false;
+}
+
+function acquireTrailMesh(weaponKey, scene) {
+  var pool = trailPool[weaponKey];
+  if (pool) {
+    for (var i = 0; i < pool.length; i++) {
+      if (!pool[i].visible) {
+        pool[i].visible = true;
+        if (!pool[i].parent) scene.add(pool[i]);
+        return pool[i];
+      }
+    }
+  }
+  // pool exhausted — fallback
+  var tm = new THREE.Mesh(sharedGeo[weaponKey], sharedMat[weaponKey + "_trail"].clone());
+  tm.scale.setScalar(0.5);
+  scene.add(tm);
+  return tm;
+}
+
+function releaseTrailMesh(mesh) {
+  mesh.visible = false;
 }
 
 export function createWeaponState(ship) {
@@ -62,7 +233,8 @@ export function createWeaponState(ship) {
     ship: ship, turretGroups: turretGroups, activeWeapon: 0,
     projectiles: [], effects: [], cooldown: 0, shotCount: 0,
     aimWorldPos: new THREE.Vector3(0, 0, 0),
-    onNetHitCallback: null  // called with (targetType, targetId, damage) for multiplayer sync
+    onNetHitCallback: null,  // called with (targetType, targetId, damage) for multiplayer sync
+    weaponTiers: { cannon: 0, chainshot: 0, firebomb: 0 }
   };
 }
 
@@ -75,7 +247,17 @@ export function getActiveWeapon(state) {
 }
 
 export function getActiveWeaponName(state) {
-  return WEAPON_TYPES[WEAPON_ORDER[state.activeWeapon]].name;
+  var key = WEAPON_ORDER[state.activeWeapon];
+  var tier = state.weaponTiers ? (state.weaponTiers[key] || 0) : 0;
+  var cfg = getEffectiveConfig(key, tier);
+  return cfg ? cfg.name : WEAPON_TYPES[key].name;
+}
+
+export function getActiveTierName(state) {
+  var key = WEAPON_ORDER[state.activeWeapon];
+  var tier = state.weaponTiers ? (state.weaponTiers[key] || 0) : 0;
+  var cfg = getEffectiveConfig(key, tier);
+  return cfg ? cfg.name : key;
 }
 
 export function getWeaponOrder() { return WEAPON_ORDER; }
@@ -100,7 +282,8 @@ export function fireWeapon(state, scene, resources, upgradeMults) {
   if (state.cooldown > 0) return;
 
   var weaponKey = WEAPON_ORDER[state.activeWeapon];
-  var cfg = WEAPON_TYPES[weaponKey];
+  var tier = state.weaponTiers ? (state.weaponTiers[weaponKey] || 0) : 0;
+  var cfg = getEffectiveConfig(weaponKey, tier);
 
   if (resources) {
     if (resources.ammo < cfg.ammoCost) return;
@@ -131,56 +314,70 @@ export function fireWeapon(state, scene, resources, upgradeMults) {
     dir.z * effectiveProjSpeed
   );
 
-  var projMesh;
-  if (weaponKey === "torpedo") {
-    projMesh = new THREE.Mesh(sharedGeo.torpedo, sharedMat.torpedo.clone());
+  var projMesh = acquireProjMesh(weaponKey, scene);
+  projMesh.position.copy(barrelTip);
+  if (weaponKey === "firebomb") {
     projMesh.rotation.x = Math.PI / 2;
     projMesh.rotation.order = "YXZ";
     projMesh.rotation.y = Math.atan2(dir.x, dir.z);
-  } else if (weaponKey === "missile") {
-    projMesh = new THREE.Mesh(sharedGeo.missile, sharedMat.missile.clone());
   } else {
-    projMesh = new THREE.Mesh(sharedGeo.turret, sharedMat.turret.clone());
+    projMesh.rotation.set(0, 0, 0);
   }
-  projMesh.position.copy(barrelTip);
-  scene.add(projMesh);
 
   var proj = {
     mesh: projMesh, velocity: velocity, origin: barrelTip.clone(),
     age: 0, trail: [], damageMult: cfg.damage * damageMult,
     weaponKey: weaponKey, cfg: cfg
   };
+  if (cfg.perk === "pierce") proj.pierceCount = 1;
   state.projectiles.push(proj);
   spawnFlash(state, scene, barrelTip);
 }
 
 function spawnFlash(state, scene, position) {
-  var mesh = new THREE.Mesh(flashGeo, flashMat.clone());
+  var mesh = acquireFlashMesh(scene);
+  mesh.material.opacity = 0.9;
+  mesh.scale.setScalar(1);
   mesh.position.copy(position);
-  scene.add(mesh);
   state.effects.push({ type: "flash", mesh: mesh, life: 0.08 });
 }
 
 function spawnSplash(state, scene, position, scale) {
-  var geo = scale > 2.0 ? bigSplashGeo : new THREE.RingGeometry(0.1, 0.6, 8);
-  var mat = new THREE.MeshBasicMaterial({
-    color: scale > 2.0 ? 0x88bbdd : 0x88aacc,
-    transparent: true, opacity: 0.8, side: THREE.DoubleSide
-  });
-  var mesh = new THREE.Mesh(geo, mat);
+  var isSmall = scale <= 2.0;
+  var mesh = acquireSplashMesh(isSmall, scene);
+  mesh.material.opacity = 0.8;
+  mesh.scale.setScalar(1);
   mesh.position.copy(position);
   mesh.position.y = 0.4;
-  mesh.rotation.x = -Math.PI / 2;
-  scene.add(mesh);
   state.effects.push({ type: "splash", mesh: mesh, life: 0.3 * scale, maxLife: 0.3 * scale, scale: scale });
 }
 
 function spawnWake(state, scene, position) {
-  var mesh = new THREE.Mesh(wakeGeo, wakeMat.clone());
+  var mesh = acquireWakeMesh(scene);
+  mesh.material.opacity = 0.5;
+  mesh.scale.setScalar(1);
   mesh.position.set(position.x, 0.35, position.z);
-  mesh.rotation.x = -Math.PI / 2;
-  scene.add(mesh);
   state.effects.push({ type: "wake", mesh: mesh, life: 0.8, maxLife: 0.8 });
+}
+
+function spawnBurnZone(state, scene, position, splashScale, enemyManager) {
+  var radius = (splashScale || 3.5) * 0.5;
+  var geo = new THREE.CircleGeometry(radius, 12);
+  var mat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(position.x, 0.25, position.z);
+  scene.add(mesh);
+  state.effects.push({
+    type: "burn",
+    mesh: mesh,
+    life: 4.0, maxLife: 4.0,
+    posX: position.x, posZ: position.z,
+    radius: radius,
+    damagePerSec: 1.0,
+    _lastDamageTick: 0,
+    enemyManager: enemyManager
+  });
 }
 
 // activeBoss: optional boss object for hit detection
@@ -213,19 +410,16 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
       p.mesh.rotation.y = Math.atan2(p.velocity.x, p.velocity.z);
     }
 
-    var trailColor = cfg.trailColor || cfg.color;
-    var trailMat = new THREE.MeshBasicMaterial({ color: trailColor, transparent: true, opacity: 0.6 });
-    var trailMesh = new THREE.Mesh(sharedGeo[p.weaponKey], trailMat);
-    trailMesh.scale.setScalar(0.5);
+    var trailMesh = acquireTrailMesh(p.weaponKey, scene);
     trailMesh.position.copy(p.mesh.position);
-    scene.add(trailMesh);
+    trailMesh.material.opacity = 0.6;
     p.trail.push({ mesh: trailMesh, life: 0.3 });
 
     var aliveTrail = [];
     for (var t = 0; t < p.trail.length; t++) {
       p.trail[t].life -= dt;
       if (p.trail[t].life <= 0) {
-        scene.remove(p.trail[t].mesh);
+        releaseTrailMesh(p.trail[t].mesh);
       } else {
         p.trail[t].mesh.material.opacity = p.trail[t].life / 0.3;
         aliveTrail.push(p.trail[t]);
@@ -251,15 +445,18 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     if (hitWater || hitTerrain || outOfRange || hitEnemy || hitBoss) {
       if (hitWater || hitTerrain || hitEnemy || hitBoss) {
         spawnSplash(state, scene, p.mesh.position, cfg.splashScale);
+        if (cfg.perk === "burn") {
+          spawnBurnZone(state, scene, p.mesh.position.clone(), cfg.splashScale, enemyManager);
+        }
         // differentiated impact sounds
         if (hitEnemy || hitBoss) playImpactSound("metal");
         else if (hitTerrain) playImpactSound("terrain");
         else if (hitWater) playImpactSound("water");
       }
       for (var t = 0; t < p.trail.length; t++) {
-        scene.remove(p.trail[t].mesh);
+        releaseTrailMesh(p.trail[t].mesh);
       }
-      scene.remove(p.mesh);
+      releaseProjMesh(p.mesh);
     } else {
       alive.push(p);
     }
@@ -271,7 +468,13 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
     var e = state.effects[i];
     e.life -= dt;
     if (e.life <= 0) {
-      scene.remove(e.mesh);
+      if (e.type === "burn") {
+        scene.remove(e.mesh);
+        if (e.mesh.geometry) e.mesh.geometry.dispose();
+        if (e.mesh.material) e.mesh.material.dispose();
+      } else {
+        releasePoolMesh(e.mesh);
+      }
     } else {
       if (e.type === "flash") {
         e.mesh.material.opacity = e.life / 0.08;
@@ -284,6 +487,25 @@ export function updateWeapons(state, dt, scene, enemyManager, activeBoss, terrai
         var wProg = 1 - e.life / e.maxLife;
         e.mesh.material.opacity = 0.5 * (1 - wProg);
         e.mesh.scale.setScalar(1 + wProg * 2);
+      } else if (e.type === "burn") {
+        var bProg = 1 - e.life / e.maxLife;
+        e.mesh.material.opacity = 0.35 * (1 - bProg * 0.5);
+        // damage enemies in radius every second
+        e._lastDamageTick = (e._lastDamageTick || 0) + dt;
+        if (e._lastDamageTick >= 1.0) {
+          e._lastDamageTick -= 1.0;
+          if (e.enemyManager) {
+            var burnEnemies = e.enemyManager.enemies;
+            for (var ei = 0; ei < burnEnemies.length; ei++) {
+              if (!burnEnemies[ei].alive) continue;
+              var bdx = burnEnemies[ei].posX - e.posX;
+              var bdz = burnEnemies[ei].posZ - e.posZ;
+              if (bdx * bdx + bdz * bdz < e.radius * e.radius) {
+                damageEnemy(e.enemyManager, burnEnemies[ei], scene, e.damagePerSec);
+              }
+            }
+          }
+        }
       }
       aliveEffects.push(e);
     }
@@ -378,9 +600,14 @@ function checkEnemyHit(projectile, prevX, prevZ, enemies, enemyManager, scene, w
       var sx = prevX + (pp.x - prevX) * t;
       var sz = prevZ + (pp.z - prevZ) * t;
       if (pointInShipOBB(sx, sz, ex, ez, enemy.heading, ext.halfL, ext.halfW)) {
-        if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg);
+        var slowHit = projectile.cfg && projectile.cfg.perk === "slow";
+        if (enemyManager) damageEnemy(enemyManager, enemy, scene, dmg, slowHit);
         if (weaponState && weaponState.onNetHitCallback) {
           weaponState.onNetHitCallback("enemy", i, dmg);
+        }
+        if (projectile.pierceCount && projectile.pierceCount > 0) {
+          projectile.pierceCount--;
+          break; // stop checking sub-steps for this enemy but continue to next enemy
         }
         return true;
       }
@@ -452,4 +679,20 @@ export function screenToWorld(screenX, screenY, camera) {
   var target = new THREE.Vector3();
   aimRaycaster.ray.intersectPlane(waterPlane, target);
   return target || new THREE.Vector3(0, 0.3, 0);
+}
+
+export function rollWeaponUpgradeKey(weaponTiers) {
+  var keys = ["cannon", "chainshot", "firebomb"];
+  var eligible = keys.filter(function(k) { return (weaponTiers[k] || 0) < 2; });
+  if (eligible.length === 0) return null;
+  // weight: tier 0 = 3, tier 1 = 2 (tier 2 already filtered)
+  var weights = eligible.map(function(k) { return 3 - (weaponTiers[k] || 0); });
+  var total = weights.reduce(function(a, b) { return a + b; }, 0);
+  var r = Math.random() * total;
+  var acc = 0;
+  for (var i = 0; i < eligible.length; i++) {
+    acc += weights[i];
+    if (r < acc) return eligible[i];
+  }
+  return eligible[eligible.length - 1];
 }

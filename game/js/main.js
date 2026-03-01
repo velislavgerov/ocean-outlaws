@@ -10,11 +10,11 @@ import { showDamageIndicator, showFloatingNumber, addKillFeedEntry, triggerScree
 import { unlockAudio, updateSailing, setSailClass, updateAmbience, updateMusic, updateLowHpWarning, toggleMute, setMasterVolume, isMuted, fadeGameAudio, resumeGameAudio } from "./sound.js";
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
-import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback } from "./weapon.js";
+import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback, rollWeaponUpgradeKey, getEffectiveConfig } from "./weapon.js";
 import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
-import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext } from "./pickup.js";
+import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext, spawnWeaponUpgradePickup, preloadPickupModels } from "./pickup.js";
 import { createWaveManager, updateWaveState, getWaveConfig, getWaveState, resetWaveManager } from "./wave.js";
 import { createUpgradeState, resetUpgrades, addGold, getMultipliers, buildCombinedMults, getRepairCost, applyFreeUpgrade } from "./upgrade.js";
 import { createCardPicker, showCardPicker, hideCardPicker } from "./cardPicker.js";
@@ -171,6 +171,7 @@ if (renderer.domElement && !renderer.domElement.parentNode) {
 updateLoadingBar(10, "Renderer ready...");
 
 var scene = new THREE.Scene();
+preloadPickupModels(scene);
 scene.fog = new THREE.FogExp2(0x0a0e1a, 0.006);
 var ambient = new THREE.AmbientLight(0x1a2040, 0.6);
 scene.add(ambient);
@@ -241,6 +242,16 @@ var activeZoneId = null;
 var activeTerrain = null;
 var resources = createResources();
 var pickupMgr = createPickupManager();
+pickupMgr.onWeaponUpgrade = function (weaponKey) {
+  if (!weapons || !weapons.weaponTiers) return;
+  var tier = weapons.weaponTiers[weaponKey] || 0;
+  if (tier < 2) {
+    weapons.weaponTiers[weaponKey] = tier + 1;
+    var cfg = getEffectiveConfig(weaponKey, tier + 1);
+    showBanner((cfg.name || weaponKey) + " Upgraded!", 3);
+    saveRun({ weaponTiers: weapons.weaponTiers });
+  }
+};
 var portMgr = createPortManager();
 var crateMgr = createCrateManager();
 var merchantMgr = createMerchantManager();
@@ -268,6 +279,11 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   if (nextRandom() < 0.05) {
     var dropOfficer = generateOfficerReward(1);
     spawnCrewPickup(crewPickupMgr, x, 0, z, scene, dropOfficer);
+  }
+  // rare weapon upgrade drop (~10%)
+  if (weapons && nextRandom() < 0.10) {
+    var upgradeKey = rollWeaponUpgradeKey(weapons.weaponTiers);
+    if (upgradeKey) spawnWeaponUpgradePickup(pickupMgr, x, 0, z, scene, upgradeKey);
   }
   var techB = getTechBonuses(techState);
   var factionMult = getFactionGoldMult(faction);
@@ -1035,6 +1051,10 @@ function startOpenWorld(classKey) {
   setPlayerHp(enemyMgr, classCfg.stats.hp);
   setPlayerArmor(enemyMgr, classCfg.stats.armor);
   weapons = createWeaponState(ship);
+  var savedRunTiers = loadRunState();
+  if (savedRunTiers && savedRunTiers.weaponTiers) {
+    weapons.weaponTiers = savedRunTiers.weaponTiers;
+  }
   abilityState = createAbilityState(classKey);
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
@@ -1796,6 +1816,13 @@ function runFrame(dt) {
           if (bossZones[bziv]._active) {
             bossZones[bziv].defeated = true;
             bossZones[bziv]._active = false;
+          }
+        }
+        // guaranteed weapon upgrade drop on boss defeat
+        if (weapons) {
+          var bossUpgradeKey = rollWeaponUpgradeKey(weapons.weaponTiers);
+          if (bossUpgradeKey) {
+            spawnWeaponUpgradePickup(pickupMgr, ship.posX, 0, ship.posZ, scene, bossUpgradeKey);
           }
         }
         resetWaveManager(waveMgr, []);
