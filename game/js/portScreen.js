@@ -2,13 +2,16 @@
 import { getUpgradeTree, canAfford, buyUpgrade, getNextCost, getMultiplierForKey, findUpgrade, getRepairCost } from "./upgrade.js";
 import { playUpgrade, playClick } from "./soundFx.js";
 import { isMobile } from "./mobile.js";
-import { T, FONT, PARCHMENT_BG } from "./theme.js";
+import { T, FONT, FONT_UI, FONT_MONO, PARCHMENT_BG } from "./theme.js";
 
 var root = null;
+var panel = null;
 var goldLabel = null;
 var repairSection = null;
 var repairBtn = null;
 var repairInfo = null;
+var repairBar = null;
+var repairBarFill = null;
 var storyNoticeEl = null;
 var categoryEls = {};
 var categoryPanels = {};
@@ -16,6 +19,14 @@ var onCloseCallback = null;
 var currentState = null;    // { upgrades, hpInfo, classKey }
 var activeTab = null;
 var tabBtns = {};
+
+// --- tab label mapping (display labels for each upgrade category) ---
+var TAB_LABELS = {
+  weapons:    "ARMAMENTS",
+  propulsion: "SAILS",
+  defense:    "DEFENSE",
+  radar:      "TECH"
+};
 
 // --- stat display names ---
 var STAT_LABELS = {
@@ -40,101 +51,156 @@ export function createPortScreen() {
     _mob ? "justify-content: flex-start" : "justify-content: center",
     "background:" + T.bgOverlay,
     "z-index: 91",
-    "font-family:" + FONT,
+    "font-family:" + FONT_UI,
     "user-select: none",
     "overflow-y: auto",
-    _mob ? "padding: 12px 0" : ""
+    _mob ? "padding: 8px 0" : ""
   ].join(";");
 
-  // title
-  var title = document.createElement("div");
-  title.textContent = "PORT OF CALL";
-  title.style.cssText = [
-    "font-size: " + (_mob ? "24px" : "36px"),
-    "font-weight: bold",
-    "color:" + T.gold,
-    "margin-bottom: 4px",
-    "margin-top: " + (_mob ? "10px" : "20px"),
-    "text-shadow: 0 2px 4px rgba(0,0,0,0.6)",
-    "letter-spacing: 3px"
-  ].join(";");
-  root.appendChild(title);
-
-  // subtitle
-  var subtitle = document.createElement("div");
-  subtitle.textContent = "Repair and outfit your vessel";
-  subtitle.style.cssText = [
-    "font-size: " + (_mob ? "13px" : "14px"),
-    "color:" + T.textDim,
-    "margin-bottom: " + (_mob ? "10px" : "16px"),
-    "text-shadow: 0 1px 2px rgba(0,0,0,0.3)"
-  ].join(";");
-  root.appendChild(subtitle);
-
-  storyNoticeEl = document.createElement("div");
-  storyNoticeEl.style.cssText = [
-    PARCHMENT_BG,
-    "display:none",
-    "max-width: 92%",
-    "padding: 10px 14px",
-    "margin-bottom: " + (_mob ? "10px" : "12px"),
-    "border: 1px solid " + T.borderGold,
-    "border-radius: 6px",
-    "font-size: " + (_mob ? "12px" : "13px"),
-    "line-height: 1.45",
-    "color:" + T.text,
-    "text-align:center",
-    "box-shadow: inset 0 0 15px rgba(0,0,0,0.2)"
-  ].join(";");
-  root.appendChild(storyNoticeEl);
-
-  // gold display
-  goldLabel = document.createElement("div");
-  goldLabel.style.cssText = [
-    "font-size: " + (_mob ? "16px" : "20px"),
-    "color:" + T.gold,
-    "margin-bottom: " + (_mob ? "12px" : "16px"),
-    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
-  ].join(";");
-  root.appendChild(goldLabel);
-
-  // repair section
-  repairSection = document.createElement("div");
-  repairSection.style.cssText = [
-    PARCHMENT_BG,
-    "border: 1px solid " + T.greenBright + "44",
-    "border-radius: 6px",
-    "padding: 12px 20px",
-    "margin-bottom: " + (_mob ? "12px" : "16px"),
-    _mob ? "width: 90%" : "width: 400px",
-    "max-width: 90%",
+  // --- main panel (dark glass) ---
+  panel = document.createElement("div");
+  panel.className = "oo-panel";
+  panel.style.cssText = [
+    "width: " + (_mob ? "100%" : "640px"),
+    "max-width: " + (_mob ? "100%" : "640px"),
     "box-sizing: border-box",
+    "border-radius: " + (_mob ? "0" : "8px"),
+    "padding: " + (_mob ? "12px 14px" : "20px 24px"),
+    "display: flex",
+    "flex-direction: column",
+    "gap: 0",
+    "transform: translateY(60px)",
+    "opacity: 0",
+    "transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 600ms cubic-bezier(0.16, 1, 0.3, 1)"
+  ].join(";");
+
+  // --- header row: port name + gold + leave button ---
+  var header = document.createElement("div");
+  header.style.cssText = [
     "display: flex",
     "align-items: center",
     "justify-content: space-between",
-    "gap: 12px",
-    "box-shadow: inset 0 0 15px rgba(0,0,0,0.2)"
+    "margin-bottom: 14px"
   ].join(";");
 
+  var portName = document.createElement("div");
+  portName.textContent = "Port of Call";
+  portName.style.cssText = [
+    "font-family:" + FONT,
+    "font-size: " + (_mob ? "20px" : "28px"),
+    "font-weight: 700",
+    "color:" + T.gold,
+    "letter-spacing: 2px",
+    "text-shadow: 0 2px 8px rgba(0,0,0,0.7)",
+    "flex: 1"
+  ].join(";");
+  header.appendChild(portName);
+
+  goldLabel = document.createElement("div");
+  goldLabel.style.cssText = [
+    "font-family:" + FONT_MONO,
+    "font-size: " + (_mob ? "13px" : "15px"),
+    "color:" + T.gold,
+    "margin: 0 12px",
+    "white-space: nowrap"
+  ].join(";");
+  header.appendChild(goldLabel);
+
+  var leaveBtn = document.createElement("button");
+  leaveBtn.textContent = "LEAVE";
+  leaveBtn.style.cssText = [
+    "font-family:" + FONT_UI,
+    "font-size: " + (_mob ? "11px" : "12px"),
+    "font-weight: 500",
+    "letter-spacing: 0.08em",
+    "background: none",
+    "color:" + T.textDim,
+    "border: 1px solid " + T.border,
+    "border-radius: 4px",
+    "padding: " + (_mob ? "7px 12px" : "7px 16px"),
+    "min-height: 32px",
+    "cursor: pointer",
+    "pointer-events: auto",
+    "white-space: nowrap",
+    "text-transform: uppercase",
+    "transition: color 150ms, border-color 150ms"
+  ].join(";");
+  leaveBtn.addEventListener("mouseover", function () {
+    leaveBtn.style.color = T.gold;
+    leaveBtn.style.borderColor = T.borderGold;
+  });
+  leaveBtn.addEventListener("mouseout", function () {
+    leaveBtn.style.color = T.textDim;
+    leaveBtn.style.borderColor = T.border;
+  });
+  leaveBtn.addEventListener("click", function () {
+    hidePortScreen();
+    if (onCloseCallback) onCloseCallback();
+  });
+  header.appendChild(leaveBtn);
+
+  panel.appendChild(header);
+
+  // --- story notice ---
+  storyNoticeEl = document.createElement("div");
+  storyNoticeEl.style.cssText = [
+    "display: none",
+    "background: rgba(200,152,42,0.07)",
+    "border: 1px solid " + T.borderGold,
+    "border-radius: 4px",
+    "padding: 10px 14px",
+    "margin-bottom: 14px",
+    "font-family:" + FONT_UI,
+    "font-size: " + (_mob ? "12px" : "13px"),
+    "line-height: 1.5",
+    "color:" + T.text,
+    "text-align: center"
+  ].join(";");
+  panel.appendChild(storyNoticeEl);
+
+  // --- repair section (ledger row style) ---
+  repairSection = document.createElement("div");
+  repairSection.style.cssText = [
+    "border: 1px solid rgba(76,175,122,0.25)",
+    "border-radius: 4px",
+    "padding: " + (_mob ? "10px 12px" : "12px 16px"),
+    "margin-bottom: 14px",
+    "background: rgba(76,175,122,0.04)",
+    "display: flex",
+    "flex-direction: column",
+    "gap: 8px"
+  ].join(";");
+
+  // repair top row: info + button
+  var repairTopRow = document.createElement("div");
+  repairTopRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px";
+
   repairInfo = document.createElement("div");
-  repairInfo.style.cssText = "font-size:" + (_mob ? "14px" : "15px") + ";color:" + T.text;
-  repairSection.appendChild(repairInfo);
+  repairInfo.style.cssText = [
+    "font-family:" + FONT_UI,
+    "font-size:" + (_mob ? "14px" : "15px"),
+    "color:" + T.text
+  ].join(";");
+  repairTopRow.appendChild(repairInfo);
 
   repairBtn = document.createElement("button");
   repairBtn.textContent = "REPAIR";
   repairBtn.style.cssText = [
-    "font-family:" + FONT,
-    "font-size: " + (_mob ? "14px" : "15px"),
-    "padding: " + (_mob ? "10px 20px" : "8px 24px"),
+    "font-family:" + FONT_UI,
+    "font-size: " + (_mob ? "12px" : "13px"),
+    "font-weight: 500",
+    "letter-spacing: 0.05em",
+    "text-transform: uppercase",
+    "padding: " + (_mob ? "9px 16px" : "8px 20px"),
     "min-height: 44px",
-    "background:" + T.bgLight,
+    "background: none",
     "color:" + T.greenBright,
     "border: 1px solid " + T.greenBright + "88",
     "border-radius: 4px",
     "cursor: pointer",
     "pointer-events: auto",
     "white-space: nowrap",
-    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
+    "transition: color 150ms, border-color 150ms"
   ].join(";");
   repairBtn.addEventListener("click", function () {
     if (!currentState) return;
@@ -148,238 +214,185 @@ export function createPortScreen() {
       playClick();
     }
   });
-  repairSection.appendChild(repairBtn);
-  root.appendChild(repairSection);
+  repairTopRow.appendChild(repairBtn);
+  repairSection.appendChild(repairTopRow);
 
-  // upgrade categories
+  // repair bar (hull integrity progress)
+  var barTrack = document.createElement("div");
+  barTrack.className = "oo-bar-track";
+  barTrack.style.cssText = "height:4px";
+
+  repairBarFill = document.createElement("div");
+  repairBarFill.className = "oo-bar-fill";
+  repairBarFill.style.cssText = "width:100%;background:" + T.greenBright;
+  barTrack.appendChild(repairBarFill);
+  repairSection.appendChild(barTrack);
+
+  panel.appendChild(repairSection);
+
+  // --- upgrade categories ---
   var tree = getUpgradeTree();
   var cats = Object.keys(tree);
 
-  // mobile: tab bar
-  if (_mob) {
-    var tabBar = document.createElement("div");
-    tabBar.style.cssText = [
-      "display: flex",
-      "gap: 6px",
-      "margin-bottom: 12px",
-      "width: 90%",
-      "max-width: 400px",
-      "justify-content: center"
-    ].join(";");
+  // tab bar (used on both mobile and desktop)
+  var tabBar = document.createElement("div");
+  tabBar.className = "oo-tabs";
+  tabBar.style.cssText = "margin-bottom: 0";
 
-    for (var t = 0; t < cats.length; t++) {
-      (function (catKey) {
-        var cat = tree[catKey];
-        var tabBtn = document.createElement("div");
-        tabBtn.textContent = cat.label;
-        tabBtn.style.cssText = [
-          "flex: 1",
-          "text-align: center",
-          "padding: 10px 4px",
-          "min-height: 44px",
-          "display: flex",
-          "align-items: center",
-          "justify-content: center",
-          "font-size: 13px",
-          "font-weight: bold",
-          "font-family:" + FONT,
-          "color: " + cat.color,
-          "background:" + T.bgLight,
-          "border: 1px solid " + cat.color + "33",
-          "border-radius: 4px",
-          "cursor: pointer",
-          "pointer-events: auto",
-          "transition: background 0.15s, border-color 0.15s",
-          "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
-        ].join(";");
-        tabBtn.addEventListener("click", function () {
-          switchPortTab(catKey);
-        });
-        tabBar.appendChild(tabBtn);
-        tabBtns[catKey] = tabBtn;
-      })(cats[t]);
-    }
-
-    root.appendChild(tabBar);
-    activeTab = cats[0];
+  for (var t = 0; t < cats.length; t++) {
+    (function (catKey) {
+      var cat = tree[catKey];
+      var tabLabel = TAB_LABELS[catKey] || cat.label.toUpperCase();
+      var tabBtn = document.createElement("button");
+      tabBtn.textContent = tabLabel;
+      tabBtn.className = "oo-tab";
+      tabBtn.addEventListener("click", function () {
+        switchPortTab(catKey);
+      });
+      tabBar.appendChild(tabBtn);
+      tabBtns[catKey] = tabBtn;
+    })(cats[t]);
   }
 
-  // upgrade body — single horizontal row on desktop
-  var body = document.createElement("div");
-  if (_mob) {
-    body.style.cssText = [
-      "display: flex",
-      "flex-direction: column",
-      "align-items: center",
-      "width: 90%",
-      "max-width: 400px"
-    ].join(";");
-  } else {
-    body.style.cssText = [
-      "display: flex",
-      "flex-direction: row",
-      "flex-wrap: nowrap",
-      "justify-content: center",
-      "align-items: flex-start",
-      "gap: 12px",
-      "max-width: 960px",
-      "width: 95%"
-    ].join(";");
-  }
-  root.appendChild(body);
+  panel.appendChild(tabBar);
+
+  // --- upgrade panels container ---
+  var upgradesContainer = document.createElement("div");
+  upgradesContainer.style.cssText = [
+    "margin-top: 14px",
+    "display: flex",
+    "flex-direction: column",
+    "gap: 0"
+  ].join(";");
 
   for (var c = 0; c < cats.length; c++) {
     var catKey = cats[c];
     var cat = tree[catKey];
-    var panel = buildPortCategoryPanel(catKey, cat, _mob);
-    body.appendChild(panel);
-    categoryPanels[catKey] = panel;
+    var catPanel = buildPortCategoryPanel(catKey, cat, _mob);
+    upgradesContainer.appendChild(catPanel);
+    categoryPanels[catKey] = catPanel;
   }
 
-  if (_mob) {
-    switchPortTab(activeTab);
-  }
+  panel.appendChild(upgradesContainer);
 
-  // continue button
-  var continueBtn = document.createElement("button");
-  continueBtn.textContent = "SET SAIL";
-  continueBtn.style.cssText = [
-    "font-family:" + FONT,
-    "font-size: 20px",
-    "padding: 14px 48px",
-    "min-height: 44px",
-    "margin-top: 20px",
-    "margin-bottom: 20px",
-    "background:" + T.bgLight,
-    "color:" + T.greenBright,
-    "border: 1px solid " + T.greenBright + "88",
-    "border-radius: 4px",
-    "cursor: pointer",
-    "pointer-events: auto",
-    "text-shadow: 0 1px 3px rgba(0,0,0,0.5)",
-    "letter-spacing: 2px"
-  ].join(";");
-  continueBtn.addEventListener("click", function () {
-    hidePortScreen();
-    if (onCloseCallback) onCloseCallback();
-  });
-  root.appendChild(continueBtn);
+  // set initial active tab
+  activeTab = cats[0];
+  switchPortTab(activeTab);
 
+  root.appendChild(panel);
   document.body.appendChild(root);
 }
 
-// --- mobile tab switching ---
+// --- tab switching ---
 function switchPortTab(catKey) {
   activeTab = catKey;
   var tree = getUpgradeTree();
   var cats = Object.keys(tree);
   for (var i = 0; i < cats.length; i++) {
     var k = cats[i];
-    var panel = categoryPanels[k];
+    var catPanel = categoryPanels[k];
     var btn = tabBtns[k];
-    if (!panel || !btn) continue;
+    if (!catPanel || !btn) continue;
     if (k === catKey) {
-      panel.style.display = "block";
-      btn.style.background = tree[k].color + "22";
-      btn.style.borderColor = tree[k].color + "88";
+      catPanel.style.display = "block";
+      btn.classList.add("active");
     } else {
-      panel.style.display = "none";
-      btn.style.background = T.bgLight;
-      btn.style.borderColor = tree[k].color + "33";
+      catPanel.style.display = "none";
+      btn.classList.remove("active");
     }
   }
 }
 
 // --- build a category panel ---
 function buildPortCategoryPanel(catKey, cat, mob) {
-  var panel = document.createElement("div");
-  panel.style.cssText = [
-    PARCHMENT_BG,
-    "border: 1px solid " + cat.color + "33",
-    "border-radius: 6px",
-    "padding: 12px",
-    mob ? "width: 100%" : "width: 210px",
-    "min-height: 240px",
-    "box-sizing: border-box",
-    "box-shadow: inset 0 0 15px rgba(0,0,0,0.2)"
+  var catPanel = document.createElement("div");
+  catPanel.style.cssText = [
+    "display: none",
+    "padding: 2px 0"
   ].join(";");
-
-  var heading = document.createElement("div");
-  heading.textContent = cat.label;
-  heading.style.cssText = [
-    "font-size: 15px",
-    "font-weight: bold",
-    "color: " + cat.color,
-    "margin-bottom: 10px",
-    "text-align: center",
-    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)",
-    "letter-spacing: 1px"
-  ].join(";");
-  panel.appendChild(heading);
 
   var upgradeEls = [];
   for (var u = 0; u < cat.upgrades.length; u++) {
     var up = cat.upgrades[u];
-    var row = buildPortUpgradeRow(up, cat.color);
-    panel.appendChild(row.el);
+    var row = buildPortUpgradeRow(up, cat.color, mob);
+    catPanel.appendChild(row.el);
     upgradeEls.push(row);
   }
 
   categoryEls[catKey] = upgradeEls;
-  return panel;
+  return catPanel;
 }
 
-// --- build a single upgrade row (fixed height) ---
-function buildPortUpgradeRow(up, color) {
-  var _mob = isMobile();
+// --- build a single upgrade row (ledger style) ---
+function buildPortUpgradeRow(up, color, mob) {
+  var _mob = mob !== undefined ? mob : isMobile();
   var el = document.createElement("div");
   el.style.cssText = [
-    "margin-bottom: 8px",
-    "padding: " + (_mob ? "10px" : "8px"),
-    "height: " + (_mob ? "auto" : "60px"),
-    "min-height: 44px",
+    "padding: " + (_mob ? "10px 8px" : "9px 10px"),
+    "margin-bottom: 1px",
     "border-radius: 4px",
-    "background: rgba(30, 22, 14, 0.5)",
+    "border: 1px solid " + T.border,
+    "background: none",
     "cursor: pointer",
-    "transition: background 0.15s",
-    "box-sizing: border-box",
-    "display: flex",
-    "flex-direction: column",
-    "justify-content: center"
+    "pointer-events: auto",
+    "transition: background 150ms, border-color 150ms",
+    "box-sizing: border-box"
   ].join(";");
 
-  // top row: label + cost
+  el.addEventListener("mouseover", function () {
+    el.style.background = "rgba(200,152,42,0.06)";
+    el.style.borderColor = T.borderActive;
+  });
+  el.addEventListener("mouseout", function () {
+    el.style.background = "none";
+    el.style.borderColor = T.border;
+  });
+
+  // top row: name + cost
   var topRow = document.createElement("div");
   topRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:4px";
 
   var label = document.createElement("div");
   label.textContent = up.label;
-  label.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + T.text + ";text-shadow:0 1px 1px rgba(0,0,0,0.3)";
+  label.style.cssText = [
+    "font-family:" + FONT_UI,
+    "font-size:" + (_mob ? "15px" : "15px"),
+    "color:" + T.text
+  ].join(";");
   topRow.appendChild(label);
 
   var costLabel = document.createElement("div");
-  costLabel.style.cssText = "font-size:" + (_mob ? "12px" : "11px") + ";color:" + T.textDim + ";text-align:right;white-space:nowrap";
+  costLabel.style.cssText = [
+    "font-family:" + FONT_MONO,
+    "font-size:" + (_mob ? "13px" : "13px"),
+    "color:" + T.gold,
+    "text-align:right",
+    "white-space:nowrap"
+  ].join(";");
   topRow.appendChild(costLabel);
 
   el.appendChild(topRow);
 
-  // tier pips
-  var pips = document.createElement("div");
-  pips.style.cssText = "display:flex;gap:3px";
+  // description row: tier pips (bottom row)
+  var bottomRow = document.createElement("div");
+  bottomRow.style.cssText = "display:flex;align-items:center;gap:4px";
+
   var pipEls = [];
   for (var t = 0; t < 3; t++) {
     var pip = document.createElement("div");
     pip.style.cssText = [
-      "width: " + (_mob ? "20px" : "14px"),
-      "height: " + (_mob ? "8px" : "6px"),
+      "width: " + (_mob ? "22px" : "18px"),
+      "height: 4px",
       "border-radius: 2px",
-      "background: rgba(40, 30, 18, 0.6)",
-      "border: 1px solid " + T.border
+      "background: rgba(107,78,20,0.3)",
+      "border: 1px solid " + T.border,
+      "transition: background 200ms"
     ].join(";");
-    pips.appendChild(pip);
+    bottomRow.appendChild(pip);
     pipEls.push(pip);
   }
-  el.appendChild(pips);
+
+  el.appendChild(bottomRow);
 
   el.addEventListener("click", function () {
     if (!currentState) return;
@@ -399,27 +412,31 @@ function buildPortUpgradeRow(up, color) {
 function refreshPortUI() {
   if (!currentState || !root) return;
 
-  goldLabel.textContent = "\uD83E\uDE99 Gold: " + currentState.upgrades.gold;
+  goldLabel.textContent = currentState.upgrades.gold + " gp";
 
   // repair section
   var cost = getRepairCost(currentState.classKey);
   var damaged = currentState.hpInfo.hp < currentState.hpInfo.maxHp;
   var canRepair = damaged && currentState.upgrades.gold >= cost;
+  var hpPct = Math.round(currentState.hpInfo.hp / currentState.hpInfo.maxHp * 100);
 
   if (damaged) {
-    var hpPct = Math.round(currentState.hpInfo.hp / currentState.hpInfo.maxHp * 100);
-    repairInfo.innerHTML = "Hull: <span style='color:" + (hpPct > 50 ? T.greenBright : hpPct > 25 ? T.amber : T.redBright) + "'>" + hpPct + "%</span>";
-    repairBtn.textContent = "REPAIR (" + cost + " \uD83E\uDE99)";
+    repairInfo.innerHTML = "Hull: <span style='font-family:" + FONT_MONO + ";color:" + (hpPct > 50 ? T.greenBright : hpPct > 25 ? T.amber : T.redBright) + "'>" + hpPct + "%</span>";
+    repairBtn.textContent = "REPAIR (" + cost + " gp)";
     repairBtn.style.color = canRepair ? T.greenBright : T.textDark;
     repairBtn.style.borderColor = canRepair ? T.greenBright + "88" : T.border;
     repairBtn.style.cursor = canRepair ? "pointer" : "default";
   } else {
-    repairInfo.innerHTML = "Hull: <span style='color:" + T.greenBright + "'>100%</span>";
+    repairInfo.innerHTML = "Hull: <span style='font-family:" + FONT_MONO + ";color:" + T.greenBright + "'>100%</span>";
     repairBtn.textContent = "FULL HP";
     repairBtn.style.color = T.textDark;
     repairBtn.style.borderColor = T.border;
     repairBtn.style.cursor = "default";
   }
+
+  // update repair bar fill
+  repairBarFill.style.width = hpPct + "%";
+  repairBarFill.style.background = hpPct > 50 ? T.greenBright : hpPct > 25 ? T.amber : T.redBright;
 
   // upgrade categories
   var tree = getUpgradeTree();
@@ -436,22 +453,25 @@ function refreshPortUI() {
       var upgCost = getNextCost(currentState.upgrades, row.key);
       var affordable = canAfford(currentState.upgrades, row.key);
 
+      // update tier pips
       for (var t = 0; t < 3; t++) {
         if (t < level) {
           row.pipEls[t].style.background = row.color;
           row.pipEls[t].style.borderColor = row.color;
         } else {
-          row.pipEls[t].style.background = "rgba(40, 30, 18, 0.6)";
+          row.pipEls[t].style.background = "rgba(107,78,20,0.3)";
           row.pipEls[t].style.borderColor = T.border;
         }
       }
 
-      if (level > 0) {
-        row.el.style.background = "rgba(50, 60, 30, 0.5)";
+      // update affordability (opacity on whole row)
+      if (level < 3 && upgCost > 0 && !affordable) {
+        row.el.style.opacity = "0.4";
       } else {
-        row.el.style.background = "rgba(30, 22, 14, 0.5)";
+        row.el.style.opacity = "1";
       }
 
+      // update cost label
       if (level >= 3) {
         row.costLabel.textContent = "MAX";
         row.costLabel.style.color = row.color;
@@ -459,8 +479,8 @@ function refreshPortUI() {
         row.costLabel.textContent = "";
         row.costLabel.style.color = T.textDark;
       } else {
-        row.costLabel.textContent = upgCost + " \uD83E\uDE99";
-        row.costLabel.style.color = affordable ? T.gold : T.textDark;
+        row.costLabel.textContent = upgCost + " gp";
+        row.costLabel.style.color = affordable ? T.gold : T.red;
       }
     }
   }
@@ -479,6 +499,17 @@ export function showPortScreen(state, closeCb) {
   }
   refreshPortUI();
   root.style.display = "flex";
+  // trigger slide-up spring animation
+  if (panel) {
+    panel.style.transition = "none";
+    panel.style.transform = "translateY(60px)";
+    panel.style.opacity = "0";
+    // force reflow then animate
+    void panel.offsetHeight;
+    panel.style.transition = "transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 600ms cubic-bezier(0.16, 1, 0.3, 1)";
+    panel.style.transform = "translateY(0)";
+    panel.style.opacity = "1";
+  }
 }
 
 // --- hide port screen ---
