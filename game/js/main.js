@@ -955,6 +955,7 @@ function handleShipSelect(classKey) {
   currentRunSeed = runSeed;
   var run = createRunState(runSeed);
   run.selectedClass = classKey;
+  run.weaponTiers = { cannon: 0, chainshot: 0, firebomb: 0 };
   activeStoryState = hydrateStoryState(run.storyState, runSeed);
   run.storyState = activeStoryState;
   saveRun(run);
@@ -1013,6 +1014,8 @@ function continueRun() {
   runGoldLooted = run.goldLooted || 0;
   runZonesReached = run.nodesCompleted || 0;
   currentRunSeed = run.seed;
+  // restore weapon tiers if saved; will be applied to weapons object in startNodeEncounter
+  if (run.weaponTiers && weapons) weapons.weaponTiers = run.weaponTiers;
   activeStoryState = hydrateStoryState(run.storyState, run.seed);
   run.storyState = activeStoryState;
   saveRun(run);
@@ -1035,6 +1038,7 @@ function withActiveRunState(runSeed) {
 function saveActiveRunState(run) {
   if (!run) return;
   if (activeStoryState) run.storyState = activeStoryState;
+  if (weapons && weapons.weaponTiers) run.weaponTiers = weapons.weaponTiers;
   saveRun(run);
 }
 
@@ -1447,6 +1451,12 @@ function startNodeCombat(node, runSeed, encounterOverride) {
   var m = getMultipliers(upgrades);
   setPlayerArmor(enemyMgr, m.armor + classCfg.stats.armor);
   weapons = createWeaponState(ship);
+  // restore weapon tiers from run state
+  if (run && run.weaponTiers) {
+    weapons.weaponTiers = run.weaponTiers;
+  } else {
+    weapons.weaponTiers = { cannon: 0, chainshot: 0, firebomb: 0 };
+  }
   abilityState = createAbilityState(selectedClass);
   initNav(cam.camera, ship, scene, enemyMgr, activeTerrain, portMgr);
   resetDrones(droneMgr, scene);
@@ -1478,6 +1488,7 @@ function updateRunAfterNode(hp, maxHp) {
     run.hp = hp;
     run.maxHp = maxHp;
   }
+  if (weapons && weapons.weaponTiers) run.weaponTiers = weapons.weaponTiers;
   saveRun(run);
 }
 
@@ -2289,7 +2300,9 @@ function runFrame(dt) {
     // Build QWER ability bar info (4 slots)
     var abilityBarSlots = [];
     for (var si = 0; si < 3; si++) {
-      var wCfg = getWeaponConfig(weaponOrder[si]);
+      var wKey = weaponOrder[si];
+      var wTier = weapons.weaponTiers ? (weapons.weaponTiers[wKey] || 0) : 0;
+      var wCfg = getEffectiveConfig(wKey, wTier) || getWeaponConfig(wKey);
       var wCooldownPct = 1;
       var wCooldownSecs = 0;
       if (weapons.activeWeapon === si && weapons.cooldown > 0) {
@@ -2299,7 +2312,8 @@ function runFrame(dt) {
       abilityBarSlots.push({
         icon: weaponIcons[si], color: weaponColors[si],
         active: false, cooldownPct: wCooldownPct, cooldownSecs: wCooldownSecs,
-        isActiveSlot: false
+        isActiveSlot: false,
+        label: wCfg.name  // tier name for this weapon slot
       });
     }
     // R slot = class ability

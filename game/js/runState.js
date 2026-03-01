@@ -19,6 +19,7 @@ export function createRunState(seed) {
     active: true,
     hp: null,
     maxHp: null,
+    weaponTiers: null,
     storyState: createStoryState(seed)
   };
 }
