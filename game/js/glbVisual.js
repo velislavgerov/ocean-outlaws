@@ -8,7 +8,7 @@ var cache = {};
 
 // DRACOLoader singleton — created once and shared across all loads
 var _dracoLoader = new DRACOLoader();
-_dracoLoader.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/");
+_dracoLoader.setDecoderPath("libs/draco/gltf/");
 
 var _loader = new GLTFLoader();
 _loader.setDRACOLoader(_dracoLoader);

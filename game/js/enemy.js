@@ -442,7 +442,7 @@ export function setPlayerHp(manager, hp) {
 }
 
 // --- spawn a single enemy at map edge with wave multipliers ---
-function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleContext) {
+export function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain, roleContext) {
   if (manager.enemies.length >= MAX_ENEMIES) return;
 
   var hpMult = waveConfig ? waveConfig.hpMult : 1;

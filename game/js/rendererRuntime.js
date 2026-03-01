@@ -23,8 +23,14 @@ function createDefaultWebGLRuntime(THREE, qualityConfig) {
 
 export function createRendererRuntime(THREE, qualityConfig) {
   var injectedFactory = null;
-  if (typeof window !== "undefined" && typeof window.__ooRendererFactory === "function") {
+  var forceWebGL = typeof window !== "undefined" &&
+    typeof window.location !== "undefined" &&
+    window.location.search.indexOf("renderer=webgl") !== -1;
+  if (!forceWebGL && typeof window !== "undefined" && typeof window.__ooRendererFactory === "function") {
     injectedFactory = window.__ooRendererFactory;
+  }
+  if (forceWebGL) {
+    console.log("[rendererRuntime] ?renderer=webgl — bypassing injected factory, using WebGL");
   }
 
   var runtime = null;

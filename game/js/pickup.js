@@ -145,13 +145,6 @@ function buildPickupMesh(type) {
     group.scale.setScalar(1.4);
   }
 
-  // glow point light — create a fresh one per pickup (lights need separate instances for position)
-  var glowColor = GLOW_COLORS[type] || 0xffffff;
-  var light = new THREE.PointLight(glowColor, 1.0, 6);
-  light.position.set(0, 0.5, 0);
-  group.add(light);
-
-  group.userData.light = light;
   return group;
 }
 
@@ -222,8 +215,6 @@ export function spawnPickup(manager, x, y, z, scene) {
     collected: false
   };
   manager.pickups.push(pickup);
-
-  hydratePickupMesh(pickup);
 }
 
 // --- spawn a weapon upgrade pickup at position ---
@@ -289,13 +280,6 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
 
     // spin
     p.mesh.rotation.y += PICKUP_SPIN_SPEED * dt;
-
-    // glow pulse
-    var light = p.mesh.userData.light;
-    if (light) {
-      var pulse = GLOW_PULSE_MIN + (1 - GLOW_PULSE_MIN) * (0.5 + 0.5 * Math.sin(elapsed * GLOW_PULSE_SPEED));
-      light.intensity = pulse;
-    }
 
     // fade out near end of life
     if (p.age > PICKUP_LIFETIME - 3) {

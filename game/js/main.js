@@ -11,7 +11,7 @@ import { unlockAudio, updateSailing, setSailClass, updateAmbience, updateMusic, 
 import { playWeaponSound, playExplosion, playPlayerHit, playClick, playUpgrade, playWaveHorn, playHitConfirm, playKillConfirm } from "./soundFx.js";
 import { initNav, updateNav, handleClick, handleHold, stopHold, getCombatTarget, setCombatTarget, clearCombatTarget, setNavBoss } from "./nav.js";
 import { createWeaponState, fireWeapon, updateWeapons, switchWeapon, getWeaponOrder, getWeaponConfig, findNearestEnemy, getActiveWeaponRange, aimAtEnemy, setWeaponHitCallback, rollWeaponUpgradeKey, getEffectiveConfig } from "./weapon.js";
-import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy } from "./enemy.js";
+import { createEnemyManager, updateEnemies, getPlayerHp, setOnDeathCallback, setOnHitCallback, setPlayerHp, setPlayerArmor, setPlayerMaxHp, resetEnemyManager, getFactionAnnounce, getFactionGoldMult, damageEnemy, spawnEnemy } from "./enemy.js";
 import { initHealthBars, updateHealthBars } from "./health.js";
 import { createResources, consumeFuel, getFuelSpeedMult, resetResources } from "./resource.js";
 import { createPickupManager, spawnPickup, updatePickups, clearPickups, setPickupCollectCallback, setPickupRoleContext, spawnWeaponUpgradePickup, preloadPickupModels } from "./pickup.js";
@@ -884,8 +884,8 @@ function startMultiplayerCombat() {
   // Seed PRNG from shared terrain seed for deterministic simulation
   var seed = mpState.terrainSeed || Math.floor(Math.random() * 999999);
   seedRNG(seed);
-  activeTerrain = createTerrain(seed, 2);
-  scene.add(activeTerrain.mesh);
+  // activeTerrain = createTerrain(seed, 2);
+  // scene.add(activeTerrain.mesh);
   var mpPortRoleContext = { zoneId: "multiplayer", condition: "calm", difficulty: 2 };
   currentRoleContext = mpPortRoleContext;
   clearPorts(portMgr, scene);
@@ -1029,8 +1029,8 @@ function startOpenWorld(classKey) {
 
   var worldSeed = Date.now() + Math.floor(Math.random() * 10000);
   seedRNG(worldSeed);
-  activeTerrain = createTerrain(worldSeed, 3);
-  scene.add(activeTerrain.mesh);
+  // activeTerrain = createTerrain(worldSeed, 3);
+  // scene.add(activeTerrain.mesh);
 
   var worldRoleContext = {
     zoneId: "open_world",
@@ -1169,8 +1169,8 @@ function startZoneCombat(classKey, zoneId) {
   terrainSeed += Math.floor(Math.random() * 10000);
   // Seed PRNG for deterministic simulation
   seedRNG(terrainSeed);
-  activeTerrain = createTerrain(terrainSeed, zone.difficulty);
-  scene.add(activeTerrain.mesh);
+  // activeTerrain = createTerrain(terrainSeed, zone.difficulty);
+  // scene.add(activeTerrain.mesh);
   var zonePortRoleContext = {
     zoneId: zoneId,
     condition: zone.condition || "calm",
@@ -2029,11 +2029,24 @@ ticker.events.on("tick", function (dt) {
 }, 11);
 
 // Register render pass at tick order 998 (last)
-ticker.events.on("tick", function () {
+var _rendererInfoTimer = 0;
+ticker.events.on("tick", function (dt) {
   if (isWorldDebugVisible()) {
     updateWorldDebugView(buildWorldDebugSnapshot());
   }
   renderer.render(scene, cam.camera);
+
+  // Periodic renderer diagnostics — visible in console when ?debug or #debug is active
+  if (window.location.hash.indexOf("debug") !== -1 || window.location.search.indexOf("debug") !== -1) {
+    _rendererInfoTimer += dt;
+    if (_rendererInfoTimer >= 5) {
+      _rendererInfoTimer = 0;
+      var _ri = renderer.info;
+      var _lightCount = 0;
+      scene.traverse(function (o) { if (o.isLight) _lightCount++; });
+      console.log("[RENDERER] draw=" + _ri.render.calls + " geo=" + _ri.memory.geometries + " tex=" + _ri.memory.textures + " lights=" + _lightCount);
+    }
+  }
 }, 998);
 
 // Pre-compile shaders before starting the loop

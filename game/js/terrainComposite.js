@@ -309,7 +309,8 @@ function loadCompositePack() {
 // Instanced Rendering Manager (Phase 3)
 // ============================================================
 var _instanceRoot = null;
-var _modelEntries = {};    // entryKey → ModelEntry
+var _modelEntries = {};         // entryKey → ModelEntry (completed)
+var _modelEntryPromises = {};   // entryKey → Promise<ModelEntry> (in-flight dedup)
 var _chunkSlots = {};      // chunkKey → [{ entryKey, slot }]
 var _INST_CAP_INIT = 64;
 var _INST_CAP_GROW = 64;
@@ -351,6 +352,7 @@ export function disposeIslandInstancing() {
   if (_instanceRoot.parent) _instanceRoot.parent.remove(_instanceRoot);
   _instanceRoot = null;
   _modelEntries = {};
+  _modelEntryPromises = {};
   _chunkSlots = {};
 }
 
@@ -394,7 +396,9 @@ async function ensureModelEntry(modelPath, fitSize) {
 }
 
 function growModelEntry(entry) {
+  var _growT0 = performance.now();
   var newCap = entry.capacity + _INST_CAP_GROW;
+  console.warn("[PERF] growModelEntry: " + entry.key + " cap " + entry.capacity + " → " + newCap);
   for (var i = 0; i < entry.submeshes.length; i++) {
     var sm = entry.submeshes[i];
     var oldIM = sm.instancedMesh;
@@ -411,6 +415,7 @@ function growModelEntry(entry) {
     sm.instancedMesh = newIM;
   }
   entry.capacity = newCap;
+  console.warn("[PERF] growModelEntry done: " + (performance.now() - _growT0).toFixed(1) + "ms");
 }
 
 function addInstanceSlot(entry, worldMatrix) {
@@ -508,6 +513,7 @@ export function removeChunkInstances(chunkKey) {
 
 export function shiftAllInstancePositions(shiftX, shiftZ) {
   if (!_instanceRoot) return;
+  var _shiftT0 = performance.now();
   for (var key in _modelEntries) {
     if (!Object.prototype.hasOwnProperty.call(_modelEntries, key)) continue;
     var entry = _modelEntries[key];
@@ -524,6 +530,8 @@ export function shiftAllInstancePositions(shiftX, shiftZ) {
       im.instanceMatrix.needsUpdate = true;
     }
   }
+  var _shiftMs = performance.now() - _shiftT0;
+  if (_shiftMs > 1) console.warn("[PERF] shiftAllInstancePositions: " + _shiftMs.toFixed(1) + "ms, models=" + Object.keys(_modelEntries).length);
 }
 
 export function flushInstanceUpdates() {
