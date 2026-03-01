@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { getClassOrder, getAllClasses } from "./shipClass.js";
 import { getTotalSpent, respecUpgrades } from "./upgrade.js";
 import { isMobile } from "./mobile.js";
-import { T, FONT, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
+import { T, FONT, FONT_UI, FONT_MONO, PARCHMENT_BG, PARCHMENT_SHADOW } from "./theme.js";
 import { getOverridePath, getOverrideSize, ensureManifest } from "./artOverrides.js";
 import { loadGlbVisual } from "./glbVisual.js";
 import { isShipUnlocked, getShipInfamyReq, getTotalInfamy, getLegendLevel } from "./infamy.js";
@@ -101,7 +101,7 @@ export function createShipSelectScreen() {
     "flex-direction: column",
     "align-items: center",
     "justify-content: flex-start",
-    "background: " + T.bgOverlay,
+    "background: var(--oo-bg-scrim)",
     "z-index: 200",
     "font-family: " + FONT,
     "user-select: none",
@@ -110,15 +110,18 @@ export function createShipSelectScreen() {
   ].join(";");
 
   var title = document.createElement("div");
-  title.textContent = "CHOOSE YOUR VESSEL";
+  title.textContent = "THE ADMIRALTY ROSTER";
   var _mobTitle = isMobile();
   title.style.cssText = [
-    "font-size: " + (_mobTitle ? "24px" : "32px"),
+    "font-size: " + (_mobTitle ? "22px" : "32px"),
     "font-weight: bold",
-    "color: " + T.text,
-    "margin-bottom: " + (_mobTitle ? "16px" : "32px"),
+    "color: " + T.gold,
+    "letter-spacing: 0.1em",
+    "margin-bottom: " + (_mobTitle ? "10px" : "24px"),
     "margin-top: 16px",
-    "text-shadow: 0 1px 4px rgba(0,0,0,0.5), 0 0 20px rgba(180,140,80,0.2)"
+    "text-shadow: 0 1px 4px rgba(0,0,0,0.5), 0 0 20px rgba(200,152,42,0.3)",
+    "font-family: " + FONT,
+    "animation: oo-fall 0.5s var(--oo-ease-spring) both"
   ].join(";");
   overlay.appendChild(title);
 
@@ -128,13 +131,15 @@ export function createShipSelectScreen() {
     "display:flex",
     "gap:24px",
     "align-items:center",
-    "margin-bottom:" + (_mobTitle ? "12px" : "16px")
+    "margin-bottom:" + (_mobTitle ? "10px" : "16px"),
+    "animation: oo-fade 0.5s var(--oo-ease-std) 100ms both"
   ].join(";");
 
   infamyLabel = document.createElement("div");
   infamyLabel.style.cssText = [
-    "font-size:" + (_mobTitle ? "14px" : "16px"),
+    "font-size:" + (_mobTitle ? "13px" : "15px"),
     "color:" + T.gold,
+    "font-family:" + FONT_UI,
     "text-shadow:0 1px 4px rgba(212,164,74,0.4)"
   ].join(";");
   infamyLabel.textContent = "Infamy: 0";
@@ -142,9 +147,10 @@ export function createShipSelectScreen() {
 
   legendLabel = document.createElement("div");
   legendLabel.style.cssText = [
-    "font-size:" + (_mobTitle ? "14px" : "16px"),
+    "font-size:" + (_mobTitle ? "13px" : "15px"),
     "color:" + T.goldBright,
     "font-weight:bold",
+    "font-family:" + FONT_UI,
     "text-shadow:0 1px 4px rgba(240,200,96,0.3)"
   ].join(";");
   legendLabel.textContent = "Legend Lv 0";
@@ -154,23 +160,41 @@ export function createShipSelectScreen() {
 
   var grid = document.createElement("div");
   var _mob = isMobile();
-  grid.style.cssText = [
-    "display: flex",
-    "gap: " + (_mob ? "10px" : "16px"),
-    _mob ? "flex-direction: column" : "flex-wrap: wrap",
-    "justify-content: center",
-    "align-items: center",
-    "max-width: 800px",
-    "width: 95%",
-    "padding: 0 8px"
-  ].join(";");
+
+  if (_mob) {
+    // Mobile landscape: horizontal scroll-snap
+    grid.style.cssText = [
+      "display: flex",
+      "flex-direction: row",
+      "gap: 12px",
+      "overflow-x: auto",
+      "scroll-snap-type: x mandatory",
+      "-webkit-overflow-scrolling: touch",
+      "width: 100%",
+      "padding: 8px 20px 16px 20px",
+      "box-sizing: border-box",
+      "align-items: stretch"
+    ].join(";");
+  } else {
+    // Desktop: three cards side-by-side, centered
+    grid.style.cssText = [
+      "display: flex",
+      "flex-direction: row",
+      "gap: 20px",
+      "justify-content: center",
+      "align-items: stretch",
+      "max-width: 920px",
+      "width: 95%",
+      "padding: 0 8px"
+    ].join(";");
+  }
 
   var order = getClassOrder();
   var classes = getAllClasses();
 
   for (var i = 0; i < order.length; i++) {
     var cls = classes[order[i]];
-    var card = buildCard(cls, null);
+    var card = buildCard(cls, null, i);
     card.setAttribute("data-class-key", cls.key);
     grid.appendChild(card);
   }
@@ -178,13 +202,15 @@ export function createShipSelectScreen() {
   overlay.appendChild(grid);
 
   var hint = document.createElement("div");
-  hint.textContent = isMobile() ? "Tap a vessel to start" : "Click a vessel to start";
+  hint.textContent = isMobile() ? "Swipe to browse \u2022 Tap to select" : "Click a vessel to begin";
   hint.style.cssText = [
-    "font-size: 14px",
-    "color: " + T.textDark,
-    "margin-top: 24px",
-    "font-family: " + FONT,
-    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
+    "font-size: 13px",
+    "color: " + T.textDim,
+    "margin-top: 20px",
+    "font-family: " + FONT_UI,
+    "letter-spacing: 0.05em",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)",
+    "animation: oo-fade 0.5s var(--oo-ease-std) 600ms both"
   ].join(";");
   overlay.appendChild(hint);
 
@@ -193,10 +219,10 @@ export function createShipSelectScreen() {
   resetBtn.textContent = "RESET UPGRADES";
   resetBtn.style.cssText = [
     "font-family: " + FONT,
-    "font-size: 14px",
+    "font-size: 13px",
     "padding: 10px 28px",
-    "margin-top: 16px",
-    "background: rgba(92, 74, 30, 0.7)",
+    "margin-top: 14px",
+    "background: none",
     "color: " + T.redBright,
     "border: 1px solid rgba(170, 51, 51, 0.5)",
     "border-radius: 4px",
@@ -204,6 +230,7 @@ export function createShipSelectScreen() {
     "pointer-events: auto",
     "display: none",
     "min-height: 44px",
+    "letter-spacing: 0.06em",
     "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   resetBtn.addEventListener("click", function () {
@@ -227,8 +254,8 @@ export function createShipSelectScreen() {
 
   var dialogBox = document.createElement("div");
   dialogBox.style.cssText = [
-    PARCHMENT_BG,
-    "border: 1px solid rgba(170, 51, 51, 0.5)",
+    "background: " + T.bg,
+    "border: 1px solid var(--oo-gold-dim)",
     "border-radius: 8px",
     "padding: 24px 32px",
     "text-align: center",
@@ -238,12 +265,12 @@ export function createShipSelectScreen() {
 
   var dialogText = document.createElement("div");
   dialogText.textContent = "Are you sure? This resets all upgrades.";
-  dialogText.style.cssText = "font-size:15px;color:" + T.text + ";margin-bottom:20px;text-shadow:0 1px 2px rgba(0,0,0,0.4)";
+  dialogText.style.cssText = "font-size:15px;color:" + T.text + ";margin-bottom:20px;font-family:" + FONT_UI + ";text-shadow:0 1px 2px rgba(0,0,0,0.4)";
   dialogBox.appendChild(dialogText);
 
   var dialogRefund = document.createElement("div");
   dialogRefund.id = "reset-refund-label";
-  dialogRefund.style.cssText = "font-size:13px;color:" + T.gold + ";margin-bottom:16px;text-shadow:0 1px 2px rgba(0,0,0,0.4)";
+  dialogRefund.style.cssText = "font-size:13px;color:" + T.gold + ";margin-bottom:16px;font-family:" + FONT_UI + ";text-shadow:0 1px 2px rgba(0,0,0,0.4)";
   dialogBox.appendChild(dialogRefund);
 
   var btnRow = document.createElement("div");
@@ -255,7 +282,7 @@ export function createShipSelectScreen() {
     "font-family: " + FONT,
     "font-size: 13px",
     "padding: 8px 20px",
-    "background: rgba(120, 30, 30, 0.8)",
+    "background: none",
     "color: " + T.redBright,
     "border: 1px solid rgba(200, 60, 60, 0.6)",
     "border-radius: 4px",
@@ -279,9 +306,9 @@ export function createShipSelectScreen() {
     "font-family: " + FONT,
     "font-size: 13px",
     "padding: 8px 20px",
-    "background: " + T.bgLight,
+    "background: none",
     "color: " + T.text,
-    "border: 1px solid " + T.border,
+    "border: 1px solid var(--oo-gold-dim)",
     "border-radius: 4px",
     "cursor: pointer",
     "pointer-events: auto",
@@ -325,49 +352,87 @@ function updateResetButton() {
   resetBtn.style.display = spent > 0 ? "inline-block" : "none";
 }
 
-function buildCard(cls, infamyState) {
+function buildCard(cls, infamyState, idx) {
   var _mob = isMobile();
   var locked = infamyState ? !isShipUnlocked(infamyState, cls.key) : false;
   var reqInfamy = getShipInfamyReq(cls.key);
   var card = document.createElement("div");
-  card.style.cssText = [
-    "position:relative",
-    _mob ? "width:100%;max-width:340px" : "width: 170px",
-    "padding: " + (_mob ? "14px 16px" : "16px"),
-    PARCHMENT_BG,
-    "border: 2px solid " + (locked ? T.textDark : T.border),
-    "border-radius: 8px",
-    locked ? "cursor: not-allowed" : "cursor: pointer",
-    "pointer-events: auto",
-    "transition: border-color 0.2s",
-    locked ? "opacity: 0.6" : "",
-    PARCHMENT_SHADOW
-  ].join(";");
+
+  if (_mob) {
+    card.style.cssText = [
+      "position:relative",
+      "flex-shrink: 0",
+      "width: 70vw",
+      "min-width: 220px",
+      "max-width: 320px",
+      "padding: 14px 16px",
+      "background: " + T.bg,
+      "border: 1px solid " + (locked ? T.textDark : "var(--oo-gold-dim)"),
+      "border-radius: 8px",
+      locked ? "cursor: not-allowed" : "cursor: pointer",
+      "pointer-events: auto",
+      "transition: border-color 0.2s, transform 0.2s",
+      locked ? "opacity: 0.6" : "",
+      PARCHMENT_SHADOW,
+      "scroll-snap-align: center",
+      "box-sizing: border-box"
+    ].join(";");
+  } else {
+    card.style.cssText = [
+      "position:relative",
+      "flex: 1",
+      "min-width: 220px",
+      "max-width: 280px",
+      "padding: 20px 18px",
+      "background: " + T.bg,
+      "border: 1px solid " + (locked ? T.textDark : "var(--oo-gold-dim)"),
+      "border-radius: 8px",
+      locked ? "cursor: not-allowed" : "cursor: pointer",
+      "pointer-events: auto",
+      "transition: border-color 0.2s, transform 0.25s, box-shadow 0.25s",
+      locked ? "opacity: 0.6" : "",
+      PARCHMENT_SHADOW,
+      "box-sizing: border-box"
+    ].join(";");
+  }
+
+  // Staggered rise animation
+  card.style.animation = "oo-rise 0.4s var(--oo-ease-spring) " + (idx * 150) + "ms both";
 
   // touch-friendly: highlight on active instead of hover
   card.addEventListener("touchstart", function () {
     card.style.borderColor = cls.color;
   }, { passive: true });
   card.addEventListener("touchend", function () {
-    card.style.borderColor = T.border;
+    card.style.borderColor = locked ? T.textDark : "var(--oo-gold-dim)";
   }, { passive: true });
   card.addEventListener("mouseenter", function () {
-    card.style.borderColor = cls.color;
+    if (locked) return;
+    card.style.borderColor = "var(--oo-gold)";
+    card.style.transform = "translateY(-8px)";
+    card.style.boxShadow = [
+      "0 0 40px rgba(8,12,18,0.8)",
+      "inset 0 1px 0 rgba(200,152,42,0.15)",
+      "0 8px 32px rgba(200,152,42,0.12)"
+    ].join(",");
   });
   card.addEventListener("mouseleave", function () {
-    card.style.borderColor = T.border;
+    card.style.borderColor = locked ? T.textDark : "var(--oo-gold-dim)";
+    card.style.transform = "";
+    card.style.boxShadow = "";
   });
 
   // 3D model preview canvas
   var previewCanvas = document.createElement("canvas");
-  var _previewH = _mob ? 100 : 90;
-  previewCanvas.width = _mob ? 300 : 150;
+  var _previewH = _mob ? 90 : 100;
+  previewCanvas.width = _mob ? 280 : 240;
   previewCanvas.height = _previewH;
   previewCanvas.style.cssText = [
     "width: 100%",
     "height: " + _previewH + "px",
-    "margin-bottom: 8px",
-    "border-radius: 4px"
+    "margin-bottom: 10px",
+    "border-radius: 4px",
+    "background: rgba(8,12,18,0.6)"
   ].join(";");
   card.appendChild(previewCanvas);
   createPreviewEntry(cls.key, previewCanvas);
@@ -375,21 +440,25 @@ function buildCard(cls, infamyState) {
   var name = document.createElement("div");
   name.textContent = cls.name;
   name.style.cssText = [
-    "font-size: " + (_mob ? "20px" : "18px"),
+    "font-size: " + (_mob ? "18px" : "17px"),
     "font-weight: bold",
-    "color: " + cls.color,
-    "margin-bottom: 6px",
-    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
+    "color: " + T.gold,
+    "font-family: " + FONT,
+    "letter-spacing: 0.06em",
+    "margin-bottom: 4px",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 0 12px rgba(200,152,42,0.2)"
   ].join(";");
   card.appendChild(name);
 
   var desc = document.createElement("div");
   desc.textContent = cls.description;
   desc.style.cssText = [
-    "font-size: " + (_mob ? "13px" : "11px"),
+    "font-size: " + (_mob ? "12px" : "11px"),
     "color: " + T.textDim,
+    "font-family: " + FONT_UI,
     "margin-bottom: 10px",
     "min-height: 28px",
+    "line-height: 1.5",
     "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
   ].join(";");
   card.appendChild(desc);
@@ -407,16 +476,26 @@ function buildCard(cls, infamyState) {
     row.style.cssText = [
       "display: flex",
       "justify-content: space-between",
-      "font-size: " + (_mob ? "13px" : "11px"),
-      "color: " + T.text,
-      "margin-bottom: 2px",
-      "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
+      "align-items: baseline",
+      "font-size: " + (_mob ? "12px" : "11px"),
+      "margin-bottom: 3px"
     ].join(";");
     var lbl = document.createElement("span");
     lbl.textContent = stats[s].label;
-    lbl.style.color = T.textDim;
+    lbl.style.cssText = [
+      "color: " + T.textDim,
+      "font-family: " + FONT_UI,
+      "font-size: 10px",
+      "text-transform: uppercase",
+      "letter-spacing: 0.08em"
+    ].join(";");
     var val = document.createElement("span");
     val.textContent = stats[s].value;
+    val.style.cssText = [
+      "color: " + T.text,
+      "font-family: " + FONT_MONO,
+      "font-size: " + (_mob ? "12px" : "11px")
+    ].join(";");
     row.appendChild(lbl);
     row.appendChild(val);
     card.appendChild(row);
@@ -425,24 +504,34 @@ function buildCard(cls, infamyState) {
   // ability
   var abilityRow = document.createElement("div");
   abilityRow.style.cssText = [
-    "margin-top: 8px",
-    "padding-top: 6px",
-    "border-top: 1px solid " + T.border,
+    "margin-top: 10px",
+    "padding-top: 8px",
+    "border-top: 1px solid var(--oo-gold-dim)",
     "font-size: 11px"
   ].join(";");
 
   var abilityName = document.createElement("div");
   abilityName.textContent = "[Q] " + cls.ability.name;
-  abilityName.style.color = cls.color;
-  abilityName.style.fontWeight = "bold";
-  abilityName.style.marginBottom = "2px";
-  abilityName.style.textShadow = "0 1px 2px rgba(0,0,0,0.4)";
+  abilityName.style.cssText = [
+    "color: " + cls.color,
+    "font-family: " + FONT_UI,
+    "font-size: 11px",
+    "font-weight: 600",
+    "letter-spacing: 0.04em",
+    "margin-bottom: 2px",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
+  ].join(";");
   abilityRow.appendChild(abilityName);
 
   var abilityDesc = document.createElement("div");
   abilityDesc.textContent = cls.ability.description;
-  abilityDesc.style.color = T.textDim;
-  abilityDesc.style.textShadow = "0 1px 2px rgba(0,0,0,0.4)";
+  abilityDesc.style.cssText = [
+    "color: " + T.textDim,
+    "font-family: " + FONT_UI,
+    "font-size: 10px",
+    "line-height: 1.5",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.4)"
+  ].join(";");
   abilityRow.appendChild(abilityDesc);
 
   card.appendChild(abilityRow);
@@ -459,7 +548,7 @@ function buildCard(cls, infamyState) {
       "flex-direction:column",
       "align-items:center",
       "justify-content:center",
-      "background:rgba(20,14,8,0.7)",
+      "background:rgba(8,12,18,0.75)",
       "border-radius:8px",
       "z-index:1"
     ].join(";");
@@ -469,7 +558,13 @@ function buildCard(cls, infamyState) {
     lockOverlay.appendChild(lockIcon);
     var lockText = document.createElement("div");
     lockText.textContent = reqInfamy + " Infamy";
-    lockText.style.cssText = "font-size:" + (_mob ? "14px" : "12px") + ";color:" + T.gold + ";font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.5)";
+    lockText.style.cssText = [
+      "font-size:" + (_mob ? "13px" : "12px"),
+      "color:" + T.gold,
+      "font-family:" + FONT_UI,
+      "font-weight:bold",
+      "text-shadow:0 1px 2px rgba(0,0,0,0.5)"
+    ].join(";");
     lockOverlay.appendChild(lockText);
     card.appendChild(lockOverlay);
   }
@@ -519,7 +614,7 @@ function updateCardLocks() {
     // update opacity and cursor
     cards[i].style.opacity = locked ? "0.6" : "";
     cards[i].style.cursor = locked ? "not-allowed" : "pointer";
-    cards[i].style.borderColor = locked ? T.textDark : T.border;
+    cards[i].style.borderColor = locked ? T.textDark : "var(--oo-gold-dim)";
     if (locked && reqInfamy > 0 && !existingLock) {
       var _mob = isMobile();
       var lockOverlay = document.createElement("div");
@@ -532,7 +627,7 @@ function updateCardLocks() {
         "flex-direction:column",
         "align-items:center",
         "justify-content:center",
-        "background:rgba(20,14,8,0.7)",
+        "background:rgba(8,12,18,0.75)",
         "border-radius:8px",
         "z-index:1"
       ].join(";");
@@ -542,7 +637,13 @@ function updateCardLocks() {
       lockOverlay.appendChild(lockIcon);
       var lockText = document.createElement("div");
       lockText.textContent = reqInfamy + " Infamy";
-      lockText.style.cssText = "font-size:12px;color:" + T.gold + ";font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.5)";
+      lockText.style.cssText = [
+        "font-size:12px",
+        "color:" + T.gold,
+        "font-family:" + FONT_UI,
+        "font-weight:bold",
+        "text-shadow:0 1px 2px rgba(0,0,0,0.5)"
+      ].join(";");
       lockOverlay.appendChild(lockText);
       cards[i].appendChild(lockOverlay);
     } else if (!locked && existingLock) {
