@@ -1,7 +1,7 @@
 // lobbyScreen.js — multiplayer lobby UI: main menu button, create/join room, player list, ready state
 import { getClassOrder, getAllClasses } from "./shipClass.js";
 import { isMobile } from "./mobile.js";
-import { T, FONT, PARCHMENT_BG } from "./theme.js";
+import { T, FONT, FONT_UI, FONT_MONO, PARCHMENT_BG } from "./theme.js";
 
 var overlay = null;
 var mainMenuBtn = null;
@@ -33,6 +33,16 @@ var BTN = [
   "border-radius:6px", "cursor:pointer", "pointer-events:auto",
   "user-select:none", "text-align:center", "min-height:44px",
   "text-shadow:0 1px 2px rgba(0,0,0,0.4)"
+].join(";");
+
+// Ghost button base — transparent bg, gold-dim border
+var GHOST_BTN = [
+  "font-family:" + FONT, "font-size:14px", "padding:10px 24px",
+  "border-radius:4px", "cursor:pointer", "pointer-events:auto",
+  "user-select:none", "text-align:center", "min-height:44px",
+  "background:none", "border:1px solid var(--oo-gold-dim)",
+  "text-shadow:0 1px 2px rgba(0,0,0,0.4)",
+  "transition:border-color 0.15s,color 0.15s"
 ].join(";");
 
 // --- create the main menu multiplayer button (injected into ship select screen) ---
@@ -67,7 +77,7 @@ export function createLobbyScreen() {
   overlay.style.cssText = [
     "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
     "display:none", "flex-direction:column", "align-items:center",
-    "justify-content:center", "background:" + T.bgOverlay,
+    "justify-content:center", "background:var(--oo-bg-scrim)",
     "z-index:250", "font-family:" + FONT, "user-select:none"
   ].join(";");
 
@@ -75,18 +85,33 @@ export function createLobbyScreen() {
   joinPanel = document.createElement("div");
   joinPanel.style.cssText = [
     "display:flex", "flex-direction:column", "align-items:center",
-    "gap:16px"
+    "gap:16px",
+    "padding:32px",
+    "background:" + T.bg,
+    "border:1px solid var(--oo-gold-dim)",
+    "border-radius:8px",
+    "box-shadow:0 0 40px rgba(8,12,18,0.8),inset 0 1px 0 rgba(200,152,42,0.15)",
+    "width:90%", "max-width:480px",
+    "animation:oo-rise 0.5s var(--oo-ease-spring) both"
   ].join(";");
 
   var title = document.createElement("div");
   title.textContent = "MULTIPLAYER";
-  title.style.cssText = "font-family:" + FONT + ";font-size:28px;font-weight:bold;color:" + T.gold + ";margin-bottom:16px;text-shadow:0 0 12px rgba(212,164,74,0.4),0 2px 4px rgba(0,0,0,0.5);";
+  title.style.cssText = [
+    "font-family:" + FONT, "font-size:28px", "font-weight:bold",
+    "color:" + T.gold, "margin-bottom:8px",
+    "letter-spacing:0.15em",
+    "text-shadow:0 0 12px rgba(212,164,74,0.4),0 2px 4px rgba(0,0,0,0.5)"
+  ].join(";");
   joinPanel.appendChild(title);
 
   // Username input
   var nameLabel = document.createElement("div");
   nameLabel.textContent = "YOUR NAME";
-  nameLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";";
+  nameLabel.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:12px", "color:" + T.textDim,
+    "letter-spacing:0.08em"
+  ].join(";");
   joinPanel.appendChild(nameLabel);
 
   usernameInput = document.createElement("input");
@@ -94,17 +119,18 @@ export function createLobbyScreen() {
   usernameInput.placeholder = "Enter name...";
   usernameInput.maxLength = 20;
   usernameInput.style.cssText = [
-    "font-family:" + FONT, "font-size:16px", "padding:8px 12px",
-    "background:rgba(35, 26, 16, 0.9)", "color:" + T.goldBright,
-    "border:1px solid " + T.border, "border-radius:4px",
+    "font-family:" + FONT_UI, "font-size:14px", "padding:8px 12px",
+    "background:rgba(15, 21, 32, 0.9)", "color:" + T.goldBright,
+    "border:1px solid var(--oo-gold-dim)", "border-radius:4px",
     "width:200px", "text-align:center",
-    "pointer-events:auto", "outline:none", "margin-bottom:8px"
+    "pointer-events:auto", "outline:none", "margin-bottom:8px",
+    "transition:border-color 0.15s"
   ].join(";");
   usernameInput.addEventListener("focus", function () {
     usernameInput.style.borderColor = T.borderGold;
   });
   usernameInput.addEventListener("blur", function () {
-    usernameInput.style.borderColor = T.border;
+    usernameInput.style.borderColor = "var(--oo-gold-dim)";
     if (onUsernameChange && usernameInput.value.trim()) {
       onUsernameChange(usernameInput.value.trim());
     }
@@ -114,8 +140,9 @@ export function createLobbyScreen() {
   var createBtn = document.createElement("button");
   createBtn.textContent = "CREATE ROOM";
   createBtn.style.cssText = [
-    BTN, "background:rgba(35, 50, 30, 0.8)", "color:" + T.greenBright,
-    "border:1px solid " + T.greenBright, "min-width:220px"
+    GHOST_BTN, "color:" + T.greenBright,
+    "border-color:" + T.greenBright,
+    "min-width:220px"
   ].join(";");
   createBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -132,25 +159,27 @@ export function createLobbyScreen() {
   joinInput.placeholder = "OCEAN-XXXX";
   joinInput.maxLength = 10;
   joinInput.style.cssText = [
-    "font-family:" + FONT, "font-size:16px", "padding:8px 12px",
-    "background:rgba(35, 26, 16, 0.9)", "color:" + T.gold,
-    "border:1px solid " + T.border, "border-radius:4px",
+    "font-family:" + FONT_MONO, "font-size:14px", "padding:8px 12px",
+    "background:rgba(15, 21, 32, 0.9)", "color:" + T.gold,
+    "border:1px solid var(--oo-gold-dim)", "border-radius:4px",
     "width:160px", "text-align:center", "text-transform:uppercase",
-    "pointer-events:auto", "outline:none"
+    "pointer-events:auto", "outline:none",
+    "letter-spacing:0.08em",
+    "transition:border-color 0.15s"
   ].join(";");
   joinInput.addEventListener("focus", function () {
     joinInput.style.borderColor = T.borderGold;
   });
   joinInput.addEventListener("blur", function () {
-    joinInput.style.borderColor = T.border;
+    joinInput.style.borderColor = "var(--oo-gold-dim)";
   });
   joinRow.appendChild(joinInput);
 
   joinBtn = document.createElement("button");
   joinBtn.textContent = "JOIN";
   joinBtn.style.cssText = [
-    BTN, "background:rgba(50, 40, 22, 0.8)", "color:" + T.gold,
-    "border:1px solid " + T.gold, "padding:8px 20px"
+    GHOST_BTN, "color:" + T.gold,
+    "padding:8px 20px"
   ].join(";");
   joinBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -164,9 +193,9 @@ export function createLobbyScreen() {
   joinBackBtn = document.createElement("button");
   joinBackBtn.textContent = "BACK";
   joinBackBtn.style.cssText = [
-    BTN, "background:rgba(50, 35, 25, 0.7)", "color:" + T.textDim,
-    "border:1px solid " + T.border, "margin-top:8px", "font-size:12px",
-    "padding:6px 20px"
+    GHOST_BTN, "color:" + T.textDim,
+    "margin-top:8px", "font-size:12px",
+    "padding:6px 20px", "min-height:36px"
   ].join(";");
   joinBackBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -176,47 +205,67 @@ export function createLobbyScreen() {
 
   overlay.appendChild(joinPanel);
 
-  // === Lobby (shown after creating/joining room) ===
+  // === Lobby (shown after creating/joining room) — "The Crew Manifest" ===
   lobbyPanel = document.createElement("div");
   lobbyPanel.style.cssText = [
     "display:none", "flex-direction:column", "align-items:center",
-    "gap:12px", "padding:32px", "background:" + T.bgLight,
-    "border:1px solid " + T.border, "border-radius:12px",
-    "min-width:280px", "max-width:500px"
+    "gap:12px", "padding:28px 24px",
+    "background:" + T.bg,
+    "border:1px solid var(--oo-gold-dim)",
+    "border-radius:8px",
+    "box-shadow:0 0 40px rgba(8,12,18,0.8),inset 0 1px 0 rgba(200,152,42,0.15)",
+    "width:90%", "max-width:480px",
+    "animation:oo-rise 0.5s var(--oo-ease-spring) both"
   ].join(";");
 
+  // "THE CREW MANIFEST" heading
   var lobbyTitle = document.createElement("div");
-  lobbyTitle.textContent = "LOBBY";
-  lobbyTitle.style.cssText = "font-family:" + FONT + ";font-size:22px;font-weight:bold;color:" + T.gold + ";text-shadow:0 0 10px rgba(212,164,74,0.3),0 2px 4px rgba(0,0,0,0.5);";
+  lobbyTitle.textContent = "THE CREW MANIFEST";
+  lobbyTitle.style.cssText = [
+    "font-family:" + FONT, "font-size:18px", "font-weight:bold",
+    "color:" + T.textDim, "letter-spacing:0.2em",
+    "text-transform:uppercase"
+  ].join(";");
   lobbyPanel.appendChild(lobbyTitle);
 
+  // Room code — prominent, Cinzel, gold
   roomCodeDisplay = document.createElement("div");
   roomCodeDisplay.style.cssText = [
-    "font-family:" + FONT, "font-size:28px", "font-weight:bold", "color:" + T.goldBright,
-    "letter-spacing:4px", "padding:8px 16px",
-    "background:rgba(50, 40, 22, 0.6)", "border:1px solid " + T.borderGold,
+    "font-family:" + FONT, "font-size:28px", "font-weight:bold",
+    "color:" + T.gold,
+    "letter-spacing:0.15em",
+    "padding:8px 20px",
+    "background:rgba(15, 21, 32, 0.8)",
+    "border:1px solid var(--oo-gold-dim)",
     "border-radius:6px", "cursor:pointer",
-    "text-shadow:0 0 8px rgba(212,164,74,0.3)"
+    "text-shadow:0 0 8px rgba(200,152,42,0.25)",
+    "transition:color 0.2s"
   ].join(";");
   roomCodeDisplay.title = "Click to copy";
   roomCodeDisplay.addEventListener("click", function () {
     if (roomCodeDisplay.textContent && navigator.clipboard) {
       navigator.clipboard.writeText(roomCodeDisplay.textContent);
       roomCodeDisplay.style.color = T.greenBright;
-      setTimeout(function () { roomCodeDisplay.style.color = T.goldBright; }, 1000);
+      setTimeout(function () { roomCodeDisplay.style.color = T.gold; }, 1000);
     }
   });
   lobbyPanel.appendChild(roomCodeDisplay);
 
   statusLabel = document.createElement("div");
-  statusLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";";
+  statusLabel.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:12px", "color:" + T.textDim,
+    "letter-spacing:0.04em"
+  ].join(";");
   statusLabel.textContent = "Share this code with friends";
   lobbyPanel.appendChild(statusLabel);
 
-  // Ship class selector
+  // Ship class selector — compact ghost strip
   var classLabel = document.createElement("div");
   classLabel.textContent = "SHIP CLASS";
-  classLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";margin-top:8px;";
+  classLabel.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:11px", "color:" + T.textDim,
+    "letter-spacing:0.1em", "margin-top:8px"
+  ].join(";");
   lobbyPanel.appendChild(classLabel);
 
   classSelector = document.createElement("div");
@@ -230,10 +279,11 @@ export function createLobbyScreen() {
       btn.textContent = cls.name;
       btn.dataset.classKey = key;
       btn.style.cssText = [
-        "font-family:" + FONT, "font-size:12px", "padding:6px 12px",
-        "background:rgba(35, 26, 16, 0.8)", "color:" + cls.color,
-        "border:1px solid transparent", "border-radius:4px",
-        "cursor:pointer", "pointer-events:auto"
+        "font-family:" + FONT_UI, "font-size:12px", "padding:5px 10px",
+        "background:none", "color:" + T.textDim,
+        "border:1px solid var(--oo-gold-dim)", "border-radius:4px",
+        "cursor:pointer", "pointer-events:auto",
+        "transition:border-color 0.15s,color 0.15s"
       ].join(";");
       btn.addEventListener("click", function (e) {
         e.stopPropagation();
@@ -245,28 +295,41 @@ export function createLobbyScreen() {
   }
   lobbyPanel.appendChild(classSelector);
 
-  // Player list
+  // Section divider
+  var divider = document.createElement("div");
+  divider.style.cssText = [
+    "width:100%", "height:1px",
+    "background:var(--oo-gold-dim)",
+    "opacity:0.4", "margin:8px 0 4px"
+  ].join(";");
+  lobbyPanel.appendChild(divider);
+
+  // Player list label
   var listLabel = document.createElement("div");
-  listLabel.textContent = "PLAYERS";
-  listLabel.style.cssText = "font-family:" + FONT + ";font-size:12px;color:" + T.textDim + ";margin-top:12px;";
+  listLabel.textContent = "CREW";
+  listLabel.style.cssText = [
+    "font-family:" + FONT_UI, "font-size:11px", "color:" + T.textDim,
+    "letter-spacing:0.1em", "align-self:flex-start"
+  ].join(";");
   lobbyPanel.appendChild(listLabel);
 
   playerListEl = document.createElement("div");
   playerListEl.style.cssText = [
     "width:100%", "min-height:60px", "max-height:200px",
-    "overflow-y:auto", "display:flex", "flex-direction:column", "gap:6px"
+    "overflow-y:auto", "display:flex", "flex-direction:column", "gap:4px"
   ].join(";");
   lobbyPanel.appendChild(playerListEl);
 
-  // Buttons row
+  // Action buttons row
   var btnRow = document.createElement("div");
-  btnRow.style.cssText = "display:flex;gap:12px;margin-top:12px;";
+  btnRow.style.cssText = "display:flex;gap:12px;margin-top:8px;width:100%;justify-content:center;";
 
   readyBtn = document.createElement("button");
   readyBtn.textContent = "READY";
   readyBtn.style.cssText = [
-    BTN, "background:rgba(35, 50, 30, 0.8)", "color:" + T.greenBright,
-    "border:1px solid " + T.greenBright
+    GHOST_BTN, "color:" + T.greenBright,
+    "border-color:" + T.greenBright,
+    "flex:1"
   ].join(";");
   readyBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -277,8 +340,8 @@ export function createLobbyScreen() {
   startBtn = document.createElement("button");
   startBtn.textContent = "START GAME";
   startBtn.style.cssText = [
-    BTN, "background:rgba(50, 40, 22, 0.8)", "color:" + T.gold,
-    "border:1px solid " + T.gold, "display:none"
+    GHOST_BTN, "color:" + T.gold,
+    "display:none", "flex:1"
   ].join(";");
   startBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -288,11 +351,14 @@ export function createLobbyScreen() {
 
   lobbyPanel.appendChild(btnRow);
 
+  // Leave room button — below, smaller
   backBtn = document.createElement("button");
   backBtn.textContent = "LEAVE ROOM";
   backBtn.style.cssText = [
-    BTN, "background:rgba(50, 28, 22, 0.7)", "color:" + T.redBright,
-    "border:1px solid " + T.redBright, "font-size:11px", "padding:6px 16px"
+    GHOST_BTN, "color:" + T.redBright,
+    "border-color:" + T.redBright,
+    "font-size:11px", "padding:6px 16px", "min-height:36px",
+    "margin-top:4px"
   ].join(";");
   backBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -305,17 +371,17 @@ export function createLobbyScreen() {
   document.body.appendChild(overlay);
 }
 
-// --- highlight selected class button ---
+// --- highlight selected class button (active = gold border + gold text) ---
 function selectClassButton(key) {
   if (!classSelector) return;
   var btns = classSelector.querySelectorAll("button");
   for (var i = 0; i < btns.length; i++) {
     if (btns[i].dataset.classKey === key) {
-      btns[i].style.borderColor = btns[i].style.color;
-      btns[i].style.background = "rgba(60, 45, 28, 0.9)";
+      btns[i].style.borderColor = T.gold;
+      btns[i].style.color = T.gold;
     } else {
-      btns[i].style.borderColor = "transparent";
-      btns[i].style.background = "rgba(35, 26, 16, 0.8)";
+      btns[i].style.borderColor = "var(--oo-gold-dim)";
+      btns[i].style.color = T.textDim;
     }
   }
 }
@@ -364,42 +430,83 @@ export function updatePlayerList(players, localPlayerId) {
   for (var i = 0; i < pids.length; i++) {
     var pid = pids[i];
     var p = players[pid];
+
     var row = document.createElement("div");
     row.style.cssText = [
-      "display:flex", "justify-content:space-between", "align-items:center",
-      "padding:6px 10px", "background:rgba(35, 26, 16, 0.6)",
-      "border:1px solid " + T.border, "border-radius:4px",
-      "font-family:" + FONT
+      "display:flex", "align-items:center", "gap:10px",
+      "min-height:40px", "padding:4px 8px",
+      "background:rgba(15, 21, 32, 0.6)",
+      "border:1px solid var(--oo-gold-dim)",
+      "border-radius:4px"
     ].join(";");
 
-    var nameSpan = document.createElement("span");
-    nameSpan.textContent = (pid === localPlayerId ? "> " : "") + p.username;
-    nameSpan.style.cssText = "font-size:13px;color:" + (pid === localPlayerId ? T.blueBright : T.text) + ";";
-    row.appendChild(nameSpan);
+    // Avatar circle
+    var avatar = document.createElement("div");
+    avatar.style.cssText = [
+      "width:36px", "height:36px", "border-radius:50%",
+      "background:" + T.bgLight,
+      "border:1px solid var(--oo-gold-dim)",
+      "flex-shrink:0", "display:flex",
+      "align-items:center", "justify-content:center",
+      "font-family:" + FONT_UI, "font-size:14px",
+      "color:" + T.textDim, "text-transform:uppercase"
+    ].join(";");
+    avatar.textContent = (p.username || "?").charAt(0);
+    row.appendChild(avatar);
 
-    var infoSpan = document.createElement("span");
-    var classes = getAllClasses();
-    var classCfg = classes[p.shipClass];
-    var classColor = classCfg ? classCfg.color : T.text;
-    var classLabel = classCfg ? classCfg.name : p.shipClass;
-    infoSpan.style.cssText = "font-size:11px;display:flex;gap:8px;align-items:center;";
+    // Name + class column
+    var infoCol = document.createElement("div");
+    infoCol.style.cssText = "display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;";
 
-    var classEl = document.createElement("span");
-    classEl.textContent = classLabel;
-    classEl.style.color = classColor;
-    infoSpan.appendChild(classEl);
+    var nameSpan = document.createElement("div");
+    nameSpan.textContent = p.username + (pid === localPlayerId ? " (you)" : "");
+    nameSpan.style.cssText = [
+      "font-family:" + FONT_UI, "font-size:14px",
+      "color:" + (pid === localPlayerId ? T.blueBright : T.text),
+      "white-space:nowrap", "overflow:hidden", "text-overflow:ellipsis"
+    ].join(";");
+    infoCol.appendChild(nameSpan);
 
-    var readyEl = document.createElement("span");
+    var allClasses = getAllClasses();
+    var classCfg = allClasses[p.shipClass];
+    var classNameText = classCfg ? classCfg.name : p.shipClass;
+
+    var classSpan = document.createElement("div");
+    classSpan.textContent = classNameText;
+    classSpan.style.cssText = [
+      "font-family:" + FONT_UI, "font-size:12px",
+      "color:" + T.textDim
+    ].join(";");
+    infoCol.appendChild(classSpan);
+
+    row.appendChild(infoCol);
+
+    // Ready / Host badge — small pill
+    var badgeEl = document.createElement("div");
     if (p.isHost) {
-      readyEl.textContent = "HOST";
-      readyEl.style.color = T.gold;
+      badgeEl.textContent = "HOST";
+      badgeEl.style.cssText = [
+        "font-family:" + FONT_UI, "font-size:11px",
+        "padding:2px 8px", "border-radius:20px",
+        "background:rgba(200,152,42,0.15)",
+        "border:1px solid " + T.gold,
+        "color:" + T.gold,
+        "white-space:nowrap"
+      ].join(";");
     } else {
-      readyEl.textContent = p.ready ? "READY" : "NOT READY";
-      readyEl.style.color = p.ready ? T.greenBright : T.redBright;
+      var isReady = p.ready;
+      badgeEl.textContent = isReady ? "READY" : "NOT READY";
+      badgeEl.style.cssText = [
+        "font-family:" + FONT_UI, "font-size:11px",
+        "padding:2px 8px", "border-radius:20px",
+        "background:" + (isReady ? "rgba(77,175,122,0.15)" : "rgba(60,40,40,0.3)"),
+        "border:1px solid " + (isReady ? T.greenBright : T.border),
+        "color:" + (isReady ? T.greenBright : T.textDim),
+        "white-space:nowrap"
+      ].join(";");
     }
-    infoSpan.appendChild(readyEl);
+    row.appendChild(badgeEl);
 
-    row.appendChild(infoSpan);
     playerListEl.appendChild(row);
   }
 }
