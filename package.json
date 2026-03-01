@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "rm -rf dist && vite build && cp -r game/assets game/data dist/",
+    "build": "rm -rf dist && vite build && cp -r game/assets game/data game/libs dist/",
     "preview": "vite preview",
     "smoke": "node scripts/smoke-real-game.mjs",
     "test": "npx playwright test"
