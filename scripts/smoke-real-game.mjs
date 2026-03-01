@@ -12,7 +12,7 @@ const CODEX_HOME = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 const WEB_GAME_CLIENT = process.env.WEB_GAME_CLIENT || path.join(CODEX_HOME, "skills", "develop-web-game", "scripts", "web_game_playwright_client.js");
 const WEB_GAME_ACTIONS = process.env.WEB_GAME_ACTIONS || path.join(CODEX_HOME, "skills", "develop-web-game", "references", "action_payloads.json");
 const PORT = Number(process.env.SMOKE_PORT || 4173);
-const SMOKE_ROUTE = process.env.SMOKE_ROUTE || "/game/";
+const SMOKE_ROUTE = process.env.SMOKE_ROUTE || "/";
 
 function normalizeRoutePrefix(route) {
   if (!route || route === "/") return "/";

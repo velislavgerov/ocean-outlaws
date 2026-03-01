@@ -23,15 +23,15 @@ function devGamePrefixRewritePlugin() {
 
 export default defineConfig(({ command }) => ({
   root: './game',
-  // Keep local dev at "/" while production builds target the GH Pages game route.
-  base: command === 'build' ? '/game/' : '/',
+  // Serve at root in production with relative asset URLs for GH Pages project paths.
+  base: command === 'build' ? './' : '/',
   plugins: [devGamePrefixRewritePlugin()],
   optimizeDeps: {
     // Keep bootstrap focused on the new entrypoint while legacy files coexist.
     entries: ['index.html'],
   },
   build: {
-    outDir: '../dist/game',
+    outDir: '../dist',
     emptyOutDir: true,
   },
   server: {

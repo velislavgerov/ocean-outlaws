@@ -143,3 +143,66 @@ Next TODO suggestions:
 Next TODO suggestions:
 - Add the licensed Water Pro module file into one of the documented paths and run manual browser validation on `/?renderer=webgpu&water=pro`.
 - If Water Pro exposes a deterministic height sampler, wire it fully into gameplay/weather scaling to replace legacy wave math for buoyancy and AI float sampling.
+
+## Update 9: GH Pages `/game/` route fix for Vite output
+- Updated `vite.config.js`:
+  - `base` is now command-aware:
+    - dev/serve: `/` (keeps local dev + smoke routes stable)
+    - build: `/game/` (matches deployed route)
+  - `build.outDir` changed from `../dist` to `../dist/game` so GH Pages serves the game at `/game/`.
+- Updated `package.json` build script:
+  - now cleans `dist` before building (`rm -rf dist`) to avoid stale root artifacts being deployed.
+  - copies runtime static folders to the new output location (`dist/game/assets`, `dist/game/data`).
+
+Validation:
+- `npm run build` passes.
+- Built entry is now at `dist/game/index.html`.
+- Built HTML references bundle assets with `/game/...` URLs (for example `/game/assets/index-*.js`), matching deployed route expectations.
+- `npm run smoke` still passes for local dev routes:
+  - `/` => real game menu route (`mode=menu`)
+  - `/?bootstrap=1` => bootstrap route (`mode=running`, `renderer=webgpu`)
+- Visual smoke artifacts reviewed:
+  - default route screenshot shows Ocean Outlaws menu;
+  - bootstrap route screenshot shows loading/bootstrap screen with advancing state.
+
+## Update 10: Dev `/game/` route parity fix
+- Addressed local dev issue where opening `http://127.0.0.1:1234/game/` caused runtime asset paths (for example `assets/models/...`) to miss and return fallback/404 behavior.
+- Added a dev-only Vite middleware plugin in `vite.config.js`:
+  - rewrites `/game` and `/game/*` requests to `/*` during `vite serve`.
+  - this makes `/game/assets/...` resolve to the real static files under `game/assets` in dev, matching production route expectations.
+- Added explicit favicon link in `game/index.html` (`./icons/icon-192.png`) to avoid default favicon lookup noise.
+- Updated `scripts/smoke-real-game.mjs` route coverage:
+  - default smoke route is now `/game/` (configurable via `SMOKE_ROUTE` env var),
+  - bootstrap check runs against `/game/?bootstrap=1`,
+  - prevents regression by testing the same route developers use locally.
+
+Validation:
+- Direct HTTP checks on dev server:
+  - `/game/` => HTML entry served.
+  - `/game/assets/models/ships-palmov/small/pirate-ship-small.glb` => `200` with `model/gltf-binary`.
+  - `/game/icons/icon-192.png` => `200` with `image/png`.
+- `npm run smoke` passes with new route targets:
+  - `/game/` => `mode=menu`, renderer backend present.
+  - `/game/?bootstrap=1` => WebGPU bootstrap state active.
+- `npm run build` still passes and keeps production output at `dist/game` with `/game/...` asset URLs.
+
+## Update 11: Revert deploy root to `/` (fix Pages 404 regression)
+- User-reported regression: deployed site root (`https://gerov.dev/ocean-outlaws/`) returned 404 after moving build output to `dist/game`.
+- Restored root deploy artifact layout:
+  - `vite.config.js` build output reverted to `dist` (from `dist/game`).
+  - `package.json` build copy target reverted to `dist/`.
+- Restored production base URLs to relative paths:
+  - `vite.config.js` build `base` changed from `/game/` to `./`.
+  - generated `dist/index.html` now references `./assets/...` (works under project path roots like `/ocean-outlaws/`).
+- Kept dev `/game/` compatibility middleware so local `http://127.0.0.1:1234/game/` still works.
+- Smoke default route restored to `/` in `scripts/smoke-real-game.mjs`.
+
+Validation:
+- `npm run build` passes.
+- `npm run smoke` passes:
+  - `/` => real game menu route
+  - `/?bootstrap=1` => bootstrap route
+- Dev server checks:
+  - `/` => 200
+  - `/game/` => 200
+  - `/game/assets/models/ships-palmov/small/pirate-ship-small.glb` => 200 (`model/gltf-binary`)
