@@ -1,0 +1,207 @@
+/* ui.css — Ocean Outlaws design system tokens and shared animation keyframes */
+
+/* ── Design Tokens ────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --oo-bg-void:      #080c12;
+  --oo-bg-surface:   #0f1520;
+  --oo-bg-raised:    #1a2235;
+  --oo-bg-scrim:     rgba(8, 12, 18, 0.85);
+
+  /* Text */
+  --oo-text-primary:   #d4c9a8;
+  --oo-text-secondary: #7a8a9a;
+  --oo-text-muted:     #3d4f63;
+
+  /* Accent */
+  --oo-gold:        #c8982a;
+  --oo-gold-bright: #f0c84a;
+  --oo-gold-dim:    #6b4e14;
+
+  /* Status */
+  --oo-hull:    #4caf7a;
+  --oo-danger:  #c0392b;
+  --oo-warning: #c8782a;
+  --oo-special: #5b8dd9;
+
+  /* Typography */
+  --oo-font-display: 'Cinzel', 'Palatino Linotype', Georgia, serif;
+  --oo-font-ui:      Inter, 'Segoe UI', system-ui, sans-serif;
+  --oo-font-mono:    'Courier New', Courier, monospace;
+
+  /* Spacing */
+  --oo-space-1:  4px;
+  --oo-space-2:  8px;
+  --oo-space-3: 12px;
+  --oo-space-4: 16px;
+  --oo-space-6: 24px;
+  --oo-space-8: 32px;
+
+  /* Radius */
+  --oo-radius-sm: 2px;
+  --oo-radius-md: 4px;
+  --oo-radius-lg: 8px;
+
+  /* Easing */
+  --oo-ease-std:      cubic-bezier(0.4, 0, 0.2, 1);
+  --oo-ease-spring:   cubic-bezier(0.16, 1, 0.3, 1);
+  --oo-ease-dramatic: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Durations */
+  --oo-dur-fast:     150ms;
+  --oo-dur-std:      300ms;
+  --oo-dur-slow:     600ms;
+  --oo-dur-dramatic: 1200ms;
+}
+
+/* ── Keyframe Animations ──────────────────────────────────────── */
+@keyframes oo-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes oo-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes oo-fall {
+  from { opacity: 0; transform: translateY(-24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes oo-glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+@keyframes oo-count-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes oo-draw-line {
+  from { transform: scaleX(0); transform-origin: left; }
+  to   { transform: scaleX(1); transform-origin: left; }
+}
+
+@keyframes oo-underline-in {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* ── Utility Classes ──────────────────────────────────────────── */
+
+/* Dark glass panel */
+.oo-panel {
+  background: var(--oo-bg-surface);
+  border: 1px solid var(--oo-gold-dim);
+  box-shadow:
+    0 0 40px rgba(8, 12, 18, 0.8),
+    inset 0 1px 0 rgba(200, 152, 42, 0.15);
+}
+
+/* Ghost button — text only with animated underline */
+.oo-btn {
+  position: relative;
+  display: inline-block;
+  background: none;
+  border: none;
+  color: var(--oo-text-primary);
+  font-family: var(--oo-font-display);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  padding: 8px 0;
+  text-transform: uppercase;
+  user-select: none;
+  transition: color var(--oo-dur-std) var(--oo-ease-std);
+}
+
+.oo-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 100%; height: 1px;
+  background: var(--oo-gold);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--oo-dur-std) var(--oo-ease-std);
+}
+
+.oo-btn:hover { color: var(--oo-gold-bright); }
+.oo-btn:hover::after { transform: scaleX(1); }
+
+.oo-btn:focus-visible {
+  outline: none;
+  box-shadow: -3px 0 0 var(--oo-gold);
+  color: var(--oo-gold);
+}
+
+/* Ghost button with visible border (mobile touch targets) */
+.oo-btn-outline {
+  border: 1px solid var(--oo-gold-dim) !important;
+  border-radius: var(--oo-radius-md) !important;
+  padding: 0 var(--oo-space-4) !important;
+  min-height: 52px !important;
+}
+
+/* Full-screen dark scrim */
+.oo-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--oo-bg-scrim);
+  z-index: 170;
+}
+
+/* Divider line */
+.oo-divider {
+  border: none;
+  border-top: 1px solid var(--oo-gold-dim);
+  margin: var(--oo-space-4) 0;
+}
+
+/* Tab strip */
+.oo-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--oo-gold-dim);
+  margin-bottom: var(--oo-space-4);
+}
+
+.oo-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--oo-text-secondary);
+  font-family: var(--oo-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: var(--oo-space-2) var(--oo-space-4);
+  cursor: pointer;
+  transition: color var(--oo-dur-fast), border-color var(--oo-dur-fast);
+  margin-bottom: -1px;
+}
+
+.oo-tab:hover { color: var(--oo-text-primary); }
+
+.oo-tab.active {
+  color: var(--oo-gold);
+  border-bottom-color: var(--oo-gold);
+}
+
+/* Thin progress bar track */
+.oo-bar-track {
+  height: 3px;
+  background: var(--oo-bg-raised);
+  border-radius: var(--oo-radius-sm);
+  overflow: hidden;
+}
+
+.oo-bar-fill {
+  height: 100%;
+  border-radius: var(--oo-radius-sm);
+  transition: width var(--oo-dur-std) var(--oo-ease-std);
+}
