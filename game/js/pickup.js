@@ -31,21 +31,13 @@ var DROP_CHANCE_GOLD = 0.20;
 // --- shared geometry ---
 var crateGeo = null;
 var barrelGeo = null;
-
-var cachedPickupMat = {};
-var cachedPickupLight = {};
+var pickupMeshPool = {};
+var PICKUP_POOL_MAX_PER_TYPE = 24;
 
 function ensureGeo() {
   if (crateGeo) return;
   crateGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
   barrelGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.7, 8);
-  var types = ["ammo", "fuel", "parts", "gold"];
-  for (var i = 0; i < types.length; i++) {
-    var t = types[i];
-    cachedPickupMat[t] = new THREE.MeshToonMaterial({ color: TYPE_COLORS[t] });
-    cachedPickupLight[t] = new THREE.PointLight(GLOW_COLORS[t] || 0xffffff, 1.0, 6);
-    cachedPickupLight[t].position.set(0, 0.5, 0);
-  }
 }
 
 var PICKUP_MODEL_POOLS = {
@@ -124,12 +116,73 @@ function pickPickupModelWithContext(type, roleContext) {
   return pickPickupModel(type);
 }
 
+function collectPickupFadeMaterials(mesh) {
+  var mats = [];
+  if (!mesh) return mats;
+  mesh.traverse(function (child) {
+    if (!child.isMesh || !child.material) return;
+    if (Array.isArray(child.material)) {
+      for (var i = 0; i < child.material.length; i++) {
+        var mat = child.material[i];
+        if (mat) mats.push(mat);
+      }
+      return;
+    }
+    mats.push(child.material);
+  });
+  return mats;
+}
+
+function getPickupPool(type) {
+  if (!pickupMeshPool[type]) pickupMeshPool[type] = [];
+  return pickupMeshPool[type];
+}
+
+function resetPickupMeshVisual(mesh) {
+  if (!mesh) return;
+  mesh.visible = true;
+  mesh.rotation.set(0, 0, 0);
+  mesh.scale.set(1, 1, 1);
+  while (mesh.children.length > 1) mesh.remove(mesh.children[mesh.children.length - 1]);
+
+  var fallback = mesh.userData.fallbackMesh;
+  if (fallback) fallback.visible = true;
+
+  var mats = mesh.userData.fadeMaterials || [];
+  for (var i = 0; i < mats.length; i++) {
+    var mat = mats[i];
+    if (!mat) continue;
+    mat.opacity = 1;
+    mat.transparent = false;
+  }
+}
+
+function acquirePickupMesh(type) {
+  var pool = getPickupPool(type);
+  if (pool.length > 0) {
+    var reused = pool.pop();
+    resetPickupMeshVisual(reused);
+    if (type && type.indexOf("weapon_upgrade_") === 0) {
+      reused.scale.setScalar(1.4);
+    }
+    return reused;
+  }
+  return buildPickupMesh(type);
+}
+
+function releasePickupMesh(type, mesh) {
+  if (!mesh) return;
+  var pool = getPickupPool(type);
+  if (pool.length >= PICKUP_POOL_MAX_PER_TYPE) return;
+  resetPickupMeshVisual(mesh);
+  pool.push(mesh);
+}
+
 // --- build pickup mesh ---
 function buildPickupMesh(type) {
   ensureGeo();
   var group = new THREE.Group();
-
-  var mat = cachedPickupMat[type] || new THREE.MeshToonMaterial({ color: TYPE_COLORS[type] || 0xffffff });
+  var mat = new THREE.MeshToonMaterial({ color: TYPE_COLORS[type] || 0xffffff });
 
   var mesh;
   if (type === "fuel") {
@@ -145,6 +198,9 @@ function buildPickupMesh(type) {
     group.scale.setScalar(1.4);
   }
 
+  group.userData.pickupType = type;
+  group.userData.fallbackMesh = mesh;
+  group.userData.fadeMaterials = collectPickupFadeMaterials(group);
   return group;
 }
 
@@ -161,6 +217,8 @@ function hydratePickupMesh(pickup) {
       });
       obj.position.y = 0.1;
       pickup.mesh.add(obj);
+      pickup.fadeMaterials = collectPickupFadeMaterials(pickup.mesh);
+      pickup.mesh.userData.fadeMaterials = pickup.fadeMaterials;
     })
     .catch(function () {
       // keep fallback mesh
@@ -201,7 +259,7 @@ export function spawnPickup(manager, x, y, z, scene) {
     type = "parts";
   }
 
-  var mesh = buildPickupMesh(type);
+  var mesh = acquirePickupMesh(type);
   mesh.position.set(x, y + PICKUP_FLOAT_OFFSET, z);
   scene.add(mesh);
 
@@ -211,6 +269,7 @@ export function spawnPickup(manager, x, y, z, scene) {
     posX: x,
     posZ: z,
     roleContext: manager.roleContext || null,
+    fadeMaterials: mesh.userData.fadeMaterials || [],
     age: 0,
     collected: false
   };
@@ -220,7 +279,7 @@ export function spawnPickup(manager, x, y, z, scene) {
 // --- spawn a weapon upgrade pickup at position ---
 export function spawnWeaponUpgradePickup(manager, x, y, z, scene, weaponKey) {
   var type = "weapon_upgrade_" + weaponKey;
-  var mesh = buildPickupMesh(type);
+  var mesh = acquirePickupMesh(type);
   mesh.position.set(x, y + PICKUP_FLOAT_OFFSET, z);
   scene.add(mesh);
   var pickup = {
@@ -230,6 +289,7 @@ export function spawnWeaponUpgradePickup(manager, x, y, z, scene, weaponKey) {
     posX: x,
     posZ: z,
     roleContext: manager.roleContext || null,
+    fadeMaterials: mesh.userData.fadeMaterials || [],
     age: 0,
     collected: false,
     onWeaponUpgrade: manager.onWeaponUpgrade
@@ -240,7 +300,9 @@ export function spawnWeaponUpgradePickup(manager, x, y, z, scene, weaponKey) {
 // --- clear all pickups (called on wave transition) ---
 export function clearPickups(manager, scene) {
   for (var i = 0; i < manager.pickups.length; i++) {
-    scene.remove(manager.pickups[i].mesh);
+    var p = manager.pickups[i];
+    scene.remove(p.mesh);
+    releasePickupMesh(p.type, p.mesh);
   }
   manager.pickups = [];
 }
@@ -253,9 +315,16 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
     var p = manager.pickups[i];
     p.age += dt;
 
+    if (p.collected) {
+      if (p.mesh && p.mesh.parent) scene.remove(p.mesh);
+      releasePickupMesh(p.type, p.mesh);
+      continue;
+    }
+
     // despawn old pickups
     if (p.age > PICKUP_LIFETIME) {
       scene.remove(p.mesh);
+      releasePickupMesh(p.type, p.mesh);
       continue;
     }
 
@@ -268,6 +337,7 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
       p.collected = true;
       collectPickup(p, resources, upgrades);
       scene.remove(p.mesh);
+      releasePickupMesh(p.type, p.mesh);
       // Broadcast pickup claim for multiplayer
       if (manager.onCollectCallback) manager.onCollectCallback(i);
       continue;
@@ -284,12 +354,13 @@ export function updatePickups(manager, ship, resources, dt, elapsed, getWaveHeig
     // fade out near end of life
     if (p.age > PICKUP_LIFETIME - 3) {
       var fade = (PICKUP_LIFETIME - p.age) / 3;
-      p.mesh.traverse(function (child) {
-        if (child.isMesh && child.material) {
-          child.material.transparent = true;
-          child.material.opacity = fade;
-        }
-      });
+      var fadeMats = p.fadeMaterials || [];
+      for (var mi = 0; mi < fadeMats.length; mi++) {
+        var mat = fadeMats[mi];
+        if (!mat) continue;
+        mat.transparent = true;
+        mat.opacity = fade;
+      }
     }
 
     alive.push(p);

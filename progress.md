@@ -206,3 +206,130 @@ Validation:
   - `/` => 200
   - `/game/` => 200
   - `/game/assets/models/ships-palmov/small/pirate-ship-small.glb` => 200 (`model/gltf-binary`)
+
+## Update 12: GH Pages runtime asset fix (Draco + model load cascade)
+- User-reported production errors on `https://gerov.dev/ocean-outlaws/`:
+  - 404 for `/ocean-outlaws/libs/draco/gltf/draco_decoder.wasm`
+  - 404 for `/ocean-outlaws/libs/draco/gltf/draco_wasm_wrapper.js`
+  - repeated ship/enemy GLB load failures (caused by missing Draco decoder runtime for compressed assets).
+- Root cause:
+  - build artifact copied `game/assets` + `game/data` only;
+  - Draco runtime files live under `game/libs`, so they were absent from `dist` and unavailable in Pages.
+- Fix:
+  - updated `package.json` build script to also copy `game/libs` into `dist`.
+  - new build step: `cp -r game/assets game/data game/libs dist/`
+
+## Update 13: Renderer default hardening (auto=WebGPU-first + lock-aware fallback)
+- `game/main.js`
+  - Added explicit renderer mode semantics:
+    - `?renderer=webgl` => forced WebGL
+    - `?renderer=webgpu` => forced WebGPU attempt (ignores session lock)
+    - no query => `auto` (WebGPU preflight + fallback)
+  - Added WebGPU preflight (`navigator.gpu.requestAdapter()`) with timeout and structured reasons:
+    - `webgl-forced`
+    - `webgpu-unavailable`
+    - `webgpu-disabled-webdriver`
+    - `webgpu-session-lock`
+    - `webgpu-preflight-timeout`
+    - `webgpu-adapter-unavailable`
+    - `webgpu-preflight-failed`
+  - Added session lock key `sessionStorage["oo_renderer_webgpu_lock"]` and lock setter for timeout/failure paths.
+  - Injects legacy WebGPU renderer factory only when preflight passes.
+- `game/webgpu/legacyRendererFactory.js`
+  - Added options support (`forceAttempt`, `sessionLockKey`).
+  - Added session-lock bypass logic for forced WebGPU.
+  - Added lock writes on WebGPU init failure.
+  - Preserved webdriver deterministic fallback behavior.
+- `game/js/rendererRuntime.js`
+  - Renderer selection now follows `window.__ooRequestedRenderer` semantics rather than raw URL substring checks.
+
+Validation:
+- `npm run smoke` passes.
+
+## Update 14: Terrain stall reduction + perf observability
+- `game/js/terrain.js`
+  - Introduced heavy-vs-cheap terrain pass split:
+    - heavy: desired-set recompute, queue/create chunk, GC
+    - cheap: fog visibility + instance flush
+  - Added chunk build queue and strict capped processing per heavy pass.
+  - Added runtime pressure clamp hook:
+    - `setTerrainRuntimePressure(terrain, active)` temporarily clamps create pressure (`preloadAhead=0`, `chunkCreateBudget=1`) without touching persisted settings.
+  - Added new helpers/exports:
+    - `updateTerrainVisuals`
+    - `updateTerrainStreamingScheduled`
+    - `getTerrainPlayerChunk`
+  - Extended terrain debug state with queue/pass counters and runtime pressure flag.
+- `game/js/main.js`
+  - Terrain streaming now runs on cadence with immediate chunk-boundary refresh:
+    - desktop: ~8Hz
+    - mobile: ~5Hz
+  - Cheap terrain visuals still run each frame.
+  - Added frame/perf counters exposed via `render_game_to_text.perf`:
+    - `frameMs`
+    - `maxFrameMsRecent`
+    - `hitchCountRecent`
+    - `terrainLastUpdateMs`
+  - Added hitch-triggered temporary terrain pressure cooldown window.
+
+Validation:
+- `npm run smoke` passes.
+- `npm run smoke:stress` passes.
+
+## Update 15: Drop/kill hot-path smoothing
+- `game/js/pickup.js`
+  - Added per-type pickup mesh pooling to reuse pickup meshes/materials.
+  - Added cached fade material lists to avoid per-frame traverse on fade-out.
+  - Added collected-path cleanup to release pooled meshes immediately.
+  - Hooked optional GLB hydration back into spawned pickups (fallback mesh remains immediate).
+- `game/js/crewPickup.js`
+  - Added crew pickup mesh pooling.
+  - Switched to shared base geometries/material templates with per-instance clones.
+  - Added cached fade material lists and pooled release on collect/despawn/clear.
+  - Added collected-path cleanup to avoid stale pooled objects in update loops.
+- `game/js/enemy.js`
+  - Added cached sinking fade material handling to remove per-frame full traversals.
+  - Added adaptive explosion particle count under high active particle pressure.
+  - Removed dynamic particle mesh allocation on pool exhaustion (skip instead of allocate).
+  - Kept particle pooling path and reset semantics.
+- `game/js/main.js`
+  - Deferred non-critical kill UI work (kill feed + shake + multiplayer feed relay) to next ticks via queue while keeping immediate gameplay/resource updates synchronous.
+
+Validation:
+- `npm run smoke` passes.
+- `npm run smoke:stress` passes.
+- `npm run build` passes.
+
+## Update 16: Stress smoke path added
+- Added `scripts/smoke-stress-gameplay.mjs`:
+  - Uses existing Playwright game client workflow.
+  - Drives menu -> new voyage -> ship select -> gameplay action bursts.
+  - Asserts:
+    - at least one captured state reaches `mode="combat"`
+    - player + terrain state present
+    - `render_game_to_text.perf` numeric fields present
+    - `simElapsed` progressed
+    - no `errors-*.json` artifacts
+- Added npm script:
+  - `npm run smoke:stress`
+
+## Next TODO suggestions
+- Run manual non-headless browser check for `/?renderer=webgpu` to verify true WebGPU backend on supported GPU/driver combinations.
+- Review stress action payload periodically so it tracks UI flow changes (menu/ship-select layouts).
+
+Validation:
+- `npm run build` passes.
+- Dist now includes:
+  - `dist/libs/draco/gltf/draco_decoder.wasm`
+  - `dist/libs/draco/gltf/draco_wasm_wrapper.js`
+  - expected model files under `dist/assets/models/...`
+- Subpath simulation (`/ocean-outlaws/`) via local static server confirms 200 for:
+  - `/ocean-outlaws/libs/draco/gltf/draco_decoder.wasm`
+  - `/ocean-outlaws/libs/draco/gltf/draco_wasm_wrapper.js`
+  - `/ocean-outlaws/assets/models/ships/sloop.glb`
+  - `/ocean-outlaws/assets/models/vehicles/pirate-ships/pirate-ship.glb`
+  - `/ocean-outlaws/assets/models/ships-palmov/small/pirate-ship-small.glb`
+- `npm run smoke` passes after fix.
+
+Next queued work (per user request):
+- Make WebGPU the default renderer (with safe fallback).
+- Remove freeze spikes during terrain/land streaming, item drops, and enemy death effects.

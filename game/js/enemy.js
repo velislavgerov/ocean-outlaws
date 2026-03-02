@@ -122,6 +122,7 @@ var flashGeo = null;
 var flashMat = null;
 var particlePool = [];
 var PARTICLE_POOL_SIZE = PARTICLE_COUNT * 6; // support 6 simultaneous explosions
+var particlePoolCursor = 0;
 
 function ensureGeo() {
   if (particleGeo) return;
@@ -136,6 +137,50 @@ function ensureGeo() {
     pm.visible = false;
     particlePool.push(pm);
   }
+}
+
+function collectFadeMaterials(obj) {
+  var out = [];
+  if (!obj) return out;
+  obj.traverse(function (child) {
+    if (!child.isMesh || !child.material) return;
+    if (Array.isArray(child.material)) {
+      for (var i = 0; i < child.material.length; i++) {
+        if (child.material[i]) out.push(child.material[i]);
+      }
+      return;
+    }
+    out.push(child.material);
+  });
+  return out;
+}
+
+function applySinkFade(enemy, alpha) {
+  if (!enemy) return;
+  if (!enemy._sinkFadeMaterials) {
+    enemy._sinkFadeMaterials = collectFadeMaterials(enemy.mesh);
+  }
+  var mats = enemy._sinkFadeMaterials;
+  for (var i = 0; i < mats.length; i++) {
+    var mat = mats[i];
+    if (!mat) continue;
+    mat.transparent = true;
+    mat.opacity = Math.max(0, alpha);
+  }
+}
+
+function acquireParticleMesh() {
+  var count = particlePool.length;
+  if (count === 0) return null;
+  for (var i = 0; i < count; i++) {
+    var idx = (particlePoolCursor + i) % count;
+    var candidate = particlePool[idx];
+    if (!candidate.visible) {
+      particlePoolCursor = (idx + 1) % count;
+      return candidate;
+    }
+  }
+  return null;
 }
 
 function spawnEnemyFlash(manager, scene, position) {
@@ -411,6 +456,7 @@ export function resetEnemyManager(manager, scene) {
   }
   for (var i = 0; i < manager.particles.length; i++) {
     scene.remove(manager.particles[i].mesh);
+    manager.particles[i].mesh.visible = false;
   }
   for (var i = 0; i < (manager.effects || []).length; i++) {
     scene.remove(manager.effects[i].mesh);
@@ -497,7 +543,8 @@ export function spawnEnemy(manager, playerX, playerZ, scene, waveConfig, terrain
     visualOverride: pickCombatModelVariant(faction, roleContext),
     _modelLoading: false,
     _modelLoaded: false,
-    _modelRetryTimer: null
+    _modelRetryTimer: null,
+    _sinkFadeMaterials: null
   };
 
   updateEnemyHitbox(enemy, mesh);
@@ -544,6 +591,7 @@ export function spawnAmbientEnemy(manager, x, z, heading, faction, speed, scene,
     _modelLoading: false,
     _modelLoaded: false,
     _modelRetryTimer: null,
+    _sinkFadeMaterials: null,
     ambient: true,
     attacked: false,
     tradeRoute: tradeRoute || null
@@ -595,12 +643,7 @@ export function updateEnemies(manager, ship, dt, scene, getWaveHeight, elapsed, 
       e.mesh.position.y -= SINK_SPEED * dt;
       e.mesh.rotation.z += dt * 0.5;
       var sinkAlpha = 1 - e.sinkTimer / SINK_DURATION;
-      e.mesh.traverse(function (child) {
-        if (child.isMesh && child.material) {
-          child.material.transparent = true;
-          child.material.opacity = Math.max(0, sinkAlpha);
-        }
-      });
+      applySinkFade(e, sinkAlpha);
       if (e.sinkTimer >= SINK_DURATION) {
         scene.remove(e.mesh);
         continue;
@@ -975,14 +1018,16 @@ function updateEnemyEffects(manager, dt, scene) {
 // --- spawn explosion particles ---
 function spawnExplosion(manager, x, y, z, scene) {
   ensureGeo();
-  for (var i = 0; i < PARTICLE_COUNT; i++) {
-    var mesh = null;
-    for (var pi = 0; pi < particlePool.length; pi++) {
-      if (!particlePool[pi].visible) { mesh = particlePool[pi]; break; }
-    }
-    if (!mesh) {
-      mesh = new THREE.Mesh(particleGeo, new THREE.MeshBasicMaterial({ color: 0xff6622, transparent: true, opacity: 1.0 }));
-    }
+  var activeParticles = manager.particles.length;
+  var intensity = 1.0;
+  if (activeParticles > PARTICLE_POOL_SIZE * 0.75) intensity = 0.35;
+  else if (activeParticles > PARTICLE_POOL_SIZE * 0.5) intensity = 0.55;
+  else if (activeParticles > PARTICLE_POOL_SIZE * 0.25) intensity = 0.75;
+
+  var spawnCount = Math.max(4, Math.round(PARTICLE_COUNT * intensity));
+  for (var i = 0; i < spawnCount; i++) {
+    var mesh = acquireParticleMesh();
+    if (!mesh) break;
     mesh.position.set(x, y + 0.5, z);
     mesh.material.opacity = 1.0;
     mesh.scale.setScalar(0.5);
@@ -1053,6 +1098,7 @@ export function damageEnemy(manager, enemy, scene, damageMult, slowHit) {
     enemy.alive = false;
     enemy.sinking = true;
     enemy.sinkTimer = 0;
+    enemy._sinkFadeMaterials = collectFadeMaterials(enemy.mesh);
     spawnExplosion(manager, enemy.posX, enemy.mesh.position.y, enemy.posZ, scene);
     if (manager.onDeathCallback) {
       manager.onDeathCallback(enemy.posX, enemy.mesh.position.y, enemy.posZ, enemy.faction);

@@ -23,9 +23,8 @@ function createDefaultWebGLRuntime(THREE, qualityConfig) {
 
 export function createRendererRuntime(THREE, qualityConfig) {
   var injectedFactory = null;
-  var forceWebGL = typeof window !== "undefined" &&
-    typeof window.location !== "undefined" &&
-    window.location.search.indexOf("renderer=webgl") !== -1;
+  var requestedRenderer = typeof window !== "undefined" ? (window.__ooRequestedRenderer || "auto") : "auto";
+  var forceWebGL = requestedRenderer === "webgl";
   if (!forceWebGL && typeof window !== "undefined" && typeof window.__ooRendererFactory === "function") {
     injectedFactory = window.__ooRendererFactory;
   }

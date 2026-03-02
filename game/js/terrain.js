@@ -248,6 +248,14 @@ function getActiveStreamSettings() {
   return _streamSettings;
 }
 
+function getEffectiveStreamSettings(terrain) {
+  var base = cloneStreamSettings(getActiveStreamSettings());
+  if (!terrain || !terrain.runtimePressure || !terrain.runtimePressure.active) return base;
+  base.preloadAhead = 0;
+  base.chunkCreateBudget = Math.max(1, Math.min(base.chunkCreateBudget, 1));
+  return base;
+}
+
 function persistStreamSettings() {
   if (typeof localStorage === "undefined") return;
   try {
@@ -872,17 +880,34 @@ function buildDesiredChunkSet(terrain, globalX, globalZ, heading, streamSettings
 }
 
 function createDesiredChunks(terrain, candidates, streamSettings) {
-  var created = 0;
-  var budget = Math.max(1, streamSettings.chunkCreateBudget);
-
+  if (!terrain.chunkCreateQueue) terrain.chunkCreateQueue = [];
+  if (!terrain.chunkCreateQueued) terrain.chunkCreateQueued = new Set();
   for (var i = 0; i < candidates.length; i++) {
     var c = candidates[i];
     if (terrain.chunks.has(c.key)) continue;
-    ensureChunk(terrain, c.cx, c.cy);
-    created++;
-    if (created >= budget) break;
+    if (terrain.chunkCreateQueued.has(c.key)) continue;
+    terrain.chunkCreateQueued.add(c.key);
+    terrain.chunkCreateQueue.push({
+      key: c.key,
+      cx: c.cx,
+      cy: c.cy
+    });
   }
+}
 
+function processChunkBuildQueue(terrain, desiredSet, streamSettings, maxBuildPerPass) {
+  if (!terrain || !terrain.chunkCreateQueue || terrain.chunkCreateQueue.length === 0) return 0;
+  var created = 0;
+  var budget = Math.max(1, Math.min(streamSettings.chunkCreateBudget, maxBuildPerPass || 1));
+  while (terrain.chunkCreateQueue.length > 0 && created < budget) {
+    var next = terrain.chunkCreateQueue.shift();
+    if (!next) continue;
+    if (terrain.chunkCreateQueued) terrain.chunkCreateQueued.delete(next.key);
+    if (terrain.chunks.has(next.key)) continue;
+    if (desiredSet && !desiredSet.has(next.key)) continue;
+    ensureChunk(terrain, next.cx, next.cy);
+    created++;
+  }
   return created;
 }
 
@@ -968,9 +993,12 @@ export function createTerrain(seed, difficulty, terrainConfig) {
     terrainConfig: terrainConfig || {},
     chunks: new Map(),
     gcQueue: [],
+    chunkCreateQueue: [],
+    chunkCreateQueued: new Set(),
     gcResourceBudget: GC_RESOURCE_BUDGET,
     originOffsetX: 0,
     originOffsetZ: 0,
+    runtimePressure: { active: false },
     onChunkReady: null,    // callback(chunk) — fires when chunk becomes active
     onChunkDispose: null,  // callback(chunk) — fires before chunk GC
     onOriginShift: null,   // callback(shiftX, shiftZ) — fires on origin shift
@@ -985,7 +1013,10 @@ export function createTerrain(seed, difficulty, terrainConfig) {
       disposedResources: 0,
       forcedGcCount: 0,
       desiredChunkCount: 0,
-      createdThisFrame: 0
+      createdThisFrame: 0,
+      chunkBuildQueue: 0,
+      streamPassCount: 0,
+      visualPassCount: 0
     },
     getDensityAt: function (worldX, worldZ) {
       var globalX = worldX + terrain.originOffsetX;
@@ -1003,6 +1034,10 @@ export function createTerrain(seed, difficulty, terrainConfig) {
         forcedGc: terrain.debug.forcedGcCount,
         desiredChunkCount: terrain.debug.desiredChunkCount,
         createdThisFrame: terrain.debug.createdThisFrame,
+        chunkBuildQueue: terrain.debug.chunkBuildQueue,
+        streamPassCount: terrain.debug.streamPassCount,
+        visualPassCount: terrain.debug.visualPassCount,
+        runtimePressureActive: !!(terrain.runtimePressure && terrain.runtimePressure.active),
         chunkSize: CHUNK_SIZE,
         streamSettings: cloneStreamSettings(getActiveStreamSettings()),
         originOffsetX: terrain.originOffsetX,
@@ -1029,41 +1064,89 @@ export function createTerrain(seed, difficulty, terrainConfig) {
 }
 
 export function updateTerrainStreaming(terrain, playerX, playerZ, playerHeading) {
-  if (!terrain) return;
-  var streamSettings = getActiveStreamSettings();
+  updateTerrainStreamingWithOptions(terrain, playerX, playerZ, playerHeading, null);
+}
 
-  var globalX = playerX + terrain.originOffsetX;
-  var globalZ = playerZ + terrain.originOffsetZ;
-
-  var desiredInfo = buildDesiredChunkSet(terrain, globalX, globalZ, playerHeading || 0, streamSettings);
-  var desiredSet = desiredInfo.desired;
-
-  terrain.debug.desiredChunkCount = desiredInfo.candidates.length;
-  terrain.debug.createdThisFrame = createDesiredChunks(terrain, desiredInfo.candidates, streamSettings);
-
-  terrain.chunks.forEach(function (chunk) {
-    if (!chunk || chunk.state === "queued" || chunk.state === "disposed") return;
-
-    var dx = Math.abs(chunk.cx - desiredInfo.centerX);
-    var dy = Math.abs(chunk.cy - desiredInfo.centerY);
-    var keep = desiredSet.has(chunk.key) || (dx <= streamSettings.keepRadius && dy <= streamSettings.keepRadius);
-    if (!keep) {
-      enqueueChunkForGc(terrain, chunk);
-    }
-  });
-
-  forceGcIfNeeded(terrain, desiredInfo.centerX, desiredInfo.centerY, desiredSet, streamSettings);
-  processGcQueue(terrain);
-
-  // fog-based visibility culling — skip rendering chunks fully obscured by fog
+function applyChunkVisibility(terrain) {
+  if (!terrain || !terrain.chunks) return;
   terrain.chunks.forEach(function (chunk) {
     if (!chunk || !chunk.group || chunk.state !== "active") return;
     var sceneX = chunkCenter(chunk.cx) - terrain.originOffsetX;
     var sceneZ = chunkCenter(chunk.cy) - terrain.originOffsetZ;
     chunk.group.visible = (sceneX * sceneX + sceneZ * sceneZ) < FOG_CULL_DIST_SQ;
   });
+  terrain.debug.visualPassCount++;
+}
 
-  flushInstanceUpdates();
+function updateTerrainStreamingWithOptions(terrain, playerX, playerZ, playerHeading, options) {
+  if (!terrain) return;
+  var opts = options || {};
+  var shouldDoHeavyPass = opts.heavy !== false;
+  var shouldUpdateVisuals = opts.visuals !== false;
+  var maxBuildPerPass = Number.isFinite(opts.maxBuildPerPass) ? Math.max(1, Math.floor(opts.maxBuildPerPass)) : 1;
+
+  if (shouldDoHeavyPass) {
+    var streamSettings = getEffectiveStreamSettings(terrain);
+    var globalX = playerX + terrain.originOffsetX;
+    var globalZ = playerZ + terrain.originOffsetZ;
+
+    var desiredInfo = buildDesiredChunkSet(terrain, globalX, globalZ, playerHeading || 0, streamSettings);
+    var desiredSet = desiredInfo.desired;
+
+    terrain.debug.desiredChunkCount = desiredInfo.candidates.length;
+    createDesiredChunks(terrain, desiredInfo.candidates, streamSettings);
+    terrain.debug.createdThisFrame = processChunkBuildQueue(terrain, desiredSet, streamSettings, maxBuildPerPass);
+    terrain.debug.chunkBuildQueue = terrain.chunkCreateQueue ? terrain.chunkCreateQueue.length : 0;
+
+    terrain.chunks.forEach(function (chunk) {
+      if (!chunk || chunk.state === "queued" || chunk.state === "disposed") return;
+
+      var dx = Math.abs(chunk.cx - desiredInfo.centerX);
+      var dy = Math.abs(chunk.cy - desiredInfo.centerY);
+      var keep = desiredSet.has(chunk.key) || (dx <= streamSettings.keepRadius && dy <= streamSettings.keepRadius);
+      if (!keep) {
+        enqueueChunkForGc(terrain, chunk);
+      }
+    });
+
+    forceGcIfNeeded(terrain, desiredInfo.centerX, desiredInfo.centerY, desiredSet, streamSettings);
+    processGcQueue(terrain);
+    terrain.debug.streamPassCount++;
+  }
+
+  if (shouldUpdateVisuals) {
+    applyChunkVisibility(terrain);
+    flushInstanceUpdates();
+  }
+}
+
+export function updateTerrainVisuals(terrain) {
+  if (!terrain) return;
+  updateTerrainStreamingWithOptions(terrain, 0, 0, 0, { heavy: false, visuals: true });
+}
+
+export function updateTerrainStreamingScheduled(terrain, playerX, playerZ, playerHeading, maxBuildPerPass) {
+  updateTerrainStreamingWithOptions(terrain, playerX, playerZ, playerHeading, {
+    heavy: true,
+    visuals: false,
+    maxBuildPerPass: maxBuildPerPass
+  });
+}
+
+export function setTerrainRuntimePressure(terrain, active) {
+  if (!terrain) return;
+  if (!terrain.runtimePressure) terrain.runtimePressure = { active: false };
+  terrain.runtimePressure.active = !!active;
+}
+
+export function getTerrainPlayerChunk(terrain, playerX, playerZ) {
+  if (!terrain) return { cx: 0, cy: 0 };
+  var globalX = playerX + terrain.originOffsetX;
+  var globalZ = playerZ + terrain.originOffsetZ;
+  return {
+    cx: toChunkCoord(globalX),
+    cy: toChunkCoord(globalZ)
+  };
 }
 
 export function shiftTerrainOrigin(terrain, shiftX, shiftZ) {

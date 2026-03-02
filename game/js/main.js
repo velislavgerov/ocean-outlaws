@@ -34,7 +34,7 @@ import { createCrewPickupManager, spawnCrewPickup, updateCrewPickups, clearCrewP
 import { createCrewSwap, showCrewSwap, hideCrewSwap } from "./crewSwap.js";
 import { loadTechState, getTechBonuses, resetTechState } from "./techTree.js";
 import { createTechScreen, showTechScreen, hideTechScreen } from "./techScreen.js";
-import { createTerrain, removeTerrain, getTerrainMinimapMarkers, updateTerrainStreaming, shiftTerrainOrigin, preloadTerrainModels } from "./terrain.js";
+import { createTerrain, removeTerrain, getTerrainMinimapMarkers, updateTerrainVisuals, updateTerrainStreamingScheduled, setTerrainRuntimePressure, getTerrainPlayerChunk, shiftTerrainOrigin, preloadTerrainModels } from "./terrain.js";
 import { createPortManager, initPorts, clearPorts, updatePorts, getPortsInfo, consumeCityEvents } from "./port.js";
 import { createPortScreen, showPortScreen, hidePortScreen } from "./portScreen.js";
 import { createCrateManager, clearCrates, updateCrates } from "./crate.js";
@@ -76,6 +76,25 @@ var PATROL_DESPAWN_RADIUS = 180;
 var PATROL_MAX_ENEMIES = 8;
 var PATROL_SPAWN_INTERVAL = 4.0;
 var patrolSpawnTimer = 0;
+
+var TERRAIN_STREAM_HZ_DESKTOP = 8;
+var TERRAIN_STREAM_HZ_MOBILE = 5;
+var TERRAIN_STREAM_MAX_BUILD_PER_PASS = 1;
+var TERRAIN_PRESSURE_HOLD_SECONDS = 1.5;
+var terrainStreamAccumulator = 0;
+var terrainLastChunkX = null;
+var terrainLastChunkY = null;
+var terrainPressureCooldown = 0;
+var terrainLastUpdateMs = 0;
+
+var FRAME_PERF_WINDOW = 180;
+var FRAME_HITCH_THRESHOLD_MS = 45;
+var perfFrameMs = 0;
+var perfMaxFrameMsRecent = 0;
+var perfHitchCountRecent = 0;
+var recentFrameTimes = [];
+
+var deferredKillUiQueue = [];
 
 // --- Boss zones ---
 var BOSS_ZONE_RADIUS = 60;
@@ -307,12 +326,13 @@ setOnDeathCallback(enemyMgr, function (x, y, z, faction) {
   playExplosion();
   playKillConfirm();
   var killText = (mpState.username || "You") + " destroyed enemy  +" + gld + " gold";
-  addKillFeedEntry(killText, "#ffcc44");
-  triggerScreenShake(0.3);
-  // Broadcast kill to other players
-  if (isMultiplayerActive(mpState)) {
-    sendKillFeedEntry(mpState, killText, "#ffcc44");
-  }
+  deferredKillUiQueue.push({
+    text: killText,
+    color: "#ffcc44",
+    shake: 0.3,
+    broadcast: isMultiplayerActive(mpState)
+  });
+  if (deferredKillUiQueue.length > 64) deferredKillUiQueue.shift();
 });
 
 setOnHitCallback(enemyMgr, function (x, y, z, dmg) {
@@ -1535,12 +1555,80 @@ function buildPortPositions(portMgr) {
   return out;
 }
 
+function flushDeferredKillUi(maxPerFrame) {
+  if (!deferredKillUiQueue.length) return;
+  var count = Math.min(deferredKillUiQueue.length, maxPerFrame || 4);
+  for (var i = 0; i < count; i++) {
+    var item = deferredKillUiQueue.shift();
+    if (!item) continue;
+    addKillFeedEntry(item.text, item.color || "#ffcc44");
+    if (item.shake > 0) triggerScreenShake(item.shake);
+    if (item.broadcast) {
+      sendKillFeedEntry(mpState, item.text, item.color || "#ffcc44");
+    }
+  }
+}
+
+function getTerrainStreamIntervalSeconds() {
+  return 1 / (isMobile() ? TERRAIN_STREAM_HZ_MOBILE : TERRAIN_STREAM_HZ_DESKTOP);
+}
+
+function scheduleTerrainStreaming(dt) {
+  if (!activeTerrain || !ship) return;
+
+  if (terrainPressureCooldown > 0) {
+    terrainPressureCooldown = Math.max(0, terrainPressureCooldown - dt);
+  }
+  setTerrainRuntimePressure(activeTerrain, terrainPressureCooldown > 0);
+
+  updateTerrainVisuals(activeTerrain);
+
+  terrainStreamAccumulator += dt;
+  var interval = getTerrainStreamIntervalSeconds();
+  var chunkPos = getTerrainPlayerChunk(activeTerrain, ship.posX, ship.posZ);
+  var crossedChunkBoundary = terrainLastChunkX !== chunkPos.cx || terrainLastChunkY !== chunkPos.cy;
+  if (crossedChunkBoundary) {
+    terrainLastChunkX = chunkPos.cx;
+    terrainLastChunkY = chunkPos.cy;
+  }
+
+  if (!crossedChunkBoundary && terrainStreamAccumulator < interval) return;
+  terrainStreamAccumulator = 0;
+
+  var start = performance.now ? performance.now() : Date.now();
+  updateTerrainStreamingScheduled(activeTerrain, ship.posX, ship.posZ, ship.heading, TERRAIN_STREAM_MAX_BUILD_PER_PASS);
+  var end = performance.now ? performance.now() : Date.now();
+  terrainLastUpdateMs = Math.max(0, end - start);
+}
+
+function recordFramePerf(frameMs) {
+  perfFrameMs = frameMs;
+  recentFrameTimes.push(frameMs);
+  if (recentFrameTimes.length > FRAME_PERF_WINDOW) recentFrameTimes.shift();
+
+  var maxFrame = 0;
+  var hitchCount = 0;
+  for (var i = 0; i < recentFrameTimes.length; i++) {
+    var sample = recentFrameTimes[i];
+    if (sample > maxFrame) maxFrame = sample;
+    if (sample >= FRAME_HITCH_THRESHOLD_MS) hitchCount++;
+  }
+  perfMaxFrameMsRecent = maxFrame;
+  perfHitchCountRecent = hitchCount;
+
+  if (frameMs >= FRAME_HITCH_THRESHOLD_MS) {
+    terrainPressureCooldown = Math.max(terrainPressureCooldown, TERRAIN_PRESSURE_HOLD_SECONDS);
+  }
+}
+
 function runFrame(dt) {
+  var frameStart = performance.now ? performance.now() : Date.now();
   dt = Math.min(dt || 0, 0.1);
   simElapsed += dt;
   updateTimeUniforms(dt, simElapsed);
   updateDebugFPS(dt);
   var elapsed = simElapsed;
+  flushDeferredKillUi(3);
   var input = getInput();
   var mouse = getMouse();
   var actions = getKeyActions();
@@ -1672,9 +1760,7 @@ function runFrame(dt) {
       sendWeatherSync(mpState, weather.current, dayNight.timeOfDay);
     }
     updateShip(ship, input, dt, weatherWaveHeight, elapsed, fuelMult, mults, activeTerrain);
-    if (activeTerrain) {
-      updateTerrainStreaming(activeTerrain, ship.posX, ship.posZ, ship.heading, ship.speed);
-    }
+    scheduleTerrainStreaming(dt);
     maybeApplyRollingOrigin();
     var speedRatio = getSpeedRatio(ship);
     consumeFuel(resources, speedRatio, dt);
@@ -2019,6 +2105,8 @@ function runFrame(dt) {
     }
   }
 
+  var frameEnd = performance.now ? performance.now() : Date.now();
+  recordFramePerf(Math.max(0, frameEnd - frameStart));
 }
 
 // Register the game loop at tick order 0 (highest priority)
@@ -2225,6 +2313,12 @@ window.render_game_to_text = function () {
       activeVisualChunks: visualChunkCount,
       placedModels: visualModelCount,
       minimapMarkers: terrainMarkerCount
+    },
+    perf: {
+      frameMs: Math.round(perfFrameMs * 100) / 100,
+      maxFrameMsRecent: Math.round(perfMaxFrameMsRecent * 100) / 100,
+      hitchCountRecent: perfHitchCountRecent,
+      terrainLastUpdateMs: Math.round(terrainLastUpdateMs * 100) / 100
     },
     story: null,
     worldDebug: getWorldDebugState(),

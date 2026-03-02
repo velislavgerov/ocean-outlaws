@@ -4,13 +4,34 @@ function canUseWebGPU() {
   return typeof navigator !== "undefined" && !!navigator.gpu;
 }
 
+function hasSessionLock(sessionLockKey) {
+  if (!sessionLockKey || typeof sessionStorage === "undefined") return false;
+  try {
+    return sessionStorage.getItem(sessionLockKey) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function setSessionLock(sessionLockKey) {
+  if (!sessionLockKey || typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(sessionLockKey, "1");
+  } catch (_error) {
+    // ignore storage failures
+  }
+}
+
 function getPixelRatioCap(cfg) {
   var cap = cfg && Number.isFinite(cfg.pixelRatioCap) ? cfg.pixelRatioCap : 1;
   return Math.min(window.devicePixelRatio || 1, cap);
 }
 
-export function installLegacyWebgpuFactory() {
+export function installLegacyWebgpuFactory(options) {
   if (typeof window === "undefined") return function () {};
+  options = options || {};
+  var forceAttempt = !!options.forceAttempt;
+  var sessionLockKey = options.sessionLockKey || "oo_renderer_webgpu_lock";
 
   var previousFactory = typeof window.__ooRendererFactory === "function"
     ? window.__ooRendererFactory
@@ -23,6 +44,11 @@ export function installLegacyWebgpuFactory() {
     // Keep deterministic automation by forcing WebGL fallback there.
     if (navigator.webdriver) {
       window.__ooRendererFallbackReason = "webgpu-disabled-webdriver";
+      return previousFactory ? previousFactory(THREE, qualityConfig) : null;
+    }
+
+    if (!forceAttempt && hasSessionLock(sessionLockKey)) {
+      window.__ooRendererFallbackReason = "webgpu-session-lock";
       return previousFactory ? previousFactory(THREE, qualityConfig) : null;
     }
 
@@ -45,6 +71,7 @@ export function installLegacyWebgpuFactory() {
       }).catch(function (error) {
         initFailed = true;
         window.__ooRendererFallbackReason = "webgpu-init-failed";
+        setSessionLock(sessionLockKey);
         console.warn("[webgpu] Renderer init() failed", error);
       });
 
@@ -68,6 +95,7 @@ export function installLegacyWebgpuFactory() {
       };
     } catch (error) {
       window.__ooRendererFallbackReason = "webgpu-init-failed";
+      setSessionLock(sessionLockKey);
       console.warn("[webgpu] Failed to initialize WebGPURenderer, falling back to WebGL", error);
       return previousFactory ? previousFactory(THREE, qualityConfig) : null;
     }
